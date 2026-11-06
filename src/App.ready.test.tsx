@@ -99,7 +99,7 @@ test('a changed threshold recolors from the Data Mart cache without new queries'
   await waitFor(() => expect(status()).toBe('near'));
   cleanup();
 
-  const settings = await loadSetup(store);
+  const { settings } = await loadSetup(store);
   await saveSetup(store, settings, { ...settings, thresholdPct: 15 }, 'Ann', NOW);
   render(<App ctx={ctxWith().ctx} deps={deps} />);
   await waitFor(() => expect(status()).toBe('below'));

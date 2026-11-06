@@ -349,6 +349,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
         <main className="gy-main">
           <Header cache={cache} now={now()} period={periodShown} status={status} noRange={!range} />
           {saveNote && <p className="gy-muted">{saveNote}</p>}
+          {inputs && inputs.model === model && !inputs.data && <p className="gy-muted" role="alert">Couldn't check which Data Marts you can access. Reopen Gyroscope to try again.</p>}
           <Canvas
             mode={range ? 'flow' : 'ontology'}
             tools={<RangeControls range={range} compare={range === null && compare.kind === 'off' ? compareOf(settings) : compare} now={now()} weekStart={settings.weekStart} refreshing={refreshing} onChange={changeRange} onRefresh={() => void refresh(true)} onSettings={() => openSettings()} />}
