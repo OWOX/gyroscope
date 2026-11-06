@@ -15,3 +15,12 @@ test('0.5 declares the suggestions collection and keeps the old ones, project sc
   for (const name of ['model', 'ontology_project', 'settings']) expect(cols.some((c) => c.name === name)).toBe(true);
   expect(read('package.json').version).toMatch(/^0\.5\.\d+$/);
 });
+
+test('the backend runs the warm-cache action within the OWOX limit, and both cache collections are bound to the Data Mart', () => {
+  const m = read('plugin.json');
+  expect(m.backend.url).toMatch(/^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/);
+  expect(m.backend.actions['warm-cache'].timeoutSeconds).toBe(300);
+  for (const name of ['mart-cache', 'schedule-models']) {
+    expect(m.collections.find((c: { name: string }) => c.name === name)).toMatchObject({ scope: 'project', entityBinding: { type: 'data-mart' } });
+  }
+});
