@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from './test-host';
 import { App, type AppDeps } from './App';
 import { fakeOwox, type FakeOwoxData } from './owox/fake';
+import { cacheKey } from './metrics/refresh';
 import { loadPreferences, loadViewSettings, memoryCollections, savePreferences, saveViewSettings, type CollectionsLike } from './store/collections';
 import { EMPTY_SETUP, loadSetup, saveSetup } from './store/settings';
 import { type ProjectSettingsV5 } from './types';
@@ -215,6 +216,23 @@ test('the toolbar shows the cut windows when a comparison is cut short', async (
   fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
   await waitFor(() => expect(document.querySelector('.gy-header-sub')!.textContent).toMatch(/^Oct 1–3 vs Sep 7–9, 2026 · /));
   expect(document.querySelector('.gy-period-shown')).toBeNull();
+});
+
+test('the week start setting changes the doc id of a week preset', async () => {
+  const keyOf = async (weekStart: 'monday' | 'sunday') => {
+    const { deps, store } = await setup({ cache: 'none' });
+    await saveViewSettings(store, { defaultPreset: 'wtd', comparisonDefault: false, weekStart });
+    render(<App ctx={ctxWith().ctx} deps={deps} />);
+    await screen.findByText(/Updated just now/);
+    const key = cacheKey({ kind: 'preset', preset: 'wtd' }, { kind: 'off' }, weekStart);
+    await waitFor(async () => expect(await store.collections('mart-cache').get(`${GID}:${key}`)).not.toBeNull());
+    cleanup();
+    return { key, store };
+  };
+  const monday = await keyOf('monday');
+  const sunday = await keyOf('sunday');
+  expect(sunday.key).not.toBe(monday.key);
+  expect(await sunday.store.collections('mart-cache').get(`${GID}:${monday.key}`)).toBeNull();
 });
 
 test('with a comparison the header shows the days so far, not the whole range', async () => {
@@ -577,7 +595,8 @@ test('a second open on the same day answers every query from the Data Mart cache
   const first = render(<App ctx={ctxWith().ctx} deps={deps} />);
   await screen.findByText(/Updated just now/);
   await waitFor(() => expect(first.container.querySelector('[role="progressbar"]')).toBeNull());
-  await waitFor(async () => expect(await store.collections('mart-cache').get(GID)).not.toBeNull());
+  const key = cacheKey({ kind: 'preset', preset: 'qtd' }, { kind: 'preset', preset: 'previous_period' });
+  await waitFor(async () => expect(await store.collections('mart-cache').get(`${GID}:${key}`)).not.toBeNull());
   cleanup();
   const after = traversals();
   expect(after).toBeGreaterThan(0);

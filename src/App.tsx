@@ -244,7 +244,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
       setProgress(null);
       setRefreshing(true);
       // custom choices are not persisted: they compute live and stay in state only
-      const src = keep ? cachedOwox({ owox, store, anchor: spec.anchor, mode: force ? 'write-only' : 'read-write', now }) : null;
+      const src = keep ? cachedOwox({ owox, store, key, anchor: spec.anchor, mode: force ? 'write-only' : 'read-write', now }) : null;
       const doc = await refreshCanvas({
         owox: src?.owox ?? owox, model, spec, key, thresholdPct: thresholdPct, visibleIds: visible, details: detailsNow,
         onProgress: (done, total) => { if (current()) setProgress({ done, total }); },
