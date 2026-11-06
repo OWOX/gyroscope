@@ -658,3 +658,9 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-modal-text { margin: 0 0 1rem; font-size: 0.875rem; color: var(--muted-foreground); }
 .gy-modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 .gy-modal-actions .gy-btn { height: 2rem; padding: 0 0.875rem; }
+
+/* --- schedules ---------------------------------------------------------- */
+.gy-schedules { display: grid; gap: 0.75rem; max-width: 40rem; }
+.gy-schedule { display: grid; gap: 0.25rem; }
+.gy-checks { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; border: 0; padding: 0; margin: 0; }
+.gy-field .gy-input-wide { width: 100%; }

@@ -55,7 +55,7 @@ export function depsFrom(ctx: PluginContext): AppDeps {
   };
 }
 
-const ROUTES: Record<SettingsTab, string> = { general: '/settings', setup: '/settings/setup' };
+const ROUTES: Record<SettingsTab, string> = { general: '/settings', setup: '/settings/setup', schedules: '/settings/schedules' };
 /** The settings tab a route opens; anything else opens the canvas. */
 const tabOf = (route: string | undefined): { tab: SettingsTab } | null => {
   const path = route?.replace(/\/+$/, '');
@@ -336,6 +336,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
           tab={view.tab}
           onTabChange={(t) => ctx.ui?.setRoute?.(ROUTES[t])}
           setup={setup.props}
+          schedules={{ schedules: ctx.schedules, memberId: userId, model, settings, store }}
           onBack={() => guard(leaveSettings)}
           error={settingsError}
           onSave={(s) => guard(() => void saveSettingsAndLeave(s, true), true)}
