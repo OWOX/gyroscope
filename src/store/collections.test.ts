@@ -102,3 +102,9 @@ test('a stored this_* preset loads as its to-date id, in view settings and in pr
   await savePreferences(ctx, { range: { kind: 'preset', preset: 'cur_month' }, compare: { kind: 'off' } });
   expect((await loadPreferences(ctx))!.range).toEqual({ kind: 'preset', preset: 'cur_month' });
 });
+
+test('memoryCollections keeps the parentId of a put', async () => {
+  const m = memoryCollections();
+  await m.collections('mart-cache').put('a:qtd:off', { x: 1 }, { parentId: 'a' });
+  expect(m.parentOf('mart-cache', 'a:qtd:off')).toBe('a');
+});
