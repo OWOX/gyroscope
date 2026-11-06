@@ -336,7 +336,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
           tab={view.tab}
           onTabChange={(t) => ctx.ui?.setRoute?.(ROUTES[t])}
           setup={setup.props}
-          schedules={{ schedules: ctx.schedules, memberId: userId, model, settings, store }}
+          schedules={{ schedules: ctx.schedules, model, settings }}
           onBack={() => guard(leaveSettings)}
           error={settingsError}
           onSave={(s) => guard(() => void saveSettingsAndLeave(s, true), true)}
