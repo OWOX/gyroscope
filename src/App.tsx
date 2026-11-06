@@ -243,6 +243,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
       setLoading(true);
       setProgress(null);
       setRefreshing(true);
+      // custom choices are not persisted: they compute live and stay in state only
       const src = keep ? cachedOwox({ owox, store, key, anchor: spec.anchor, mode: force ? 'write-only' : 'read-write', now }) : null;
       const doc = await refreshCanvas({
         owox: src?.owox ?? owox, model, spec, key, thresholdPct: thresholdPct, visibleIds: visible, details: detailsNow,
@@ -255,7 +256,8 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
       setSaveNote(null);
       if (src) {
         const f = await src.flush();
-        if (current() && f.failed.length) setSaveNote(`Couldn't save the refreshed data for ${f.failed.length} Data Mart(s).`);
+        const unsaved = f.failed.length + f.tooLarge.length;
+        if (current() && unsaved) setSaveNote(`Couldn't save the refreshed data for ${unsaved} Data Mart(s).`);
       }
     } catch {
       // cards keep their last cached values

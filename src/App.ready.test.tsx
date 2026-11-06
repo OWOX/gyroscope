@@ -3,7 +3,7 @@ import { App, type AppDeps } from './App';
 import { fakeOwox, type FakeOwoxData } from './owox/fake';
 import { cacheKey } from './metrics/refresh';
 import { loadPreferences, loadViewSettings, memoryCollections, savePreferences, saveViewSettings, type CollectionsLike } from './store/collections';
-import { EMPTY_SETUP, saveSetup } from './store/settings';
+import { EMPTY_SETUP, loadSetup, saveSetup } from './store/settings';
 import { type ProjectSettingsV5 } from './types';
 
 const GID = '11111111-1111-1111-1111-111111111111';
@@ -20,7 +20,7 @@ const data = (): FakeOwoxData => ({
 /** The settings of a filled project: Revenue of Orders is the critical number. */
 export const filled: ProjectSettingsV5 = { ...EMPTY_SETUP, goal: { martId: GID, measure: { field: 'revenue', fn: 'SUM' }, dateField: 'date', kind: 'flow', alias: 'Revenue', plan: null } };
 
-async function setup(opts: { cache?: 'fresh' | 'stale' | 'none'; store?: CollectionsLike; withCustomers?: boolean; range?: 'qtd' | 'none' | 'unset'; roles?: string[] } = {}) {
+async function setup(opts: { cache?: 'fresh' | 'stale' | 'none'; store?: CollectionsLike; withCustomers?: boolean; range?: 'qtd' | 'none' | 'unset'; roles?: string[]; planned?: boolean } = {}) {
   const d = data();
   if (opts.roles) d.roles = opts.roles;
   if (opts.withCustomers) {
@@ -32,7 +32,13 @@ async function setup(opts: { cache?: 'fresh' | 'stale' | 'none'; store?: Collect
   }
   const owox = fakeOwox(d);
   const store = opts.store ?? memoryCollections();
-  await saveSetup(store, EMPTY_SETUP, filled, 'Ann', NOW);
+  let settings = filled;
+  if (opts.planned) {
+    d.details[GID]!.fields.push({ name: 'plan', type: 'FLOAT', isPrimaryKey: false });
+    d.rows = () => [{ date: '2026-10-10', 'revenue | SUM': 82, 'plan | SUM': 100 }];
+    settings = { ...filled, goal: { ...filled.goal!, plan: { martId: GID, measure: { field: 'plan', fn: 'SUM' }, dateField: 'date', shape: 'daily' } } };
+  }
+  await saveSetup(store, EMPTY_SETUP, settings, 'Ann', NOW);
   const cache = opts.cache ?? 'fresh';
   const rangeOpt = opts.range ?? 'qtd';
   if (rangeOpt === 'qtd') await saveViewSettings(store, { defaultPreset: 'qtd', comparisonDefault: true, weekStart: 'monday' });
@@ -53,7 +59,7 @@ async function setup(opts: { cache?: 'fresh' | 'stale' | 'none'; store?: Collect
 }
 const ctxWith = (setRoute = vi.fn()) => ({ ctx: { projectId: 'p', ui: { setRoute } } as never, setRoute });
 
-test('a fresh cache renders at once without refreshing', async () => {
+test('a warm Data Mart cache makes no live queries and the header shows its age', async () => {
   const { deps, traversals } = await setup();
   render(<App ctx={ctxWith().ctx} deps={deps} />);
   expect(await screen.findByText(/Updated 1 h ago/)).toBeInTheDocument();
@@ -84,6 +90,19 @@ test('saving unchanged view settings does not refresh', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await screen.findByText(/Updated 1 h ago/);
+});
+
+test('a changed threshold recolors from the Data Mart cache without new queries', async () => {
+  const { deps, store, traversals } = await setup({ planned: true });
+  const status = () => document.querySelector('.gy-card[data-status]')?.getAttribute('data-status');
+  render(<App ctx={ctxWith().ctx} deps={deps} />);
+  await waitFor(() => expect(status()).toBe('near'));
+  cleanup();
+
+  const settings = await loadSetup(store);
+  await saveSetup(store, settings, { ...settings, thresholdPct: 15 }, 'Ann', NOW);
+  render(<App ctx={ctxWith().ctx} deps={deps} />);
+  await waitFor(() => expect(status()).toBe('below'));
   expect(traversals()).toBe(0);
 });
 
@@ -208,9 +227,12 @@ test('the week start setting changes the cache key of a week preset', async () =
     const key = cacheKey({ kind: 'preset', preset: 'wtd' }, { kind: 'off' }, weekStart);
     await waitFor(async () => expect(await store.collections('mart-cache').get(`${GID}:${key}`)).not.toBeNull());
     cleanup();
-    return key;
+    return { key, store };
   };
-  expect(await keyOf('monday')).not.toBe(await keyOf('sunday'));
+  const monday = await keyOf('monday');
+  const sunday = await keyOf('sunday');
+  expect(sunday.key).not.toBe(monday.key);
+  expect(await sunday.store.collections('mart-cache').get(`${GID}:${monday.key}`)).toBeNull();
 });
 
 test('with a comparison the header shows the days so far, not the whole range', async () => {
@@ -591,4 +613,11 @@ test('Refresh skips the Data Mart cache and queries live', async () => {
   expect(traversals()).toBe(0);
   fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
   await waitFor(() => expect(traversals()).toBeGreaterThan(0));
+});
+
+test('a Data Mart answer too large to save counts in the save note', async () => {
+  const { deps, d } = await setup({ cache: 'none' });
+  d.rows = () => [{ 'revenue | SUM': 1, pad: 'x'.repeat(1_000_000) }];
+  render(<App ctx={ctxWith().ctx} deps={deps} />);
+  expect(await screen.findByText("Couldn't save the refreshed data for 1 Data Mart(s).")).toBeInTheDocument();
 });
