@@ -1,5 +1,5 @@
 import { toDay } from '../lib/dates';
-import { DEFAULT_SETTINGS, PRESET_LABELS, type CacheDoc, type CompareChoice, type ComparePreset, type DateWindow, type Day, type RangeChoice, type Model, type Preset, type ViewSettings, type WeekStart } from '../types';
+import { DEFAULT_SETTINGS, PRESET_LABELS, type CompareChoice, type ComparePreset, type DateWindow, type RangeChoice, type Preset, type ViewSettings, type WeekStart } from '../types';
 
 export interface CollectionsLike {
   collections<T>(name: string): {
@@ -69,15 +69,6 @@ export async function loadPreferences(ctx: CollectionsLike): Promise<Preferences
   return range || compare ? { range, compare } : null;
 }
 export const savePreferences = async (ctx: CollectionsLike, p: { range: RangeChoice | null; compare: CompareChoice }): Promise<void> => { await ctx.collections<unknown>('preferences').put('current', { ...p, v: 4 }); };
-
-export async function loadCache(ctx: CollectionsLike, key: string): Promise<CacheDoc | null> {
-  return (await ctx.collections<CacheDoc>('cache').get(key))?.document ?? null;
-}
-export const saveCache = async (ctx: CollectionsLike, key: string, doc: CacheDoc): Promise<void> => { await ctx.collections<CacheDoc>('cache').put(key, doc); };
-
-/** Stale when the model version (builtAt + editedAt), the schema-and-settings hash, the anchor or the threshold differ from the cached numbers'. */
-export const isStale = (doc: CacheDoc | null, model: Model, anchor: Day, thresholdPct: number): boolean =>
-  !doc || doc.anchor !== anchor || doc.modelHash !== model.inputHash || doc.builtAt !== model.builtAt || (doc.editedAt ?? null) !== model.editedAt || doc.thresholdPct !== thresholdPct;
 
 export function memoryCollections(): CollectionsLike & { parentOf(name: string, id: string): string | undefined } {
   const store = new Map<string, Map<string, unknown>>();

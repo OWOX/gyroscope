@@ -13,8 +13,9 @@ import { useSetup } from './setup/useSetup';
 import { fetchQuality, type QualitySummary } from './owox/quality';
 import type { Inputs, MartDetail, OwoxLike } from './owox/sources';
 import { cacheKey, persistable, refreshCanvas } from './metrics/refresh';
+import { cachedOwox } from './cache/martCache';
 import {
-  isStale, loadCache, loadPreferences, loadViewSettings, saveCache, savePreferences, saveViewSettings, type CollectionsLike,
+  loadPreferences, loadViewSettings, savePreferences, saveViewSettings, type CollectionsLike,
 } from './store/collections';
 import { Blocked } from './ui/Blocked';
 import { Canvas } from './ui/Canvas';
@@ -112,7 +113,6 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
   const refreshId = useRef(0);
   const [quality, setQuality] = useState<{ model: Model; data: Map<string, QualitySummary> | null } | null>(null);
   const qualityFor = useRef<Model | null>(null);
-  const probedFor = useRef<Model | null>(null);
   const modelNow = useRef<Model | null>(null);
   const viewNow = useRef<View>(view);
   modelNow.current = model;
@@ -237,31 +237,25 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     const key = cacheKey(range, compare, settings.weekStart);
     const keep = persistable(range, compare);
     try {
-      // Custom choices are not persisted: they compute and stay in state only.
-      const saved = keep ? await loadCache(store, key) : null;
-      if (!current()) return false;
-      if (keep) setCache(saved);
-      else setCache((c) => (c?.key === key ? c : null));
-      if (!force && keep && !isStale(saved, model, spec.anchor, thresholdPct)) { setRefreshing(false); setLoading(false); return true; }
-      // the doc on screen (a custom range has no saved one) keeps its numbers until a new result replaces them
-      const shown = keep ? saved : cacheNow.current?.key === key ? cacheNow.current : null;
+      setCache((c) => (c?.key === key ? c : null));
+      // the doc on screen keeps its numbers until a new result replaces them
+      const shown = cacheNow.current?.key === key ? cacheNow.current : null;
       setLoading(true);
       setProgress(null);
       setRefreshing(true);
+      const src = keep ? cachedOwox({ owox, store, key, anchor: spec.anchor, mode: force ? 'write-only' : 'read-write', now }) : null;
       const doc = await refreshCanvas({
-        owox, model, spec, key, thresholdPct: thresholdPct, visibleIds: visible, details: detailsNow,
+        owox: src?.owox ?? owox, model, spec, key, thresholdPct: thresholdPct, visibleIds: visible, details: detailsNow,
         onProgress: (done, total) => { if (current()) setProgress({ done, total }); },
         onPartial: (cards) => { if (current()) setCache(mergePartial(shown, cards, shownModel(model, detailsNow), spec.anchor, thresholdPct, key, spec.comparison !== null)); },
       });
       if (!current()) return false;
-      setCache(doc);
+      // the header shows the age of the oldest cached answer
+      setCache(src ? { ...doc, refreshedAt: src.stats().oldestHit ?? doc.refreshedAt } : doc);
       setSaveNote(null);
-      if (keep) {
-        try {
-          await saveCache(store, key, doc);
-        } catch (e) {
-          if (current()) setSaveNote(`Couldn't save the refreshed data: ${describeError(e)}`);
-        }
+      if (src) {
+        const f = await src.flush();
+        if (current() && f.failed.length) setSaveNote(`Couldn't save the refreshed data for ${f.failed.length} Data Mart(s).`);
       }
     } catch {
       // cards keep their last cached values
@@ -274,17 +268,6 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
   const inReady = view.name === 'ready';
   const inSettings = view.name === 'settings';
   useEffect(() => {
-    if ((!inReady && !inSettings) || !model || probedFor.current === model) return;
-    probedFor.current = model;
-    // without a cached doc the line shows from the first screen, not empty cards
-    const probe = refreshId.current;
-    // with no range nothing is read from the cache and no loading line shows
-    if (!range) return;
-    const probeKey = cacheKey(range, compare, settings.weekStart);
-    void (persistable(range, compare) ? loadCache(store, probeKey).catch(() => null) : Promise.resolve(null)).then((saved) => {
-      if (!saved && refreshId.current === probe) setLoading(true);
-    });
-  }, [inReady, inSettings, model, store]);
 
   // data-quality icons: one call per canvas load, never cached; a failure leaves the cards without them
   useEffect(() => {

@@ -1,15 +1,10 @@
-import { isStale, loadCache, loadPreferences, loadViewSettings, memoryCollections, saveCache, savePreferences, saveViewSettings } from './collections';
-import { model } from '../test/fixtures';
-import { DEFAULT_SETTINGS, type CacheDoc } from '../types';
+import { loadPreferences, loadViewSettings, memoryCollections, savePreferences, saveViewSettings } from './collections';
+import { DEFAULT_SETTINGS } from '../types';
 
-const doc = { modelHash: 'h', anchor: '2026-10-23', builtAt: 'b1', thresholdPct: 20 } as CacheDoc;
-
-test('round trips and defaults', async () => {
-  const ctx = memoryCollections();
-  expect(await loadViewSettings(ctx)).toEqual(DEFAULT_SETTINGS);
-  await saveCache(ctx, 'k', doc);
-  expect(await loadCache(ctx, 'k')).toEqual(doc);
+test('view settings use defaults', async () => {
+  expect(await loadViewSettings(memoryCollections())).toEqual(DEFAULT_SETTINGS);
 });
+
 test('a 0.3 default preset is ignored once; a 0.4 one is kept', async () => {
   const store = memoryCollections();
   await store.collections('preferences').put('defaults', { defaultPreset: 'qtd' });
@@ -31,27 +26,6 @@ test('a null range is saved and read back', async () => {
   const store = memoryCollections();
   await savePreferences(store, { range: null, compare: { kind: 'off' } });
   expect(await loadPreferences(store)).toEqual({ range: null, compare: { kind: 'off' } });
-});
-
-test('staleness', () => {
-  expect(isStale(null, model, '2026-10-23', 20)).toBe(true);
-  expect(isStale(doc, model, '2026-10-23', 20)).toBe(false);
-  expect(isStale(doc, model, '2026-10-24', 20)).toBe(true);
-  // a schema or settings change moves inputHash and drops the cached numbers
-  expect(isStale(doc, { ...model, inputHash: 'x' }, '2026-10-23', 20)).toBe(true);
-  expect(isStale({ ...doc, editedAt: null }, { ...model, editedAt: '2026-11-04T10:00:00Z' }, '2026-10-23', 20)).toBe(true);
-});
-
-test('a rebuild or a threshold change makes the cache stale', () => {
-  expect(isStale(doc, { ...model, builtAt: 'b2' }, '2026-10-23', 20)).toBe(true);
-  expect(isStale(doc, model, '2026-10-23', 15)).toBe(true);
-});
-
-test('an edit makes the cache stale', () => {
-  expect(isStale({ ...doc, editedAt: null }, { ...model, editedAt: '2026-11-04T10:00:00Z' }, '2026-10-23', 20)).toBe(true);
-  expect(isStale({ ...doc, editedAt: '2026-11-04T10:00:00Z' }, { ...model, editedAt: '2026-11-04T10:00:00Z' }, '2026-10-23', 20)).toBe(false);
-  // a doc written before editedAt existed counts as never edited
-  expect(isStale(doc, model, '2026-10-23', 20)).toBe(false);
 });
 
 test('an unknown default preset reads as null', async () => {
