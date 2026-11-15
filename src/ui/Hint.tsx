@@ -20,11 +20,15 @@ export function HintBubble({ id, open, anchor, className, children }: { id: stri
     const place = () => {
       const a = anchor.current, b = ref.current;
       if (!a || !b) return;
-      b.style.setProperty('--caret-x', `${a.getBoundingClientRect().left - b.getBoundingClientRect().left + a.offsetWidth / 2}px`);
+      // read everything first, then write: one layout per call
+      const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect(), icon = a.querySelector('svg')?.getBoundingClientRect();
+      const margin = parseFloat(getComputedStyle(b).marginTop) || 0;
+      b.style.setProperty('--caret-x', `${ar.left - br.left + a.offsetWidth / 2}px`);
       // the caret's tip meets the (?) svg's bottom edge: slide the bubble by the measured gap less the tip's height above the bubble's border box
-      const icon = a.querySelector('svg')?.getBoundingClientRect();
-      const gap = icon ? b.getBoundingClientRect().top - icon.bottom - CARET_TIP : NaN;
-      if (Number.isFinite(gap) && icon && icon.height > 0) b.style.marginTop = `${(parseFloat(getComputedStyle(b).marginTop) || 0) - gap}px`;
+      // a folded block hides its bubble (zero height); there is nothing to measure then
+      if (!icon || icon.height === 0 || br.height === 0) return;
+      const gap = br.top - icon.bottom - CARET_TIP;
+      if (Number.isFinite(gap)) b.style.marginTop = `${margin - gap}px`;
     };
     if (!open) return;
     place();
