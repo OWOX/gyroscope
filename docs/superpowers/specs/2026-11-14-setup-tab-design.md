@@ -122,23 +122,21 @@ A notice counts as done once accepted or dismissed. Dismissing is stored per set
 `settings/project`, project scope, with `v: 5`. Only admins write it. It holds only values a person chose:
 
 ```ts
+/** One number: a Data Mart field, how it adds up, and its date. */
+interface MetricChoice { martId: string; measure: Measure; dateField: string | null; kind: MetricKind; alias: string }
+interface RatioSetting { id: string; name: string; numerator: string; denominator: string; format: MetricFormat }
 interface ProjectSettingsV5 {
   v: 5;
-  goal: {
-    martId: string; measure: Measure; dateField: string | null; kind: MetricKind;
-    plan: PlanDef | null;
-  } | null;
-  coreClasses: string[];                 // Data Mart ids, at most 7
-  contexts: Record<string, { metric: { martId: string; measure: Measure; dateField: string | null } | null; plan: PlanDef | null }>;
-  classes: Record<string, {              // by Data Mart id
-    keyMetricId: string | null;
-    shownMetricIds: string[];
-    metrics: Record<string, { plan: PlanDef | null; format: MetricFormat; currency: string | null }>;
-  }>;
-  ratios: { id: string; name: string; numerator: string; denominator: string; format: MetricFormat }[];
+  goal: (MetricChoice & { plan: PlanDef | null }) | null;
+  coreClasses: string[];                                   // Data Mart ids, at most 7
+  contexts: Record<string, { metric: MetricChoice | null; plan: PlanDef | null }>;  // by context id
+  classes: Record<string, { keyMetricId: string | null; shown: MetricChoice[] }>;    // by Data Mart id
+  plans: Record<string, PlanDef>;                          // class metric plans, by metric id
+  formats: Record<string, { format: MetricFormat; currency: string | null }>;      // by metric id
+  ratios: RatioSetting[];
   thresholdPct: number;
-  dismissed: string[];                   // setting ids of dismissed notices
-  updatedAt: string; updatedBy: string;
+  dismissed: string[];                                     // row ids of dismissed notices
+  updatedAt: string | null; updatedBy: string | null;
 }
 ```
 
