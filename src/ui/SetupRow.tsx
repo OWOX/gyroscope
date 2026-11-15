@@ -11,20 +11,20 @@ export interface SetupRowProps {
   picked?: string;
   /** The row had no saved value: it shows the radio list. */
   unset: boolean;
-  /** The row as the saved settings build it: its options and value stay put while choices are staged. */
-  savedRow?: Row;
+  /** The row as its staged pick ran against it: options and value stay put while later picks change the draft. */
+  optionRow?: Row;
   hintOpen: boolean; onHint: () => void;
   onPick: (optionId: string | null) => void; onRetry: () => void; onOpen?: (path: string) => void;
 }
 
 /** One setup question: the value now, and for an unanswered row (or on "Change") a radio list of the ways to answer it. */
-export function SetupRow({ row, readOnly, saving = false, picked, unset, savedRow, hintOpen, onHint, onPick, onRetry, onOpen }: SetupRowProps) {
+export function SetupRow({ row, readOnly, saving = false, picked, unset, optionRow, hintOpen, onHint, onPick, onRetry, onOpen }: SetupRowProps) {
   const [changing, setChanging] = useState(false);
   const [more, setMore] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const hintId = useId();
   const uid = useId();
-  const src = savedRow ?? row;
+  const src = optionRow ?? row;
   const choices = src.options.filter((o) => o.action.kind !== 'open');
   const links = src.options.filter((o) => o.action.kind === 'open');
   // an option marked `keep` is the row's default; the rest list the recommended one first, in an order that doesn't move once picked

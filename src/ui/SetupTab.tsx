@@ -15,8 +15,8 @@ export interface SetupTabProps {
   dirty: number; saving: boolean; onSave: () => void; onDiscard: () => void;
   /** The rows not done in the saved settings: they show the radio list and seed their hint open. */
   savedOpen: ReadonlySet<string>;
-  /** The rows as the saved settings build them: radio lists and their order come from here, so staging a choice moves nothing. */
-  savedRows?: Record<string, Row>;
+  /** For a row with a staged pick: the row as that pick ran against it. Its radios, their order and the recommendation come from here. */
+  optionRows?: Record<string, Row>;
   onRetry: () => void; onOpen?: (path: string) => void;
 }
 
@@ -41,7 +41,7 @@ function Block({ info, rows, folded, hintOpen, onHint, attention, children }: { 
   );
 }
 
-export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, onSave, onDiscard, savedOpen, savedRows, onRetry, onOpen }: SetupTabProps) {
+export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, onSave, onDiscard, savedOpen, optionRows, onRetry, onOpen }: SetupTabProps) {
   // a staged append or team write is done as far as the bar goes: it changes no setting, so the rows can't show it
   const eff = rows.map((r) => {
     const k = r.options.find((o) => o.id === picked[r.id])?.action.kind;
@@ -69,7 +69,7 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
     }, 0);
   }, [target]);
   const renderRow = (r: Row) => (
-    <SetupRow key={r.id} row={r} readOnly={readOnly} picked={picked[r.id]} unset={savedOpen.has(r.id)} savedRow={savedRows?.[r.id]} saving={saving}
+    <SetupRow key={r.id} row={r} readOnly={readOnly} picked={picked[r.id]} unset={savedOpen.has(r.id)} optionRow={optionRows?.[r.id]} saving={saving}
       hintOpen={hintOpen(r.id, savedOpen.has(r.id))} onHint={() => toggle(r.id, savedOpen.has(r.id))}
       onPick={(o) => onPick(r.id, o)} onRetry={onRetry} onOpen={onOpen} />
   );

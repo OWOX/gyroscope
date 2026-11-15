@@ -286,16 +286,81 @@ test('a stale pick is dropped from the visible picks and the save', async () => 
   const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: twoMarts() })));
   await act(() => result.current.reload());
   const metric = result.current.props.rows.find((r) => r.id === 'goal.metric')!;
-  const orders = metric.options.filter((o) => o.id.startsWith('field:orders:')).map((o) => o.id);
-  await act(async () => result.current.props.onPick('goal.metric', orders[0]!));
-  const plan = result.current.props.rows.find((r) => r.id === 'goal.plan')!.options.find((o) => o.id === 'field:orders:revenue_plan')!;
-  await act(async () => result.current.props.onPick('goal.plan', plan.id));
-  // the goal moves to another Data Mart: the plan option for Orders is no longer on offer there only if it vanished
-  const ads = metric.options.find((o) => o.id.startsWith('field:ads:'))!;
-  await act(async () => result.current.props.onPick('goal.metric', ads.id));
-  const stale = !result.current.props.rows.find((r) => r.id === 'goal.plan')!.options.some((o) => o.id === plan.id);
-  expect(Object.keys(result.current.props.picked).includes('goal.plan')).toBe(!stale);
-  expect(result.current.props.dirty).toBe(Object.keys(result.current.props.picked).length);
+  await act(async () => result.current.props.onPick('goal.metric', metric.options.find((o) => o.id === 'field:orders:revenue')!.id));
+  // the date row's options are the goal Data Mart's: moving the goal to Ads makes an Orders date option stale
+  const date = result.current.props.rows.find((r) => r.id === 'goal.date')!;
+  await act(async () => result.current.props.onPick('goal.date', date.options[0]!.id));
+  expect(result.current.props.picked['goal.date']).toBe(date.options[0]!.id);
+  await act(async () => result.current.props.onPick('goal.metric', 'field:ads:cost'));
+  expect(result.current.props.picked).toEqual({ 'goal.metric': 'field:ads:cost' });
+  expect(result.current.props.dirty).toBe(1);
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect(result.current.settings!.goal).toMatchObject({ martId: 'ads', measure: { field: 'cost' } });
+  expect(result.current.settings!.goal!.dateField).not.toBe('date');
+});
+
+test('an unpicked row follows the newly picked Data Mart; a picked row keeps the options its pick ran against', async () => {
+  const store = memoryCollections();
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: twoMarts() })));
+  await act(() => result.current.reload());
+  const plan = () => result.current.props.rows.find((r) => r.id === 'goal.plan')!;
+  await act(async () => result.current.props.onPick('goal.metric', 'field:orders:revenue'));
+  expect(plan().options.find((o) => o.recommended)!.id).toBe('field:orders:revenue_plan');
+  expect(result.current.props.optionRows!['goal.plan']).toBeUndefined();
+  await act(async () => result.current.props.onPick('goal.metric', 'field:ads:cost'));
+  expect(plan().options.find((o) => o.recommended)!.id).toBe('field:ads:budget_target');
+  // the metric row itself keeps what it was picked from
+  expect(result.current.props.optionRows!['goal.metric']!.options.some((o) => o.id === 'field:ads:cost')).toBe(true);
+});
+
+test('a re-pick resolves against the row its first pick ran on, so Add switches straight to Skip', async () => {
+  const store = memoryCollections();
+  const { saveSetup } = await import('../store/settings');
+  const { EMPTY_SETUP } = await import('../store/settings');
+  const ref = (path: string, field: string) => `{{ref path="${path}" field="${field}"}}`;
+  const source = fakeOwox({
+    projectDescription: 'We sell shoes', contexts: [],
+    marts: [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }, { id: 'customers', title: 'Customers', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }],
+    details: {
+      orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }, { name: 'cust_ltv', type: 'FLOAT', isPrimaryKey: false, calculated: { formula: `AVG(${ref('customers', 'ltv')})`, level: 'metric' } }] as never },
+      customers: { id: 'customers', title: 'Customers', fields: [{ name: 'customer_id', type: 'STRING', isPrimaryKey: true }, { name: 'created_at', type: 'DATE', isPrimaryKey: false }, { name: 'ltv', type: 'NUMERIC', isPrimaryKey: false }] },
+    },
+    blendables: { orders: { availableSources: [{ aliasPath: 'customers', dataMartId: 'customers', title: 'Customers', isAccessibleForReporting: true }], mainUniqueCountKeyFields: ['order_id'] }, customers: { availableSources: [], mainUniqueCountKeyFields: ['customer_id'] } },
+    rows: () => [],
+  });
+  const goal = { martId: 'orders', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'revenue', plan: null };
+  await saveSetup(store, EMPTY_SETUP, { ...EMPTY_SETUP, goal }, 'Ann', new Date());
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
+  await act(() => result.current.reload());
+  const pair = result.current.props.rows.find((r) => r.block === 'ratios')!;
+  await act(async () => result.current.props.onPick(pair.id, 'ratio:add'));
+  expect(result.current.props.picked[pair.id]).toBe('ratio:add');
+  expect(result.current.props.optionRows![pair.id]!.options.map((o) => o.id)).toEqual(['ratio:add', 'ratio:skip']);
+  await act(async () => result.current.props.onPick(pair.id, 'ratio:skip'));
+  expect(result.current.props.picked[pair.id]).toBe('ratio:skip');
+  expect(result.current.props.dirty).toBe(1);
+});
+
+test('a pick that went stale is pruned for good: it does not come back with its row', async () => {
+  const store = memoryCollections();
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: twoMarts() })));
+  await act(() => result.current.reload());
+  await act(async () => result.current.props.onPick('goal.metric', 'field:orders:revenue'));
+  const shownRow = () => result.current.props.rows.find((r) => /^class:orders\.shown$/.test(r.id))!;
+  const fields = shownRow().options.filter((o) => /^shown:[^,]+$/.test(o.id) && o.id !== 'shown:none').map((o) => o.id);
+  expect(fields.length).toBeGreaterThan(0);
+  await act(async () => result.current.props.onPick('class:orders.shown', fields[0]!));
+  const format = () => result.current.props.rows.find((r) => /^metric:.*\.format$/.test(r.id));
+  expect(format()).toBeDefined();
+  await act(async () => result.current.props.onPick(format()!.id, format()!.options[0]!.id));
+  expect(Object.keys(result.current.props.picked).some((k) => k.endsWith('.format'))).toBe(true);
+  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:none'));
+  await waitFor(() => expect(Object.keys(result.current.props.picked).some((k) => k.endsWith('.format'))).toBe(false));
+  await act(async () => result.current.props.onPick('class:orders.shown', fields[0]!));
+  expect(format()).toBeDefined();
+  expect(Object.keys(result.current.props.picked).some((k) => k.endsWith('.format'))).toBe(false);
+  expect(result.current.props.dirty).toBe(2);
 });
 
 test('a partial failure keeps the append staged and drops the written settings pick', async () => {

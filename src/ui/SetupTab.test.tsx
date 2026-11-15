@@ -251,7 +251,7 @@ test('a broken row with no current offers Keep the saved value and shows its det
 
 test('a row another pick filled in shows the matching option checked, no Not set and a note', () => {
   const r = row({ id: 'goal.aggregation', state: 'done', current: 'Sum, a total', options: [set('s', 'Sum, a total', true), set('m', 'Maximum')] });
-  render(<SetupTab {...props([r], { savedOpen: new Set(['goal.aggregation']), savedRows: { 'goal.aggregation': { ...r, state: 'open', current: null } } })} />);
+  render(<SetupTab {...props([r], { savedOpen: new Set(['goal.aggregation']), optionRows: { 'goal.aggregation': { ...r, state: 'open', current: null } } })} />);
   expect(screen.getByRole('radio', { name: /Sum, a total/ })).toBeChecked();
   expect(screen.queryByRole('radio', { name: 'Not set' })).toBeNull();
   expect(screen.getByText('Set by your choice above')).toBeInTheDocument();
@@ -297,7 +297,7 @@ test('a link-only row shows no radios and no Change, just the value and the link
 test('a staged ratio add stays checked from the saved options, and Not set undoes it', () => {
   const saved = row({ id: 'ratio:x', block: 'ratios', title: 'a per b', severity: 'notice', options: [set('ratio:add', 'Add a per b', true), set('ratio:skip', 'Skip this ratio')] });
   const draft = row({ id: 'ratio:x', block: 'ratios', title: 'a per b', severity: 'notice', state: 'done', current: 'a per b', options: [{ ...set('ratio:keep', 'Keep this ratio'), keep: true }, set('ratio:remove', 'Remove this ratio')] });
-  const p = props([draft], { picked: { 'ratio:x': 'ratio:add' }, savedRows: { 'ratio:x': saved }, savedOpen: new Set(['ratio:x']) });
+  const p = props([draft], { picked: { 'ratio:x': 'ratio:add' }, optionRows: { 'ratio:x': saved }, savedOpen: new Set(['ratio:x']) });
   render(<SetupTab {...p} />);
   expect(screen.getByRole('radio', { name: /Add a per b/ })).toBeChecked();
   fireEvent.click(screen.getByRole('radio', { name: 'Not set' }));
@@ -327,4 +327,28 @@ test('read-only keeps the external link next to the recommendation', () => {
   render(<SetupTab {...p} />);
   fireEvent.click(screen.getByRole('button', { name: 'Open Orders · revenue in OWOX' }));
   expect(p.onOpen).toHaveBeenCalledWith('/x');
+});
+
+test('Add can switch straight to Skip: the radios come from the row the pick ran against', () => {
+  const pair = row({ id: 'ratio:x', block: 'ratios', title: 'a per b', severity: 'notice', options: [set('ratio:add', 'Add a per b', true), set('ratio:skip', 'Skip this ratio')] });
+  const draft = row({ id: 'ratio:x', block: 'ratios', title: 'a per b', severity: 'notice', state: 'done', current: 'a per b', options: [{ ...set('ratio:keep', 'Keep this ratio'), keep: true }, set('ratio:remove', 'Remove this ratio')] });
+  const p = props([draft], { picked: { 'ratio:x': 'ratio:add' }, optionRows: { 'ratio:x': pair }, savedOpen: new Set(['ratio:x']) });
+  render(<SetupTab {...p} />);
+  fireEvent.click(screen.getByRole('radio', { name: 'Skip this ratio' }));
+  expect(p.onPick).toHaveBeenCalledWith('ratio:x', 'ratio:skip');
+});
+
+test('rows that exist only in the draft open their block and seed its hint open', () => {
+  const goal = row({ state: 'done', current: 'x' });
+  const { rerender, container } = render(<SetupTab {...props([goal], { savedOpen: new Set() })} />);
+  const a = row({ id: 'm1', block: 'metrics', title: 'Fresh One' });
+  const b = row({ id: 'c1', block: 'core', title: 'Core One', state: 'done', current: 'y' });
+  rerender(<SetupTab {...props([goal, b, a], { savedOpen: new Set(['m1']) })} />);
+  const card = (name: string) => container.querySelector(`.dm-collapsible[aria-label="${name}"]`)!;
+  expect(card('Metrics')).toHaveAttribute('data-folded', 'false');
+  expect(screen.getByRole('button', { name: 'About Metrics' })).toHaveAttribute('aria-expanded', 'true');
+  expect(card('Core Business Entities')).toHaveAttribute('data-folded', 'true');
+  // a folded block gains an unset row
+  rerender(<SetupTab {...props([goal, { ...b, state: 'open', current: null }, a], { savedOpen: new Set(['m1', 'c1']) })} />);
+  expect(card('Core Business Entities')).toHaveAttribute('data-folded', 'false');
 });

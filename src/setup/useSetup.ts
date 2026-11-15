@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Graph } from '../model/graph-load';
 import { deriveModel, type Derived } from '../model/derive';
 import { loadGraph } from '../model/graph-load';
@@ -23,6 +23,8 @@ export interface UseSetupArgs {
 
 /** A staged choice: the option picked on a row. What it does is looked up in the draft rows each time. */
 interface Pick { rowId: string; optionId: string }
+
+interface Valid { pick: Pick; kind: Action['kind']; row: Row }
 
 interface Loaded { settings: ProjectSettingsV5; graph: Graph; legacyCore: string[]; derived: Derived; hash: string }
 
@@ -127,11 +129,13 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   const replay = (l: Loaded, staged: Pick[]) => {
     let settings = l.settings;
     let derived = l.derived;
-    const valid: { pick: Pick; kind: Action['kind'] }[] = [];
+    const valid: Valid[] = [];
     for (const pick of staged) {
-      const action = actionOf(rowsFor(l, settings, derived, {}, new Set()).find((r) => r.id === pick.rowId), pick.optionId);
+      // the row as it stood when this pick ran: its options are what the pick chose from
+      const row = rowsFor(l, settings, derived, {}, new Set()).find((r) => r.id === pick.rowId);
+      const action = actionOf(row, pick.optionId);
       if (!action || action.kind === 'open') continue;
-      valid.push({ pick, kind: action.kind });
+      valid.push({ pick, kind: action.kind, row: row! });
       if (action.kind === 'set') { settings = action.next(settings); derived = deriveModel(settings, l.graph); }
     }
     return { settings, derived, valid };
@@ -140,12 +144,12 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   // the draft: the saved settings with every staged `set` applied in pick order; the rows and the model follow it
   const draft = useMemo(() => {
     if (!loaded) return null;
-    if (picks.length === 0) return { settings: loaded.settings, derived: loaded.derived, valid: [] as { pick: Pick; kind: Action['kind'] }[] };
+    if (picks.length === 0) return { settings: loaded.settings, derived: loaded.derived, valid: [] as Valid[] };
     return replay(loaded, picks);
   }, [loaded, picks]);
 
-  const { rows, savedOpen, savedRows } = useMemo(() => {
-    if (!loaded || !draft) return { rows: [] as Row[], savedOpen: new Set<string>(), savedRows: {} as Record<string, Row> };
+  const { rows, savedOpen, optionRows } = useMemo(() => {
+    if (!loaded || !draft) return { rows: [] as Row[], savedOpen: new Set<string>(), optionRows: {} as Record<string, Row> };
     const build = (settings: ProjectSettingsV5, derived: Derived) => {
       // a stored pick counts only while it is one of the row's current options
       const ai: Record<string, string> = {};
@@ -160,10 +164,17 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     // a picked row the draft no longer builds (a skipped ratio pair) stays, as done, until Save
     const rows = [...live];
     const have = new Set(rows.map((r) => r.id));
+    const ranOn = new Map(draft.valid.map((v) => [v.pick.rowId, v.row]));
+    // the AI's cached pick marks the recommendation on a row as it stood, as it does on a live one
+    const withAi = (r: Row): Row => {
+      const pick = cached[keyOf(r)];
+      return pick !== undefined && r.options.some((o) => o.id === pick) ? { ...r, aiPicked: true, options: r.options.map((o) => ({ ...o, recommended: o.id === pick })) } : r;
+    };
     saved.forEach((r, i) => {
-      if (have.has(r.id) || !draft.valid.some((v) => v.pick.rowId === r.id)) return;
+      const was = ranOn.get(r.id);
+      if (have.has(r.id) || !was) return;
       const prev = saved.slice(0, i).reverse().find((x) => have.has(x.id));
-      rows.splice(prev ? rows.findIndex((x) => x.id === prev.id) + 1 : 0, 0, { ...r, state: 'done' });
+      rows.splice(prev ? rows.findIndex((x) => x.id === prev.id) + 1 : 0, 0, { ...withAi(was), state: 'done' });
       have.add(r.id);
     });
     const byId = new Map(saved.map((r) => [r.id, r]));
@@ -171,13 +182,18 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
       rows,
       // rows the saved settings leave unanswered, a row that only exists in the draft included
       savedOpen: new Set(rows.filter((r) => byId.get(r.id)?.state !== 'done').map((r) => r.id)),
-      savedRows: Object.fromEntries(saved.map((r) => [r.id, r])),
+      // a picked row offers the options its pick chose from, so its radios hold still while later picks change the draft
+      optionRows: Object.fromEntries([...ranOn].map(([id, r]) => [id, { ...withAi(r), aiPending: live.find((x) => x.id === id)?.aiPending ?? false }])),
     };
   }, [loaded, draft, picks, cached, pending, args.projectId, args.generateWith]);
   const rowsNow = useRef(rows);
   rowsNow.current = rows;
-  const savedNow = useRef(savedRows);
-  savedNow.current = savedRows;
+  const optionsNow = useRef(optionRows);
+  optionsNow.current = optionRows;
+  // a stale pick is dropped for good, so it can't come back when its row does
+  useEffect(() => {
+    if (draft && !saving && draft.valid.length !== picks.length) setPicks(picks.filter((p) => draft.valid.some((v) => v.pick === p)));
+  }, [draft, picks, saving]);
 
   const onPick = useCallback((rowId: string, optionId: string | null) => {
     const l = loadedNow.current;
@@ -185,9 +201,10 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     const cur = picksNow.current;
     let next = cur.filter((p) => p.rowId !== rowId);
     if (optionId !== null) {
-      const row = rowsNow.current.find((r) => r.id === rowId);
-      const opt = [...(savedNow.current[rowId]?.options ?? []), ...(row?.options ?? [])].find((o) => o.id === optionId);
-      const action = actionOf(row ?? savedNow.current[rowId], optionId);
+      // the same row the radios were drawn from: where an earlier pick of this row ran, else the draft
+      const row = optionsNow.current[rowId] ?? rowsNow.current.find((r) => r.id === rowId);
+      const opt = row?.options.find((o) => o.id === optionId);
+      const action = actionOf(row, optionId);
       if (!action || action.kind === 'open') return;
       // "Keep" is the row's default, not a change
       if (!opt?.keep) {
@@ -252,7 +269,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   const props: SetupTabProps = {
     rows, loading, readOnly: !args.isAdmin, message, picked: Object.fromEntries((draft?.valid ?? []).map((v) => [v.pick.rowId, v.pick.optionId])),
     onPick, dirty: draft?.valid.length ?? 0, saving, onSave: () => void onSave(), onDiscard: () => { if (!savingNow.current) setPicks([]); },
-    savedOpen, savedRows,
+    savedOpen, optionRows,
     onRetry: () => void reload().catch(() => undefined),
     onOpen: args.open && ((path) => latest.current.open?.(path)),
   };

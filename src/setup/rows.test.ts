@@ -166,6 +166,13 @@ test('field labels read "Data Mart · field" in options, current values and link
   expect(m.options.find((o) => o.id === 'field:orders:revenue')).toMatchObject({ label: 'Orders · revenue', linkLabel: 'Orders · revenue' });
 });
 
+test('the description table names the Plan cell as Data Mart · field alias', () => {
+  const plan = { martId: 'orders', measure: { field: 'revenue_plan', fn: 'SUM' as const }, dateField: 'date', shape: 'daily' as const };
+  const a = byId(buildRows(input({ ...filled, goal: { ...goal, plan } })), 'goal.description').options[0]!.action as { text: string };
+  expect(a.text).toContain('[Orders · revenue_plan](/ui/p1/data-marts/orders/data-setup?field=revenue_plan)');
+  expect(a.text).toContain('[Orders · revenue](/ui/p1/data-marts/orders/data-setup?field=revenue)');
+});
+
 describe('rows by block', () => {
   test('goal description is done once the project description links the goal field, and appends the one-row table otherwise', () => {
     const open = byId(buildRows(input(filled)), 'goal.description');
