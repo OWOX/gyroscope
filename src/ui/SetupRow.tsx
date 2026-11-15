@@ -29,7 +29,8 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const uid = useId();
   const src = optionRow ?? row;
   const was = unset ? src.current : src.current ?? row.current;
-  const dismissed = !unset && row.dismissed === true;
+  // the shape of the radio list comes from the row the pick ran against, not the live draft
+  const dismissed = !unset && src.dismissed === true;
   // the option that equals the saved value is "Keep", not a second way to say it; only the first match is hidden
   const dup = unset || !was || dismissed ? undefined : src.options.find((o) => o.action.kind !== 'open' && o.label === was);
   // a dismissed row's "Not needed" is already its "no", so the options that decline are left out
@@ -57,7 +58,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   );
 
   // a notice can be waved off; a row with its own "no" option already has that answer
-  const offerDismiss = row.dismissable && !implicit && !dismissed && !choices.some((o) => o.declines);
+  const offerDismiss = src.dismissable && !implicit && !dismissed && !choices.some((o) => o.declines);
   // a notice with only links still gets its "Not needed"
   const linkOnly = !hasRadios && unset && !readOnly && offerDismiss;
 
@@ -92,7 +93,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
 
   const extras = !readOnly && (
     <>
-      {(row.state !== 'done' || linkOnly) && links.map((o) => <button key={o.id} type="button" className="gy-link gy-row-open" onClick={() => o.action.kind === 'open' && onOpen?.(o.action.path)}>{o.label}</button>)}
+      {(row.state !== 'done' || linkOnly || (dismissed && changing)) && links.map((o) => <button key={o.id} type="button" className="gy-link gy-row-open" onClick={() => o.action.kind === 'open' && onOpen?.(o.action.path)}>{o.label}</button>)}
     </>
   );
 

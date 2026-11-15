@@ -594,3 +594,35 @@ describe('Not needed can be changed back', () => {
     expect(s.goal!.plan).not.toBeNull();
   });
 });
+
+test('a skipped ratio staged to Add saves the ratio and loses its dismissal', async () => {
+  const store = memoryCollections();
+  const { saveSetup, loadSetup, EMPTY_SETUP } = await import('../store/settings');
+  const ref = (path: string, field: string) => `{{ref path="${path}" field="${field}"}}`;
+  const source = fakeOwox({
+    projectDescription: 'We sell shoes', contexts: [],
+    marts: [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }, { id: 'customers', title: 'Customers', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }],
+    details: {
+      orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }, { name: 'cust_ltv', type: 'FLOAT', isPrimaryKey: false, calculated: { formula: `AVG(${ref('customers', 'ltv')})`, level: 'metric' } }] as never },
+      customers: { id: 'customers', title: 'Customers', fields: [{ name: 'customer_id', type: 'STRING', isPrimaryKey: true }, { name: 'created_at', type: 'DATE', isPrimaryKey: false }, { name: 'ltv', type: 'NUMERIC', isPrimaryKey: false }] },
+    },
+    blendables: { orders: { availableSources: [{ aliasPath: 'customers', dataMartId: 'customers', title: 'Customers', isAccessibleForReporting: true }], mainUniqueCountKeyFields: ['order_id'] }, customers: { availableSources: [], mainUniqueCountKeyFields: ['customer_id'] } },
+    rows: () => [],
+  });
+  const goal = { martId: 'orders', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'revenue', plan: null };
+  await saveSetup(store, EMPTY_SETUP, { ...EMPTY_SETUP, goal }, 'Ann', new Date());
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
+  await act(() => result.current.reload());
+  const id = result.current.props.rows.find((r) => r.block === 'ratios')!.id;
+  const base = (await loadSetup(store)).settings;
+  await saveSetup(store, base, { ...base, dismissed: [id] }, 'Ann', new Date());
+  await act(() => result.current.reload());
+  const skipped = result.current.props.rows.find((r) => r.id === id)!;
+  expect(skipped).toMatchObject({ state: 'done', current: 'Skipped', dismissed: true });
+  await act(async () => result.current.props.onPick(id, 'ratio:add'));
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  const s = (await loadSetup(store)).settings;
+  expect(s.dismissed).not.toContain(id);
+  expect(s.ratios.map((r) => r.id)).toEqual([id]);
+});
