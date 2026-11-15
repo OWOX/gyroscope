@@ -4,6 +4,7 @@ import { memoryCollections } from '../store/collections';
 import { loadSetup, loadSuggestions } from '../store/settings';
 import { fakeOwox } from '../owox/fake';
 
+const recOf = (r: { current: { props: { rows: { id: string; options: { id: string; recommended: boolean }[] }[] } } }, id: string) => r.current.props.rows.find((x) => x.id === id)!.options.find((o) => o.recommended)!.id;
 const owox = () => fakeOwox({
   projectDescription: 'We sell shoes', contexts: [],
   marts: [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }],
@@ -12,14 +13,28 @@ const owox = () => fakeOwox({
   rows: () => [],
 });
 
-test('a new project is blocked; accepting the recommended critical number derives a model', async () => {
+test('a new project is blocked; accepting the recommended critical number derives a model only after Save', async () => {
   const onModel = vi.fn();
-  const { result } = renderHook(() => useSetup({ owox: owox(), store: memoryCollections(), generateWith: null, isAdmin: true, by: 'Ann', projectId: 'p1', now: () => new Date('2026-11-14T10:00:00Z'), open: vi.fn(), onModel }));
+  const store = memoryCollections();
+  const { result } = renderHook(() => useSetup({ owox: owox(), store, generateWith: null, isAdmin: true, by: 'Ann', projectId: 'p1', now: () => new Date('2026-11-14T10:00:00Z'), open: vi.fn(), onModel }));
   await act(() => result.current.reload());
   expect(onModel.mock.calls.at(-1)![0]).toMatchObject({ ok: false, blocked: { code: 'NO_GOAL' } });
   const rowMetric = result.current.props.rows.find((r) => r.id === 'goal.metric')!;
-  await act(async () => result.current.props.onChoose('goal.metric', rowMetric.options.find((o) => o.recommended)!.id));
+  const bar = () => result.current.props.rows.filter((r) => r.state === 'done').length;
+  const before = bar();
+  await act(async () => result.current.props.onPick('goal.metric', rowMetric.options.find((o) => o.recommended)!.id));
+  expect(result.current.props.dirty).toBe(1);
+  expect(result.current.props.picked).toEqual({ 'goal.metric': rowMetric.options.find((o) => o.recommended)!.id });
+  // staged: the rows follow the draft, nothing is written and the canvas model is untouched
+  expect(result.current.props.rows.find((r) => r.id === 'goal.metric')!.state).toBe('done');
+  expect(bar()).toBeGreaterThan(before);
+  expect(result.current.props.savedOpen.has('goal.metric')).toBe(true);
+  expect(result.current.settings!.goal).toBeNull();
+  expect(onModel).toHaveBeenCalledTimes(1);
+  await act(async () => result.current.props.onSave());
   await waitFor(() => expect(onModel.mock.calls.at(-1)![0]).toMatchObject({ ok: true }));
+  expect(result.current.props.dirty).toBe(0);
+  expect(result.current.settings!.goal?.measure.field).toBe('revenue');
 });
 
 test('a member never calls the AI', async () => {
@@ -43,7 +58,7 @@ test('an admin with AI caches the picks under the facts hash and does not ask ag
   expect(generateWith.mock.calls.length).toBe(calls);
 });
 
-test('a conflicting save says who changed setup and reloads', async () => {
+test('a conflicting Save says who changed setup, reloads and keeps the picks', async () => {
   const store = memoryCollections();
   const args = { owox: owox(), store, generateWith: null, isAdmin: true, by: 'Ann', projectId: 'p1', now: () => new Date('2026-11-14T10:00:00Z'), open: vi.fn(), onModel: vi.fn() };
   const { result } = renderHook(() => useSetup(args));
@@ -52,9 +67,16 @@ test('a conflicting save says who changed setup and reloads', async () => {
   const base = (await loadSetup(store)).settings;
   await saveSetup(store, base, { ...base, thresholdPct: 30 }, 'Bob', new Date('2026-11-14T09:05:00Z'));
   const row = result.current.props.rows.find((r) => r.id === 'goal.metric')!;
-  await act(async () => result.current.props.onChoose('goal.metric', row.options.find((o) => o.recommended)!.id));
+  await act(async () => result.current.props.onPick('goal.metric', row.options.find((o) => o.recommended)!.id));
+  await act(async () => result.current.props.onSave());
   await waitFor(() => expect(result.current.props.message).toMatch(/^Bob changed setup at \d\d:\d\d\. Reloaded\.$/));
   expect(result.current.settings!.thresholdPct).toBe(30);
+  // the picks stay, and a second Save replays them on the newly saved settings
+  expect(result.current.props.dirty).toBe(1);
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect(result.current.props.message).toBeNull();
+  expect(result.current.settings).toMatchObject({ thresholdPct: 30, goal: { measure: { field: 'revenue' } } });
 });
 
 const adminArgs = (store: ReturnType<typeof memoryCollections>, generateWith: (p: string, s: unknown) => Promise<unknown>, over: Record<string, unknown> = {}) =>
@@ -79,11 +101,11 @@ test('rows whose options change after a choice get an AI pick', async () => {
   await act(() => result.current.reload());
   await waitFor(() => expect(result.current.props.rows.every((r) => !r.aiPending)).toBe(true));
   const metric = result.current.props.rows.find((r) => r.id === 'goal.metric')!;
-  await act(async () => result.current.props.onChoose('goal.metric', metric.options.find((o) => o.recommended)!.id));
+  await act(async () => result.current.props.onPick('goal.metric', metric.options.find((o) => o.recommended)!.id));
   const shown = () => result.current.props.rows.find((r) => /^class:.*\.shown$/.test(r.id) && r.options.some((o) => o.id.startsWith('shown:') && o.id !== 'shown:none'));
   await waitFor(() => expect(shown()).toBeDefined());
   const before = Object.keys(await items(store)).filter((k) => k.startsWith('metric:'));
-  await act(async () => result.current.props.onChoose(shown()!.id, shown()!.options.find((o) => o.id !== 'shown:none')!.id));
+  await act(async () => result.current.props.onPick(shown()!.id, shown()!.options.find((o) => o.id !== 'shown:none')!.id));
   // the metric plan rows appear with the shown numbers and are asked, though the facts hash did not change
   await waitFor(async () => expect(Object.keys(await items(store)).filter((k) => k.startsWith('metric:')).length).toBeGreaterThan(before.length));
 });
@@ -119,14 +141,15 @@ test('a cached pick whose options changed is ignored and asked again', async () 
   expect(result.current.props.rows.find((r) => r.id === 'goal.metric')!.options.some((o) => o.id === 'not-an-option')).toBe(false);
 });
 
-test('a member cannot choose or dismiss', async () => {
+test('a member cannot stage or save', async () => {
   const store = memoryCollections();
   const onModel = vi.fn();
   const { result } = renderHook(() => useSetup(adminArgs(store, async () => ({ pick: 0 }), { isAdmin: false, onModel })));
   await act(() => result.current.reload());
   onModel.mockClear();
   const row = result.current.props.rows.find((r) => r.id === 'goal.metric')!;
-  await act(async () => { result.current.props.onChoose('goal.metric', row.options[0]!.id); result.current.props.onDismiss('goal.metric'); });
+  await act(async () => { result.current.props.onPick('goal.metric', row.options[0]!.id); result.current.props.onSave(); });
+  expect(result.current.props.dirty).toBe(0);
   expect(onModel).not.toHaveBeenCalled();
   expect((await loadSetup(store)).settings.updatedAt).toBeNull();
 });
@@ -161,15 +184,59 @@ test('an older AI run settling after a reload does not clear the newer run\'s pe
   await waitFor(() => expect(result.current.props.rows.every((r) => !r.aiPending)).toBe(true));
 });
 
-test('two quick choices both land and do not conflict with each other', async () => {
+test('picks stage in order, a newer pick for a row replaces the older, and null removes it; Discard clears', async () => {
   const store = memoryCollections();
   const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null })));
   await act(() => result.current.reload());
-  const rec = (id: string) => result.current.props.rows.find((r) => r.id === id)!.options.find((o) => o.recommended)!.id;
-  const [m, d] = [rec('goal.metric'), rec('goal.date')];
-  await act(async () => { result.current.props.onChoose('goal.metric', m); result.current.props.onChoose('goal.date', d); });
+  const opts = result.current.props.rows.find((r) => r.id === 'goal.metric')!.options;
+  await act(async () => result.current.props.onPick('goal.metric', opts[0]!.id));
+  await act(async () => result.current.props.onPick('goal.date', recOf(result, 'goal.date')));
+  expect(Object.keys(result.current.props.picked)).toEqual(['goal.metric', 'goal.date']);
+  await act(async () => result.current.props.onPick('goal.metric', opts.at(-1)!.id));
+  expect(Object.keys(result.current.props.picked)).toEqual(['goal.date', 'goal.metric']);
+  expect(result.current.props.dirty).toBe(2);
+  await act(async () => result.current.props.onPick('goal.date', null));
+  expect(result.current.props.dirty).toBe(1);
+  await act(async () => result.current.props.onDiscard());
+  expect(result.current.props.dirty).toBe(0);
+  expect((await loadSetup(store)).settings.updatedAt).toBeNull();
+});
+
+test('two staged choices land in one Save, with one write', async () => {
+  const store = memoryCollections();
+  const put = vi.fn();
+  const orig = store.collections.bind(store);
+  store.collections = ((name: string) => { const c = orig(name as never) as { put: (...a: unknown[]) => unknown }; if (name !== 'settings') return c; const p = c.put.bind(c); return { ...c, put: (...a: unknown[]) => { put(); return p(...a); } }; }) as never;
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null })));
+  await act(() => result.current.reload());
+  await act(async () => { result.current.props.onPick('goal.metric', recOf(result, 'goal.metric')); });
+  await act(async () => { result.current.props.onPick('goal.date', recOf(result, 'goal.date')); });
+  expect(put).not.toHaveBeenCalled();
+  await act(async () => result.current.props.onSave());
   await waitFor(() => expect(result.current.settings?.goal?.dateField).toBe('date'));
   expect(result.current.settings!.goal!.measure.field).toBe('revenue');
   expect(result.current.props.message).toBeNull();
   expect((await loadSetup(store)).settings.goal?.dateField).toBe('date');
+  expect(put).toHaveBeenCalledTimes(1);
+});
+
+test('Save runs a staged append after the settings write, and Save with nothing staged does nothing', async () => {
+  const store = memoryCollections();
+  const source = owox();
+  const updateDescription = vi.fn(async () => {});
+  source.project.updateDescription = updateDescription;
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
+  await act(() => result.current.reload());
+  await act(async () => result.current.props.onSave());
+  expect(updateDescription).not.toHaveBeenCalled();
+  await act(async () => result.current.props.onPick('goal.metric', recOf(result, 'goal.metric')));
+  const desc = result.current.props.rows.find((r) => r.id === 'goal.description')!;
+  expect(desc.options[0]!.action.kind).toBe('append');
+  await act(async () => result.current.props.onPick('goal.description', desc.options[0]!.id));
+  expect(result.current.props.dirty).toBe(2);
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect(updateDescription).toHaveBeenCalledTimes(1);
+  expect(String((updateDescription.mock.calls[0] as unknown[])[0])).toContain('Orders · revenue');
+  expect((await loadSetup(store)).settings.goal?.measure.field).toBe('revenue');
 });

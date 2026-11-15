@@ -14,12 +14,15 @@ import { AI_ROWS, aiPick, factsHash, type GenerateWith } from './ai';
 import { buildRows } from './rows';
 import { dismiss } from './rows/common';
 import { hashString } from '../lib/hash';
-import type { Row } from './types';
+import type { Action, Row } from './types';
 
 export interface UseSetupArgs {
   owox: OwoxLike; store: CollectionsLike; generateWith: GenerateWith | null; isAdmin: boolean; by: string; projectId: string;
   now: () => Date; open?: (path: string) => void; onModel: (d: Derived, graph: Graph) => void;
 }
+
+/** A staged choice: the option picked on a row and what it will do on Save. */
+interface Pick { rowId: string; optionId: string; action: Action }
 
 interface Loaded { settings: ProjectSettingsV5; graph: Graph; legacyCore: string[]; derived: Derived; hash: string }
 
@@ -32,7 +35,9 @@ const clock = (at: string | null): string => {
   return t && !Number.isNaN(t.getTime()) ? `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` : '';
 };
 
-/** Loads the settings and every schema, derives the canvas model, runs cached AI picks for admins and saves each choice. */
+const applyPicks = (settings: ProjectSettingsV5, picks: Pick[]): ProjectSettingsV5 => picks.reduce((s, p) => (p.action.kind === 'set' ? p.action.next(s) : s), settings);
+
+/** Loads the settings and every schema, derives the canvas model, runs cached AI picks for admins and stages choices in a draft that one Save writes. */
 export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: ProjectSettingsV5 | null; reload: () => Promise<void> } {
   const latest = useRef(args);
   latest.current = args;
@@ -43,24 +48,29 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   const cachedNow = useRef<Record<string, string>>({});
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [busyRow, setBusyRow] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingNow = useRef(false);
   const [message, setMessage] = useState<string | null>(null);
+  // staged choices in pick order; Save writes them together
+  const [picks, setPicksState] = useState<Pick[]>([]);
+  const picksNow = useRef<Pick[]>([]);
+  const setPicks = (p: Pick[]) => { picksNow.current = p; setPicksState(p); };
   // a newer reload makes an older AI run stop merging and saving
   const runId = useRef(0);
   const inflight = useRef<Set<string>>(new Set());
   const saveChain = useRef<Promise<unknown>>(Promise.resolve());
-  // choices run one after another: each reads the settings the one before it saved
-  const chooseChain = useRef<Promise<unknown>>(Promise.resolve());
 
   const hold = (l: Loaded) => { loadedNow.current = l; setLoaded(l); };
-  const baseRows = (l: Loaded) => buildRows({ settings: l.settings, graph: l.graph, model: l.derived.ok ? l.derived.model : null, legacyCore: l.legacyCore, projectId: latest.current.projectId, hasAi: !!latest.current.generateWith, ai: {}, aiPending: new Set() });
+  const rowsFor = (l: Loaded, settings: ProjectSettingsV5, derived: Derived, ai: Record<string, string>, aiPending: ReadonlySet<string>) =>
+    buildRows({ settings, graph: l.graph, model: derived.ok ? derived.model : null, legacyCore: l.legacyCore, projectId: latest.current.projectId, hasAi: !!latest.current.generateWith, ai, aiPending });
 
-  /** Asks the AI for every AI row that is open and has no stored pick for its current options. Admins only; never awaited by a reload. */
-  const runAi = useCallback(async (l: Loaded) => {
+  /** Asks the AI for every AI row that is open in the draft and has no stored pick for its current options. Admins only; never awaited by a reload. */
+  const runAi = useCallback(async (l: Loaded, settings: ProjectSettingsV5 = l.settings) => {
     const { generateWith, store, now, isAdmin } = latest.current;
     if (!isAdmin || !generateWith) return;
     const id = runId.current;
-    const todo = baseRows(l).filter((r) => AI_ROWS.test(r.id) && r.state !== 'done' && cachedNow.current[keyOf(r)] === undefined && !inflight.current.has(keyOf(r)));
+    const derived = settings === l.settings ? l.derived : deriveModel(settings, l.graph);
+    const todo = rowsFor(l, settings, derived, {}, new Set()).filter((r) => AI_ROWS.test(r.id) && r.state !== 'done' && cachedNow.current[keyOf(r)] === undefined && !inflight.current.has(keyOf(r)));
     if (todo.length === 0) return;
     for (const r of todo) inflight.current.add(keyOf(r));
     setPending((p) => new Set([...p, ...todo.map((r) => r.id)]));
@@ -105,62 +115,102 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
       hold(l);
       onModel(derived, graph);
       setLoading(false);
-      void runAi(l);
+      void runAi(l, applyPicks(settings, picksNow.current));
     } catch (e) {
       if (id === runId.current) { setMessage(`Couldn't load setup: ${describeError(e)}`); setLoading(false); setPending(new Set()); }
       throw e;
     }
   }, [runAi]);
 
-  const rows = useMemo(() => {
-    if (!loaded) return [];
-    const input = { settings: loaded.settings, graph: loaded.graph, model: loaded.derived.ok ? loaded.derived.model : null, legacyCore: loaded.legacyCore, projectId: args.projectId, hasAi: !!args.generateWith };
+  // the draft: the saved settings with every staged `set` applied in pick order; the rows and the model follow it
+  const draft = useMemo(() => {
+    if (!loaded) return null;
+    if (picks.length === 0) return { settings: loaded.settings, derived: loaded.derived };
+    const settings = applyPicks(loaded.settings, picks);
+    return { settings, derived: deriveModel(settings, loaded.graph) };
+  }, [loaded, picks]);
+
+  const { rows, savedOpen, savedCurrent } = useMemo(() => {
+    if (!loaded || !draft) return { rows: [] as Row[], savedOpen: new Set<string>(), savedCurrent: {} as Record<string, string | null> };
     // a stored pick counts only while it is one of the row's current options
     const ai: Record<string, string> = {};
-    for (const r of buildRows({ ...input, ai: {}, aiPending: new Set() })) {
+    for (const r of rowsFor(loaded, draft.settings, draft.derived, {}, new Set())) {
       const pick = cached[keyOf(r)];
       if (pick !== undefined && r.options.some((o) => o.id === pick)) ai[r.id] = pick;
     }
-    return buildRows({ ...input, ai, aiPending: pending });
-  }, [loaded, cached, pending, args.projectId, args.generateWith]);
+    const rows = rowsFor(loaded, draft.settings, draft.derived, ai, pending);
+    const saved = new Map((picks.length ? rowsFor(loaded, loaded.settings, loaded.derived, {}, new Set()) : rows).map((r) => [r.id, r]));
+    return {
+      rows,
+      // rows the saved settings leave unanswered, a row that only exists in the draft included
+      savedOpen: new Set(rows.filter((r) => saved.get(r.id)?.state !== 'done').map((r) => r.id)),
+      savedCurrent: Object.fromEntries([...saved].map(([id, r]) => [id, r.current])),
+    };
+  }, [loaded, draft, picks, cached, pending, args.projectId, args.generateWith]);
+  const rowsNow = useRef(rows);
+  rowsNow.current = rows;
 
-  const chooseNow = useCallback(async (rowId: string, optionId: string, action?: (s: ProjectSettingsV5) => ProjectSettingsV5) => {
+  const onPick = useCallback((rowId: string, optionId: string | null) => {
     const l = loadedNow.current;
-    const { owox, store, by, now, open, onModel, isAdmin } = latest.current;
-    if (!l || !isAdmin) return;
-    const option = rows.find((r) => r.id === rowId)?.options.find((o) => o.id === optionId);
-    const act = action ? { kind: 'set' as const, next: action } : option?.action;
-    if (!act) return;
-    setBusyRow(rowId);
-    setMessage(null);
-    try {
-      const r = await runAction(act, { owox, store, settings: l.settings, by, now, open: open ?? (() => {}) });
-      if (r.ok) {
-        if (act.kind === 'set') {
-          const derived = deriveModel(r.settings, l.graph);
-          const next = { ...l, settings: r.settings, derived };
-          hold(next);
-          onModel(derived, l.graph);
-          // the change can bring new rows that want a pick
-          void runAi(next);
-        } else if (act.kind === 'append' || act.kind === 'teams') await reload().catch(() => undefined);
-      } else if ('conflict' in r) {
-        setMessage(`${r.conflict.by ?? 'Someone'} changed setup${r.conflict.at ? ` at ${clock(r.conflict.at)}` : ''}. Reloaded.`);
-        await reload().catch(() => undefined);
-      } else setMessage(r.snippet ? `${r.error}\n${r.snippet}` : r.error);
-    } finally { setBusyRow(null); }
-  }, [rows, reload, runAi]);
+    if (!l || !latest.current.isAdmin || savingNow.current) return;
+    let next = picksNow.current.filter((p) => p.rowId !== rowId);
+    if (optionId !== null) {
+      const row = rowsNow.current.find((r) => r.id === rowId);
+      const action: Action | undefined = optionId === 'dismiss' && row?.dismissable ? { kind: 'set', next: (s) => dismiss(s, rowId) } : row?.options.find((o) => o.id === optionId)?.action;
+      if (!action || action.kind === 'open') return;
+      next = [...next, { rowId, optionId, action }];
+    }
+    setPicks(next);
+    // the draft can bring new rows that want an AI pick
+    void runAi(l, applyPicks(l.settings, next));
+  }, [runAi]);
 
-  const choose = useCallback((rowId: string, optionId: string, action?: (s: ProjectSettingsV5) => ProjectSettingsV5): Promise<void> => {
-    const run = chooseChain.current.then(() => chooseNow(rowId, optionId, action));
-    chooseChain.current = run.catch(() => undefined);
-    return run;
-  }, [chooseNow]);
+  const onSave = useCallback(async () => {
+    const l = loadedNow.current;
+    const { owox, store, by, now, open, isAdmin } = latest.current;
+    const staged = picksNow.current;
+    if (!l || !isAdmin || staged.length === 0 || savingNow.current) return;
+    savingNow.current = true;
+    setSaving(true);
+    setMessage(null);
+    const written = new Set<Pick>();
+    const deps = { owox, store, by, now, open: open ?? (() => {}) };
+    let ok = true;
+    try {
+      let settings = l.settings;
+      const sets = staged.filter((p) => p.action.kind === 'set');
+      if (sets.length) {
+        const next = applyPicks(l.settings, staged);
+        const r = await runAction({ kind: 'set', next: () => next }, { ...deps, settings });
+        if (!r.ok) {
+          ok = false;
+          if ('conflict' in r) setMessage(`${r.conflict.by ?? 'Someone'} changed setup${r.conflict.at ? ` at ${clock(r.conflict.at)}` : ''}. Reloaded.`);
+          else setMessage(r.snippet ? `${r.error}\n${r.snippet}` : r.error);
+          return;
+        }
+        settings = r.settings;
+        for (const p of sets) written.add(p);
+        hold({ ...l, settings, derived: deriveModel(settings, l.graph) });
+      }
+      for (const p of staged.filter((x) => x.action.kind !== 'set')) {
+        const r = await runAction(p.action, { ...deps, settings });
+        if (!r.ok) { ok = false; setMessage('conflict' in r ? 'Setup changed while saving. Reloaded.' : r.snippet ? `${r.error}\n${r.snippet}` : r.error); return; }
+        written.add(p);
+      }
+      await reload().catch(() => undefined);
+    } finally {
+      // what reached OWOX is not replayed: a retry would write an appended line twice
+      setPicks(picksNow.current.filter((p) => !written.has(p)));
+      if (!ok) await reload().catch(() => undefined);
+      savingNow.current = false;
+      setSaving(false);
+    }
+  }, [reload]);
 
   const props: SetupTabProps = {
-    rows, loading, readOnly: !args.isAdmin, busyRow, message,
-    onChoose: (rowId, optionId) => void choose(rowId, optionId),
-    onDismiss: (rowId) => void choose(rowId, 'dismiss', (s) => dismiss(s, rowId)),
+    rows, loading, readOnly: !args.isAdmin, message, picked: Object.fromEntries(picks.map((p) => [p.rowId, p.optionId])),
+    onPick, dirty: picks.length, saving, onSave: () => void onSave(), onDiscard: () => { if (!savingNow.current) setPicks([]); },
+    savedOpen, savedCurrent,
     onRetry: () => void reload().catch(() => undefined),
     onOpen: args.open && ((path) => latest.current.open?.(path)),
   };
