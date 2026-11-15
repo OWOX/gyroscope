@@ -44,10 +44,12 @@ export function buildCtx(input: RowsInput): Ctx {
 }
 
 export const martTitle = (ctx: Ctx, id: string) => ctx.byId.get(id)?.title ?? ctx.graph.inputs.marts.find((m) => m.id === id)?.title ?? 'a Data Mart you can no longer see';
-/** "{label} ({Data Mart title})" for a field. */
+/** "{Data Mart title} · {field}", as OWOX writes a field mention. */
+export const fieldLabel = (martTitle: string, field: string) => `${martTitle} · ${field}`;
+/** The same label for a field of a Data Mart. */
 export function fieldText(ctx: Ctx, martId: string, path: string): string {
   const f = flattenFields(ctx.byId.get(martId)?.detail.fields ?? []).find((x) => x.path === path)?.field;
-  return `${f?.alias || f?.name || path} (${martTitle(ctx, martId)})`;
+  return fieldLabel(martTitle(ctx, martId), f?.alias || f?.name || path);
 }
 /** Applies a change to the goal, starting from the recommended goal when none is saved; no goal to start from leaves the settings as they are. */
 export const updGoal = (ctx: Ctx, f: (g: Goal) => Goal) => (s: ProjectSettingsV5): ProjectSettingsV5 => {
@@ -89,7 +91,7 @@ export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Re
   return { id, block, title: fill(c.title, vars), question: fill(c.question, vars), why: fill(c.why, vars), aiPending: ctx.aiPending.has(id), dismissable: severity === 'notice', ...more, severity, ...recommend(ctx, id, options, none) };
 }
 
-export const fieldOption = (ctx: Ctx, c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: `${c.label} (${c.martTitle})`, action: set(next), link: martPage(ctx, c.martId, c.path), linkLabel: `${c.label} (${c.martTitle})` });
+export const fieldOption = (ctx: Ctx, c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: fieldLabel(c.martTitle, c.label), action: set(next), link: martPage(ctx, c.martId, c.path), linkLabel: fieldLabel(c.martTitle, c.label) });
 export const setOption = (id: string, label: string, next: (s: ProjectSettingsV5) => ProjectSettingsV5, link?: string, linkLabel?: string): Plain => ({ id, label, action: set(next), ...(link ? { link, linkLabel } : {}) });
 export const openOption = (id: string, label: string, path: string): Plain => ({ id, label, action: { kind: 'open', path } });
 
@@ -130,8 +132,8 @@ export function planRow(ctx: Ctx, key: string, id: string, block: BlockId, vars:
 const esc = (s: string) => s.replace(/[\\|[\]()]/g, '\\$&').replace(/\s*[\r\n]+\s*/g, ' ');
 export function metricsTable(ctx: Ctx, role: string, alias: string, martId: string, path: string, plan: PlanDef | null): string {
   const link = (text: string, m: string, f: string) => `[${esc(text)}](${martPage(ctx, m, f)})`;
-  const planCell = plan ? link(plan.measure.field, plan.martId, plan.measure.field) : '';
-  return `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| ${esc(role)} | ${esc(alias)} | ${planCell} | ${link(alias, martId, path)} |`;
+  const planCell = plan ? link(fieldLabel(martTitle(ctx, plan.martId), plan.measure.field), plan.martId, plan.measure.field) : '';
+  return `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| ${esc(role)} | ${esc(alias)} | ${planCell} | ${link(fieldLabel(martTitle(ctx, martId), alias), martId, path)} |`;
 }
 
 /** A row that asks to add the number to a description; done when the description already links the same Data Mart field. */

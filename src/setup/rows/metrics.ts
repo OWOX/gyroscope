@@ -3,7 +3,7 @@ import { metricId, ratioMetricId } from '../../model/derive';
 import { dateCandidates, formatFor, kindFor, type FieldCand } from '../recommend/fields';
 import { keyFor, ratioPairs, shownFor } from '../recommend/structure';
 import type { Row, RowState } from '../types';
-import { dismiss, fieldCheck, make, martPage, martTitle, planRow, setOption, type Ctx, type Plain } from './common';
+import { dismiss, fieldCheck, fieldLabel, make, martPage, martTitle, planRow, setOption, type Ctx, type Plain } from './common';
 
 const FORMATS: Record<MetricFormat, string> = { number: 'Number', percent: 'Percent', currency: 'Money' };
 
@@ -24,30 +24,31 @@ export function metricRows(ctx: Ctx): Row[] {
 
     const rec = keyFor(cl.id, model);
     const alias = (id: string) => model.metrics.find((m) => m.id === id)?.alias ?? id;
+    const labelOf = (id: string) => { const m = model.metrics.find((x) => x.id === id); return m ? fieldLabel(martTitle(ctx, m.martId), m.alias) : id; };
     const keys = [...(rec ? [rec] : []), ...cl.metricIds.filter((id) => id !== rec)];
     const stored = saved?.keyMetricId ?? null;
     const keyState: RowState = stored ? (cl.metricIds.includes(stored) ? 'done' : 'broken') : 'open';
     rows.push(make(ctx, 'class.key', `class:${cl.id}.key`, 'metrics', vars, {
       group: cl.title,
       state: keyState, detail: keyState === 'broken' ? `${alias(stored!)} isn't on ${cl.title} any more` : undefined,
-      current: stored && keyState === 'done' ? alias(stored) : null, severity: important ? 'warning' : 'notice',
-      options: keys.map((id) => { const m = model.metrics.find((x) => x.id === id); return setOption(`metric:${id}`, alias(id), write((cur) => ({ ...cur, keyMetricId: id })), m && martPage(ctx, m.martId, m.measure.field), m && `${alias(id)} (${martTitle(ctx, m.martId)})`); }),
+      current: stored && keyState === 'done' ? labelOf(stored) : null, severity: important ? 'warning' : 'notice',
+      options: keys.map((id) => { const m = model.metrics.find((x) => x.id === id); return setOption(`metric:${id}`, labelOf(id), write((cur) => ({ ...cur, keyMetricId: id })), m && martPage(ctx, m.martId, m.measure.field), m && labelOf(id)); }),
     }));
 
     const choice = (c: FieldCand): MetricChoice => ({ martId: c.martId, ...kindFor(c), dateField: dateCandidates(node)[0]?.path ?? null, alias: c.label });
     const recShown = shownFor(cl.id, model, node);
     const picks: Plain[] = [];
-    const fieldLink = (c: FieldCand) => [martPage(ctx, c.martId, c.path), `${c.label} (${c.martTitle})`] as const;
+    const fieldLink = (c: FieldCand) => [martPage(ctx, c.martId, c.path), fieldLabel(c.martTitle, c.label)] as const;
     // the combined pick points at its one field, or at the class's Data Mart when it covers several
-    if (recShown.length) picks.push(setOption(`shown:${recShown.map((c) => c.path).join(',')}`, recShown.map((c) => c.label).join(', '), write((cur) => ({ ...cur, shown: recShown.map(choice) })), ...(recShown.length === 1 ? fieldLink(recShown[0]!) : [martPage(ctx, cl.id), cl.title] as const)));
-    for (const c of recShown) picks.push(setOption(`shown:${c.path}`, c.label, write((cur) => ({ ...cur, shown: [choice(c)] })), ...fieldLink(c)));
+    if (recShown.length) picks.push(setOption(`shown:${recShown.map((c) => c.path).join(',')}`, recShown.map((c) => fieldLabel(c.martTitle, c.label)).join(', '), write((cur) => ({ ...cur, shown: recShown.map(choice) })), ...(recShown.length === 1 ? fieldLink(recShown[0]!) : [martPage(ctx, cl.id), cl.title] as const)));
+    for (const c of recShown) picks.push(setOption(`shown:${c.path}`, fieldLabel(c.martTitle, c.label), write((cur) => ({ ...cur, shown: [choice(c)] })), ...fieldLink(c)));
     picks.push(setOption('shown:none', 'No extra numbers', (x) => dismiss(write((cur) => ({ ...cur, shown: [] }))(x), `class:${cl.id}.shown`)));
     const shown = saved?.shown ?? [];
     const bad = shown.map((c) => ({ c, chk: fieldCheck(ctx, c.martId, [c.measure.field]) })).find((x) => x.chk.state !== 'done');
     rows.push(make(ctx, 'class.shown', `class:${cl.id}.shown`, 'metrics', vars, {
       group: cl.title,
       state: bad ? bad.chk.state : shown.length ? 'done' : 'open', detail: bad?.chk.detail,
-      current: shown.length ? shown.map((c) => c.alias).join(', ') : null, options: picks,
+      current: shown.length ? shown.map((c) => fieldLabel(martTitle(ctx, c.martId), c.alias)).join(', ') : null, options: picks,
     }));
 
     for (const c of shown) {

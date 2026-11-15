@@ -103,7 +103,7 @@ describe('rows over a connected project', () => {
     for (const o of picks) expect(o.link, o.id).toMatch(/^\/ui\/p1\/data-marts\/orders\/data-setup/);
     const only = picks.filter((o) => o.link?.includes('?field='));
     expect(only.length).toBeGreaterThan(0);
-    for (const o of only) expect(o.linkLabel).toMatch(/\(Orders\)$/);
+    for (const o of only) expect(o.linkLabel).toMatch(/^Orders · /);
     const multi = picks.find((o) => o.id.includes(','));
     if (multi) { expect(multi.link).toBe('/ui/p1/data-marts/orders/data-setup'); expect(multi.linkLabel).toBe('Orders'); }
     expect(byId(rows({ ...filled, coreClasses: ['orders'] }), 'core.classes').options.find((o) => o.id === 'core:-orders')!.linkLabel).toBe('Orders');
@@ -160,12 +160,18 @@ describe('rows over a connected project', () => {
   });
 });
 
+test('field labels read "Data Mart · field" in options, current values and links', () => {
+  const m = byId(buildRows(input(filled)), 'goal.metric');
+  expect(m.current).toBe('Orders · revenue');
+  expect(m.options.find((o) => o.id === 'field:orders:revenue')).toMatchObject({ label: 'Orders · revenue', linkLabel: 'Orders · revenue' });
+});
+
 describe('rows by block', () => {
   test('goal description is done once the project description links the goal field, and appends the one-row table otherwise', () => {
     const open = byId(buildRows(input(filled)), 'goal.description');
     expect(open.state).toBe('open');
     const opt = open.options[0]!;
-    expect(opt.action).toMatchObject({ kind: 'append', scope: 'project', text: '| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| Critical number | revenue |  | [revenue](/ui/p1/data-marts/orders/data-setup?field=revenue) |' });
+    expect(opt.action).toMatchObject({ kind: 'append', scope: 'project', text: '| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| Critical number | revenue |  | [Orders · revenue](/ui/p1/data-marts/orders/data-setup?field=revenue) |' });
     const id = '0f0e0d0c-0b0a-4908-8706-050403020100';
     const g = graph([{ ...orders, id }]);
     g.inputs.projectDescription = `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| Critical number | Revenue | | [Revenue](/ui/p1/data-marts/${id}/data-setup?field=revenue) |`;
@@ -272,7 +278,7 @@ describe('fix round 1', () => {
     const a = byId(buildRows(input(s)), 'goal.description').options[0]!.action;
     if (a.kind !== 'append') throw new Error();
     expect(a.text).toContain('| Rev \\| net \\[x\\] new |');
-    expect(a.text).toContain('[Rev \\| net \\[x\\] new](/ui/p1/data-marts/orders/data-setup?field=revenue)');
+    expect(a.text).toContain('[Orders · Rev \\| net \\[x\\] new](/ui/p1/data-marts/orders/data-setup?field=revenue)');
   });
 
   test('none labels name the cause', () => {
