@@ -148,7 +148,7 @@ test('a staged append or teams pick counts as done in the bar and the block badg
   const r = row({ id: 'goal.description', severity: 'notice', options: [append] });
   const { rerender } = render(<SetupTab {...props([r])} />);
   expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
-  expect(screen.getByTestId('block-count')).toHaveTextContent('1 left');
+  expect(screen.queryByTestId('block-count')).toBeNull();
   rerender(<SetupTab {...props([r], { picked: { 'goal.description': 'append' }, dirty: 1 })} />);
   expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
   expect(screen.queryByTestId('block-count')).toBeNull();
@@ -262,7 +262,7 @@ describe('the link to OWOX', () => {
   });
 });
 
-test('each block header shows its icon tile and an open-count badge', () => {
+test('each block header shows its icon tile and no count badge', () => {
   const done = row({ id: 'a', state: 'done', current: 'Orders · revenue' });
   const open1 = row({ id: 'b', block: 'metrics', severity: 'warning', title: 'Orders Format' });
   const open2 = row({ id: 'c', block: 'metrics', severity: 'notice', title: 'Orders Plan' });
@@ -270,7 +270,7 @@ test('each block header shows its icon tile and an open-count badge', () => {
   const cards = [...container.querySelectorAll('.dm-collapsible[data-variant="band"]')];
   expect(cards).toHaveLength(2);
   for (const c of cards) expect(c.querySelector('.dm-collapsible-icon svg')).not.toBeNull();
-  expect(screen.getAllByTestId('block-count').map((e) => e.textContent)).toEqual(['2 left']);
+  expect(screen.queryByTestId('block-count')).toBeNull();
 });
 
 test('a broken row with no current offers Keep the saved value and shows its detail', () => {
@@ -530,4 +530,22 @@ test('with a progress slot, the save message and the notice go into the slot bes
   expect(within(slot).getByText('Save failed')).toBeInTheDocument();
   expect(within(slot).getByText('A later pick replaced one')).toBeInTheDocument();
   slot.remove();
+});
+
+describe('an option that points at a Data Mart', () => {
+  const rec = { ...set('f', 'Orders · revenue', true), martId: 'orders', link: '/ui/p/data-marts/orders/data-setup', linkLabel: 'Orders · revenue' };
+  const plain = set('g', 'Orders · profit');
+  const r = row({ options: [rec, plain] });
+
+  test('shows the mart icon, then the label, the link and the Recommended pill, in that order', () => {
+    render(<SetupTab {...props([r], { martIcons: { orders: 'orders' } })} />);
+    const label = document.querySelector('label[for$="-f"]')!;
+    expect(label.querySelector('svg.lucide-receipt')).not.toBeNull();
+    const order = [...label.querySelectorAll('svg.lucide-receipt, .gy-row-link, .gy-row-rec')];
+    expect(order.map((e) => (e.matches('svg') ? 'icon' : e.matches('.gy-row-link') ? 'link' : 'pill'))).toEqual(['icon', 'link', 'pill']);
+    expect(label.firstElementChild!.matches('svg.lucide-receipt')).toBe(true);
+    expect(label.textContent).toContain('Orders · revenue');
+    // an option without a Data Mart has no icon of its own, only the reserved width
+    expect(document.querySelector('label[for$="-g"] svg')).toBeNull();
+  });
 });

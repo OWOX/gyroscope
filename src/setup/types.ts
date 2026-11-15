@@ -18,7 +18,9 @@ export interface Option { id: string; label: string; recommended: boolean; actio
   /** An OWOX page path for the Data Mart, or the field, this option points at. */
   link?: string;
   /** The destination's name for the link's label: a field with its Data Mart, or a Data Mart title. */
-  linkLabel?: string }
+  linkLabel?: string;
+  /** The Data Mart the link points at, for its icon. */
+  martId?: string }
 export interface Row {
   id: string;                 // e.g. 'goal.metric', 'team:<ctxId>.plan', 'class:<martId>.key', 'metric:<metricId>.format', 'ratio:<id>', 'check.goal.pk'
   block: BlockId;

@@ -56,7 +56,7 @@ function Block({ info, rows, folded, hintOpen, onHint, attention, children }: { 
   const label = worst ? `${n} ${WORD[worst][n === 1 ? 0 : 1]} left` : 'All set';
   return (
     <CollapsibleCard variant="band" icon={info.icon} iconSeverity={tint} iconLabel={label} label={info.title} collapsed={folded} attention={attention}
-      title={<span className="gy-setup-title"><span className="gy-setup-name">{info.title}</span>{open.length > 0 && <span className="gy-setup-count" data-testid="block-count">{`${open.length} left`}</span>}<HintButton title={info.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></span>}
+      title={<span className="gy-setup-title"><span className="gy-setup-name">{info.title}</span><HintButton title={info.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></span>}
       hint={<HintBubble id={hintId} open={hintOpen} anchor={anchor}>{`${info.question} ${info.why}`}</HintBubble>}>
       {children}
     </CollapsibleCard>
@@ -91,7 +91,7 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
     }, 0);
   }, [target]);
   const renderRow = (r: Row) => (
-    <SetupRow key={r.id} row={r} readOnly={readOnly} picked={picked[r.id]} unset={savedOpen.has(r.id)} optionRow={optionRows?.[r.id]} saving={saving} saveCount={saveCount}
+    <SetupRow key={r.id} row={r} readOnly={readOnly} picked={picked[r.id]} unset={savedOpen.has(r.id)} optionRow={optionRows?.[r.id]} saving={saving} saveCount={saveCount} martIcons={martIcons}
       hintOpen={hintOpen(r.id, savedOpen.has(r.id))} onHint={() => toggle(r.id, savedOpen.has(r.id))}
       onPick={(o) => onPick(r.id, o)} onRetry={onRetry} onOpen={onOpen} />
   );

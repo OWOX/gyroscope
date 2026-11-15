@@ -2,6 +2,7 @@ import { Check, Loader2, Pencil, SquareArrowOutUpRight } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Option, Row } from '../setup/types';
 import { HintBubble, HintButton } from './Hint';
+import { MartIcon } from './MartIcon';
 
 const SHOWN = 3;
 
@@ -15,12 +16,14 @@ export interface SetupRowProps {
   optionRow?: Row;
   /** Counts successful saves: an open edit closes when it goes up. */
   saveCount?: number;
+  /** Data Mart id to its icon, for the options that point at a Data Mart. */
+  martIcons?: Record<string, string | null>;
   hintOpen: boolean; onHint: () => void;
   onPick: (optionId: string | null) => void; onRetry: () => void; onOpen?: (path: string) => void;
 }
 
 /** One setup question: the value now, and for an unanswered row (or on edit) a radio list of the ways to answer it. */
-export function SetupRow({ row, readOnly, saving = false, picked, unset, optionRow, saveCount = 0, hintOpen, onHint, onPick, onRetry, onOpen }: SetupRowProps) {
+export function SetupRow({ row, readOnly, saving = false, picked, unset, optionRow, saveCount = 0, martIcons, hintOpen, onHint, onPick, onRetry, onOpen }: SetupRowProps) {
   const [changing, setChanging] = useState(false);
   const [more, setMore] = useState(false);
   useEffect(() => { setChanging(false); }, [saveCount]);
@@ -52,13 +55,22 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const hasRadios = choices.length > 0 || dismissed;
 
   const linkBtn = (o: Option) => o.link && onOpen && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={() => onOpen(o.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
-  const radio = (key: string, label: ReactNode, checked: boolean, onChange: () => void, o?: Option, disabled = false) => (
-    <div key={key} className="gy-radio">
-      <input id={`${uid}-${key}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
-      <label htmlFor={`${uid}-${key}`}>{label}{o?.recommended && <span className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</label>
-      {o && linkBtn(o)}
-    </div>
-  );
+  // labels line up: where some option has an icon, the ones without reserve its width
+  const iconed = src.options.some((o) => o.martId && o.action.kind !== 'open');
+  const martIcon = (o?: Option) => o?.martId && <MartIcon icon={martIcons?.[o.martId] ?? null} size={14} className="gy-opt-icon" aria-hidden="true" />;
+  // the last word, the link icon and the pill wrap together, so the icon never sits alone on a line
+  const radio = (key: string, label: ReactNode, checked: boolean, onChange: () => void, o?: Option, disabled = false) => {
+    const text = typeof label === 'string' ? label : null;
+    const cut = text ? text.search(/\s\S*$/) : -1;
+    const head = text && cut > 0 ? text.slice(0, cut + 1) : '';
+    const tail = text ? text.slice(head.length) : label;
+    return (
+      <div key={key} className="gy-radio">
+        <input id={`${uid}-${key}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
+        <label htmlFor={`${uid}-${key}`}>{martIcon(o) || (iconed && <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" />)}{head}<span className="gy-radio-tail">{tail}{o && linkBtn(o)}{o?.recommended && <span className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></label>
+      </div>
+    );
+  };
 
   // a notice can be waved off; a row with its own "no" option already has that answer
   const offerDismiss = src.dismissable && !implicit && !dismissed && !choices.some((o) => o.declines);
@@ -103,8 +115,8 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   return (
     <div className="gy-row" ref={rowRef} data-row-id={row.id} data-severity={row.severity} data-state={row.state}>
       <span className="gy-row-icon" aria-hidden="true">{row.state === 'done' ? <Check size={14} /> : <span className="gy-row-dot" />}</span>
+      <div className="gy-hintbox-line gy-row-title"><strong>{row.title}</strong><HintButton title={row.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></div>
       <div className="gy-row-text">
-        <div className="gy-hintbox-line"><strong>{row.title}</strong><HintButton title={row.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></div>
         {row.detail && <span className="gy-row-detail" data-tone={detailTone}>{row.detail}</span>}
         <HintBubble id={hintId} open={hintOpen} anchor={anchor}>{`${row.question} ${row.why}`}</HintBubble>
       </div>
@@ -115,7 +127,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
               {row.current ? <span className="gy-row-value">{row.current}</span> : <span className="gy-muted">Not set</span>}
               {!readOnly && hasRadios && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Edit ${row.title}`} title="Edit" onClick={() => setChanging(true)}><Pencil size={14} aria-hidden="true" /></button>}
             </span>
-            {readOnly && row.state !== 'done' && rec && <span className="gy-muted gy-row-recline">Recommended: {rec.label}{linkBtn(rec)}</span>}
+            {readOnly && row.state !== 'done' && rec && <span className="gy-muted gy-row-recline">Recommended: {martIcon(rec)}{rec.label}{linkBtn(rec)}</span>}
           </>
         ) : radios}
         {row.state === 'error' && <button type="button" className="gy-link" onClick={onRetry}>Retry</button>}

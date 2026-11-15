@@ -482,8 +482,6 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-setup-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .gy-setup-blocks { display: grid; gap: 0.75rem; }
 .gy-setup-name { font-weight: 500; }
-.gy-setup-count { display: inline-block; padding: 0.0625rem 0.4375rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; line-height: 1.25; background: color-mix(in oklab, var(--border) 75%, transparent); }
-:root.dark .gy-setup-count { background: color-mix(in oklab, white 8%, transparent); }
 .gy-setup-group { margin-top: 0.5rem; }
 .gy-setup-group > summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; font-size: 0.8125rem; font-weight: 500; padding: 0.25rem 0; }
 .gy-setup-group > summary::-webkit-details-marker { display: none; }
@@ -514,7 +512,11 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-icon[data-severity='warning'], .gy-row[data-severity='warning'] .gy-row-dot { color: var(--orange); }
 .gy-row-icon[data-severity='notice'], .gy-row[data-severity='notice'] .gy-row-dot { color: var(--green); }
 .gy-row-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
-.gy-row-text { position: relative; display: grid; gap: 0.125rem; min-width: 0; }
+.gy-row-icon { grid-column: 1; grid-row: 1; }
+/* the title spans the row; below it the hint takes the left half and the options the right half */
+.gy-row-title { grid-column: 2 / -1; grid-row: 1; min-width: 0; }
+.gy-row-text { position: relative; grid-column: 2; grid-row: 2; display: grid; gap: 0.125rem; min-width: 0; }
+.gy-row-side { grid-column: 3; grid-row: 2; }
 .gy-row-detail { font-size: 0.75rem; }
 .gy-row-detail[data-tone='bad'] { color: var(--red); }
 .gy-row-detail[data-tone='warn'] { color: var(--orange); }
@@ -548,18 +550,20 @@ button.gy-badge:hover { color: var(--foreground); }
 /* radio list in the right column */
 .gy-radios { display: grid; gap: 0.25rem; width: 100%; min-width: 0; }
 .gy-radio { position: relative; min-width: 0; padding-left: 1.5rem; }
-.gy-radio:has(.gy-row-link) { padding-right: 1.75rem; }
 .gy-radio label { cursor: pointer; overflow-wrap: anywhere; }
 .gy-radio input { position: absolute; left: 0; top: 0.1875rem; margin: 0; accent-color: var(--primary); }
-/* the link icon sits in the right gutter, so a hidden one takes no line of its own */
-.gy-radio .gy-row-link { position: absolute; right: 0; top: 0; }
+.gy-opt-icon { display: inline-block; vertical-align: -0.1875rem; margin-right: 0.375rem; color: var(--muted-foreground); }
+.gy-opt-gap { width: 14px; height: 14px; }
+/* the last word, the link icon and the pill wrap as one; a hidden link keeps its space (opacity only) */
+.gy-radio-tail { white-space: nowrap; }
+.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; min-width: 1.25rem; min-height: 1rem; margin-left: 0.125rem; }
 .gy-row-recline .gy-row-link { display: inline-grid; vertical-align: middle; }
 .gy-row-note { font-size: 0.75rem; }
 .gy-row-rec { display: inline-block; margin-left: 0.375rem; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.6875rem; line-height: 1.4; color: var(--muted-foreground); white-space: nowrap; vertical-align: middle; }
 .gy-row-more, .gy-row-open { text-align: left; }
 .gy-save { display: flex; align-items: center; gap: 0.75rem; font-size: 0.8125rem; }
 .gy-btn:disabled { opacity: 0.5; cursor: default; }
-@media (max-width: 40rem) { .gy-row { grid-template-columns: 1.75rem minmax(0, 1fr); } .gy-row-side { grid-column: 2; } }
+@media (max-width: 40rem) { .gy-row { grid-template-columns: 1.75rem minmax(0, 1fr); } .gy-row-title, .gy-row-text, .gy-row-side { grid-column: 2; } .gy-row-side { grid-row: 3; } }
 .gy-save-notice { margin: 0; font-size: 0.8125rem; }
 
 /* the header, tabs and (on Setup) the progress bar stay put while the blocks scroll under them; the document scrolls, and no ancestor clips it */
