@@ -70,7 +70,7 @@ export function housekeepingRows(ctx: Ctx): Row[] {
       state: ctx.hasAi ? 'done' : 'open', current: ctx.hasAi ? 'Connected' : null,
       options: [openOption('open', 'Map an AI credential', `/ui/${ctx.projectId}/plugins`)],
     }),
-    make(done ? { ...ctx, ai: { ...ctx.ai, threshold: '' } } : ctx, 'threshold', 'threshold', 'housekeeping', {}, {
+    make(ctx, 'threshold', 'threshold', 'housekeeping', {}, {
       state: done ? 'done' : 'open', current: done ? `${s.thresholdPct}%` : null,
       options: levels.map((n) => setOption(`threshold:${n}`, `${n}%`, (x) => ({ ...x, thresholdPct: n }))),
     }),
