@@ -74,9 +74,12 @@ export function ratioRows(ctx: Ctx): Row[] {
   const rows: Row[] = [];
   for (const r of s.ratios) {
     const id = r.id;
+    const live = model.metrics.some((m) => m.id === r.id);
+    const keep = { ...setOption('ratio:keep', 'Keep this ratio', (x) => x), keep: true };
+    const remove = setOption('ratio:remove', 'Remove this ratio', (x) => ({ ...x, ratios: x.ratios.filter((y) => y.id !== r.id) }));
     const row = make(ctx, 'ratio', id, 'ratios', { A: alias(r.numerator), B: alias(r.denominator) }, {
-      state: model.metrics.some((m) => m.id === r.id) ? 'done' : 'broken', detail: model.metrics.some((m) => m.id === r.id) ? undefined : "This ratio's numbers aren't on the canvas any more", current: r.name,
-      options: [setOption('ratio:keep', 'Keep this ratio', (x) => x), setOption('ratio:remove', 'Remove this ratio', (x) => ({ ...x, ratios: x.ratios.filter((y) => y.id !== r.id) }))],
+      state: live ? 'done' : 'broken', detail: live ? undefined : "This ratio's numbers aren't on the canvas any more", current: r.name,
+      options: live ? [keep, remove] : [remove, keep],
     });
     rows.push({ ...row, dismissable: false });
   }

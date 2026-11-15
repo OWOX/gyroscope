@@ -7,7 +7,8 @@ export function SetupRow({ row, readOnly, busy, onChoose, onDismiss, onRetry }: 
   row: Row; readOnly: boolean; busy: boolean; onChoose: (optionId: string) => void; onDismiss: () => void; onRetry: () => void;
 }) {
   const rec = row.options.find((o) => o.recommended);
-  const showChip = !!rec && rec.label !== row.current;
+  // a finished row offers a change only when it is a settings change, not an append, a page or a no-op keep
+  const showChip = !!rec && rec.label !== row.current && (row.state !== 'done' || (rec.action.kind === 'set' && !rec.keep));
   const options = row.options.map((o) => ({ value: o.id, label: o.recommended ? `${o.label} (Recommended)` : o.label }));
   const detailTone = row.state === 'error' || row.severity === 'error' ? 'bad' : 'warn';
   return (

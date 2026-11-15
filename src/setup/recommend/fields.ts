@@ -1,15 +1,21 @@
 import type { Edge, Measure, MetricFormat, MetricKind, PlanShape } from '../../types';
 import { DATE_TYPES, flattenFields, type SchemaField } from '../../owox/sources';
 import type { MartNode } from '../../model/graph';
+import { hasPrimaryKey } from '../../model/graph';
 import { inboundCounts } from '../../model/core';
+import { criticalRow, findMetricRows, isFieldLink } from '../tables';
 import { normalizeCurrency } from '../../lib/format';
 
 export interface FieldCand { martId: string; martTitle: string; path: string; label: string; type: string }
 export const NUMERIC = /NUMERIC|FLOAT|INT|DECIMAL|DOUBLE|BIGNUMERIC|NUMBER/;
-const PLAN = /plan|target|budget|goal|forecast/i;
 const MONEY = /revenue|sales|profit|gmv|amount|income|margin/i;
 const COUNT = /orders?|deals?|sessions?|users?|signups?|installs?|leads?|qty|quantity|count/i;
-const LEVEL = /balance|stock|active|mrr|arr|headcount|inventory/i;
+const PLAN_TOKENS = new Set(['plan', 'plans', 'target', 'targets', 'budget', 'budgets', 'forecast', 'forecasts']);
+const LEVEL_TOKENS = new Set(['balance', 'stock', 'active', 'mrr', 'arr', 'headcount', 'inventory']);
+/** Lower-case words of a name: camelCase boundaries, `_`, spaces and punctuation all separate. */
+const tokens = (text: string): string[] => text.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+const PLAN = { test: (text: string) => tokens(text).some((t) => PLAN_TOKENS.has(t)) };
+const LEVEL = { test: (text: string) => tokens(text).some((t) => LEVEL_TOKENS.has(t)) };
 const RATE = new Set(['rate', 'share', 'ratio', 'percent', 'pct', 'cr', 'ctr']);
 const MONEY_FORMAT = /revenue|sales|profit|gmv|amount|income|margin|cost|price|spend/i;
 const DATE_NAME = /(^|[^a-z])(date|day|created|order|event)/i;
@@ -28,11 +34,18 @@ const isNumber = (type: string) => type === 'METRIC' || (NUMERIC.test(type) && !
 /** Numeric and metric-level fields of the Data Marts, leaving out dates and plan-like names. */
 export const numericFields = (nodes: MartNode[]): FieldCand[] => nodes.flatMap((n) => cands(n, (t, x, f) => isNumber(t) && !PLAN.test(x) && !f.isPrimaryKey && !ID_NAME(f.name)));
 
-/** Money names first, then counts, then the rest; ties go to the Data Mart more others reference. */
-export function criticalCandidates(nodes: MartNode[], edges: Edge[]): FieldCand[] {
+/**
+ * The field the description's Metrics table names as its critical number comes first. Then fields whose Data Mart has a primary key
+ * and a date field (the canvas needs both); within each group money names, then counts, then the rest, ties to the Data Mart more others reference.
+ */
+export function criticalCandidates(nodes: MartNode[], edges: Edge[], hint?: { description: string | null | undefined; source: 'project' | string }): FieldCand[] {
   const inbound = inboundCounts(edges);
   const rank = (c: FieldCand) => (MONEY.test(c.label) ? 0 : COUNT.test(c.label) ? 1 : 2);
-  return numericFields(nodes).map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || (inbound.get(b.c.martId) ?? 0) - (inbound.get(a.c.martId) ?? 0) || a.i - b.i).map((x) => x.c);
+  const usable = new Map(nodes.map((n) => [n.id, hasPrimaryKey(n.detail) && dateCandidates(n).length > 0]));
+  const link = hint ? criticalRow(findMetricRows(hint.description, hint.source))?.fact.find(isFieldLink) : undefined;
+  const named = (c: FieldCand) => !!link && c.martId.toLowerCase() === link.martId && c.path === link.field;
+  return numericFields(nodes).map((c, i) => ({ c, i })).sort((a, b) =>
+    +named(b.c) - +named(a.c) || +!!usable.get(b.c.martId) - +!!usable.get(a.c.martId) || rank(a.c) - rank(b.c) || (inbound.get(b.c.martId) ?? 0) - (inbound.get(a.c.martId) ?? 0) || a.i - b.i).map((x) => x.c);
 }
 
 /** Date fields of a Data Mart: DATE before timestamps, names with date or day first. */

@@ -49,6 +49,8 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   const runId = useRef(0);
   const inflight = useRef<Set<string>>(new Set());
   const saveChain = useRef<Promise<unknown>>(Promise.resolve());
+  // choices run one after another: each reads the settings the one before it saved
+  const chooseChain = useRef<Promise<unknown>>(Promise.resolve());
 
   const hold = (l: Loaded) => { loadedNow.current = l; setLoaded(l); };
   const baseRows = (l: Loaded) => buildRows({ settings: l.settings, graph: l.graph, model: l.derived.ok ? l.derived.model : null, legacyCore: l.legacyCore, projectId: latest.current.projectId, hasAi: !!latest.current.generateWith, ai: {}, aiPending: new Set() });
@@ -122,7 +124,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     return buildRows({ ...input, ai, aiPending: pending });
   }, [loaded, cached, pending, args.projectId, args.generateWith]);
 
-  const choose = useCallback(async (rowId: string, optionId: string, action?: (s: ProjectSettingsV5) => ProjectSettingsV5) => {
+  const chooseNow = useCallback(async (rowId: string, optionId: string, action?: (s: ProjectSettingsV5) => ProjectSettingsV5) => {
     const l = loadedNow.current;
     const { owox, store, by, now, open, onModel, isAdmin } = latest.current;
     if (!l || !isAdmin) return;
@@ -148,6 +150,12 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
       } else setMessage(r.snippet ? `${r.error}\n${r.snippet}` : r.error);
     } finally { setBusyRow(null); }
   }, [rows, reload, runAi]);
+
+  const choose = useCallback((rowId: string, optionId: string, action?: (s: ProjectSettingsV5) => ProjectSettingsV5): Promise<void> => {
+    const run = chooseChain.current.then(() => chooseNow(rowId, optionId, action));
+    chooseChain.current = run.catch(() => undefined);
+    return run;
+  }, [chooseNow]);
 
   const props: SetupTabProps = {
     rows, loading, readOnly: !args.isAdmin, busyRow, message,

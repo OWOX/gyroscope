@@ -64,3 +64,34 @@ describe('field recommenders', () => {
     expect(formatFor('bounce_rate')).toEqual({ format: 'percent', currency: null });
   });
 });
+
+describe('level and plan names are whole tokens', () => {
+  const k = (label: string) => kindFor({ martId: 'm', martTitle: 'm', path: label, label, type: 'NUMERIC' }).kind;
+  test('level words match on their own, across separators and camelCase', () => {
+    for (const l of ['balance', 'stock_level', 'Active users', 'mrr', 'ARR', 'headcount', 'inventory', 'activeUsers', 'net-arr']) expect(k(l), l).toBe('level');
+  });
+  test('words that merely contain a level word stay flows', () => {
+    for (const l of ['arrivals', 'carrier', 'warranty', 'inactive_users', 'revenue']) expect(k(l), l).toBe('flow');
+  });
+  test('goal is not a plan name: goal_completions is a number, not a plan', () => {
+    const n = node('g', [f('goal_completions', 'INT64'), f('revenue_plan', 'NUMERIC'), f('sales_target', 'NUMERIC'), f('budget', 'NUMERIC'), f('forecastRevenue', 'NUMERIC')]);
+    expect(numericFields([n]).map((x) => x.path)).toEqual(['goal_completions']);
+    expect(planCandidates([n]).map((x) => x.path)).toEqual(['revenue_plan', 'sales_target', 'budget', 'forecastRevenue']);
+  });
+});
+
+describe('critical candidates need to unblock the canvas', () => {
+  const keyed = node('keyed', [f('id', 'STRING', { isPrimaryKey: true }), f('day', 'DATE'), f('qty', 'INT64')]);
+  const loose = node('loose', [f('revenue', 'NUMERIC')]);
+  test('a Data Mart with a primary key and a date field ranks above one without, whatever the names', () => {
+    expect(criticalCandidates([loose, keyed], []).map((x) => x.path)).toEqual(['qty', 'revenue']);
+  });
+  test('the field the description names as critical comes first', () => {
+    const two = node('0f0e0d0c-0b0a-4908-8706-050403020100', [f('id', 'STRING', { isPrimaryKey: true }), f('day', 'DATE'), f('revenue', 'NUMERIC'), f('profit', 'NUMERIC')]);
+    const md = `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| Critical number | Profit | | [Profit](/ui/p/data-marts/${two.id}/data-setup?field=profit) |`;
+    expect(criticalCandidates([two, loose], [], { description: md, source: 'project' })[0]!.path).toBe('profit');
+    expect(criticalCandidates([two, loose], [], { description: null, source: 'project' })[0]!.path).toBe('revenue');
+    const gone = md.replace('field=profit', 'field=nope');
+    expect(criticalCandidates([two, loose], [], { description: gone, source: 'project' })[0]!.path).toBe('revenue');
+  });
+});

@@ -25,7 +25,7 @@ export function goalRows(ctx: Ctx): Row[] {
   const open = { state: 'open' as RowState };
   const goalCheck = goal ? fieldCheck(ctx, goal.martId, [goal.measure.field]) : open;
 
-  const metric = metricRow(ctx, 'goal.metric', 'goal.metric', 'goal', {}, undefined, criticalCandidates(ctx.nodes, ctx.edges), goal && { martId: goal.martId, field: goal.measure.field }, (x, c) => {
+  const metric = metricRow(ctx, 'goal.metric', 'goal.metric', 'goal', {}, undefined, criticalCandidates(ctx.nodes, ctx.edges, { description: ctx.graph.inputs.projectDescription, source: 'project' }), goal && { martId: goal.martId, field: goal.measure.field }, (x, c) => {
     const same = x.goal?.martId === c.martId && x.goal.dateField;
     return { ...x, goal: { martId: c.martId, ...kindFor(c), alias: c.label, dateField: same ? x.goal!.dateField : dateCandidates(ctx.byId.get(c.martId)!)[0]?.path ?? null, plan: x.goal?.martId === c.martId ? x.goal.plan : null } };
   });

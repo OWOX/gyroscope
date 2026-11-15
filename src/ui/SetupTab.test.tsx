@@ -1,3 +1,4 @@
+import { describe, expect, test, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SetupTab } from './SetupTab';
 import type { Row } from '../setup/types';
@@ -17,7 +18,7 @@ test('a not-set row shows its question, why, Not set and the recommendation to a
 });
 
 test('a set row that differs shows current then the recommendation', () => {
-  render(<SetupTab {...props([row({ state: 'done', current: 'Profit (Orders)' })])} />);
+  render(<SetupTab {...props([row({ state: 'done', current: 'Profit (Orders)', options: [{ id: 'a', label: 'Revenue (Orders)', recommended: true, action: { kind: 'set', next: (s) => s } }] })])} />);
   expect(screen.getByText('Profit (Orders)')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Accept.*Revenue/, hidden: true })).toBeInTheDocument();
 });
@@ -93,4 +94,20 @@ test('an error row has a Retry that works read-only too', () => {
 test('read-only still shows the spinner while the AI is pending', () => {
   const { container } = render(<SetupTab {...props([row({ aiPending: true })], { readOnly: true })} />);
   expect(container.querySelector('.gy-row-chip .gy-spin')).not.toBeNull();
+});
+
+describe('a finished row offers nothing to accept unless it is a settings change', () => {
+  const opt = (action: object, label = 'Recommended thing') => [{ id: 'r', label, recommended: true, action: action as never }];
+  const done = (options: Row['options'], current = 'Something else') => render(<SetupTab {...props([row({ state: 'done', current, options })])} />);
+  const accept = () => screen.queryByRole('button', { name: /Accept/, hidden: true });
+  test('a done description row (append)', () => { done(opt({ kind: 'append', scope: 'project', text: 'x' }, 'Add this line to the description'), 'Named in the description'); expect(accept()).toBeNull(); });
+  test('a done teams row (teams)', () => { done(opt({ kind: 'teams', teams: [] }, 'Create Sales'), 'Sales, Marketing'); expect(accept()).toBeNull(); });
+  test('a passed check (open)', () => { done(opt({ kind: 'open', path: '/' }, 'Ask an admin for access'), 'OK'); expect(accept()).toBeNull(); });
+  test('a connected AI credential (open)', () => { done(opt({ kind: 'open', path: '/' }, 'Map an AI credential'), 'Connected'); expect(accept()).toBeNull(); });
+  test('a saved ratio (keep)', () => { done(opt({ kind: 'set', next: (s: unknown) => s }, 'Keep this ratio').map((o) => ({ ...o, keep: true })), 'Revenue per order'); expect(accept()).toBeNull(); });
+  test('a done set-row with a differing recommendation still shows Accept', () => { done(opt({ kind: 'set', next: (s: unknown) => s })); expect(accept()).not.toBeNull(); });
+  test('an open description row still shows Accept', () => {
+    render(<SetupTab {...props([row({ state: 'open', options: opt({ kind: 'append', scope: 'project', text: 'x' }, 'Add this line to the description') })])} />);
+    expect(accept()).not.toBeNull();
+  });
 });

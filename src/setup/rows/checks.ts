@@ -16,14 +16,19 @@ export function checkRows(ctx: Ctx): Row[] {
   const couldnt = (id: string): { state: RowState; detail?: string } | null => (failedOf(id) !== undefined ? { state: 'error', detail: `Couldn't check: ${failedOf(id)}` } : null);
   const goalNode = ctx.byId.get(goal.martId);
   const rows: Row[] = [];
+  const OK = 'OK';
+  // the viewer can't open the project goal Data Mart, so the canvas is centered on a context critical number: nothing for them to fix here
+  const center = ctx.model && ctx.model.goal.goalMartId !== goal.martId ? ctx.model : null;
+  const using = center ? `Using ${center.metrics.find((m) => m.id === center.goal.metricId)?.alias ?? 'a context'} critical number` : null;
 
   const gAccess = couldnt(goal.martId) ?? (accessible(goal.martId) ? { state: 'done' as RowState } : { state: 'open' as RowState, detail: `${martTitle(ctx, goal.martId)} isn't published or you can't access it` });
-  rows.push(make(ctx, 'check.goal.access', 'check.goal.access', 'checks', {}, { ...gAccess, current: null, options: [openOption('open', ASK, dataMartPage(ctx, goal.martId))] }));
+  const viaContext = !!using && !accessible(goal.martId);
+  rows.push(make(ctx, 'check.goal.access', 'check.goal.access', 'checks', {}, { ...(viaContext ? { state: 'done' as RowState } : gAccess), current: viaContext ? using : gAccess.state === 'done' ? OK : null, options: [openOption('open', ASK, dataMartPage(ctx, goal.martId))] }));
 
   const key = goalNode ? pickPrimaryKey(goalNode) : null;
   const pkLabel = (k: string | null) => (k ? `Set ${k} as the primary key` : 'Mark a primary key');
   const gPk = couldnt(goal.martId) ?? (goalNode ? (hasPrimaryKey(goalNode.detail) ? { state: 'done' as RowState } : { state: 'open' as RowState, detail: `${goalNode.title} has no primary key` }) : { state: 'open' as RowState, detail: `${martTitle(ctx, goal.martId)} isn't available` });
-  rows.push(make(ctx, 'check.goal.pk', 'check.goal.pk', 'checks', {}, { ...gPk, current: null, options: [openOption('open', pkLabel(key), dataMartPage(ctx, goal.martId))] }));
+  rows.push(make(ctx, 'check.goal.pk', 'check.goal.pk', 'checks', {}, { ...(viaContext ? { state: 'done' as RowState } : gPk), current: viaContext ? using : gPk.state === 'done' ? OK : null, options: [openOption('open', pkLabel(key), dataMartPage(ctx, goal.martId))] }));
 
   for (const id of s.coreClasses) {
     const node = ctx.byId.get(id);
@@ -31,12 +36,12 @@ export function checkRows(ctx: Ctx): Row[] {
     const vars = { Class: node.title };
     const k = pickPrimaryKey(node);
     rows.push(make(ctx, 'check.core.pk', `check.core.pk:${id}`, 'checks', vars, {
-      state: singleKey(node.detail) ? 'done' : 'open', current: null, group: node.title, detail: singleKey(node.detail) ? undefined : `${node.title} has no single-column primary key`,
+      state: singleKey(node.detail) ? 'done' : 'open', current: singleKey(node.detail) ? OK : null, group: node.title, detail: singleKey(node.detail) ? undefined : `${node.title} has no single-column primary key`,
       options: [openOption('open', pkLabel(k), dataMartPage(ctx, id))],
     }));
     const linked = ctx.edges.some((e) => (e.from === goal.martId && e.to === id) || (e.from === id && e.to === goal.martId));
     rows.push(make(ctx, 'check.core.toGoal', `check.core.toGoal:${id}`, 'checks', vars, {
-      state: linked ? 'done' : 'open', current: null, group: node.title, detail: linked ? undefined : `${node.title} isn't connected to ${martTitle(ctx, goal.martId)}`,
+      state: linked ? 'done' : 'open', current: linked ? OK : null, group: node.title, detail: linked ? undefined : `${node.title} isn't connected to ${martTitle(ctx, goal.martId)}`,
       options: [openOption('open', `Add a calculated field to ${martTitle(ctx, goal.martId)} that references ${node.title}.${k ?? 'its key'}`, dataMartPage(ctx, goal.martId))],
     }));
   }
@@ -47,7 +52,7 @@ export function checkRows(ctx: Ctx): Row[] {
   const first = bad[0];
   const failedBad = bad.find((id) => failedOf(id) !== undefined);
   rows.push(make(ctx, 'check.access', 'check.access', 'checks', {}, {
-    state: failedBad ? 'error' : bad.length ? 'open' : 'done', current: null,
+    state: failedBad ? 'error' : bad.length ? 'open' : 'done', current: failedBad || bad.length ? null : OK,
     detail: failedBad ? `Couldn't check: ${failedOf(failedBad)}` : bad.length ? `You can't access ${bad.map((id) => martTitle(ctx, id)).join(', ')}` : undefined,
     options: [openOption('open', ASK, dataMartPage(ctx, first))],
   }));
@@ -63,7 +68,8 @@ export function housekeepingRows(ctx: Ctx): Row[] {
       options: [openOption('open', 'Map an AI credential', `/ui/${ctx.projectId}/plugins`)],
     }),
     make(ctx, 'threshold', 'threshold', 'housekeeping', {}, {
-      state: s.updatedAt !== null ? 'done' : 'open', current: s.updatedAt !== null ? `${s.thresholdPct}%` : null,
+      // a custom value kept from before the first save still counts as set
+      state: s.updatedAt !== null || s.thresholdPct !== 20 ? 'done' : 'open', current: s.updatedAt !== null || s.thresholdPct !== 20 ? `${s.thresholdPct}%` : null,
       options: [20, 10, 15, 25, 30].map((n) => setOption(`threshold:${n}`, `${n}%`, (x) => ({ ...x, thresholdPct: n }))),
     }),
   ];

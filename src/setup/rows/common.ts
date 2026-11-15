@@ -28,12 +28,12 @@ export interface Ctx extends RowsInput {
 
 const set = (next: (s: ProjectSettingsV5) => ProjectSettingsV5): Action => ({ kind: 'set', next });
 export const dismiss = (s: ProjectSettingsV5, id: string): ProjectSettingsV5 => (s.dismissed.includes(id) ? s : { ...s, dismissed: [...s.dismissed, id] });
-export const dataMartPage = (ctx: Ctx, id?: string) => `/ui/${ctx.projectId}/data-marts${id ? `/${id}/data-setup` : ''}`;
+export const dataMartPage = (ctx: Ctx, id?: string) => `/ui/${ctx.projectId}/data-marts${id ? `/${encodeURIComponent(id)}/data-setup` : ''}`;
 
 export function buildCtx(input: RowsInput): Ctx {
   const nodes = input.graph.nodes;
   const edges = buildEdges(nodes, new Set(input.graph.inputs.marts.map((m) => m.id)));
-  const top = criticalCandidates(nodes, edges)[0];
+  const top = criticalCandidates(nodes, edges, { description: input.graph.inputs.projectDescription, source: 'project' })[0];
   const topNode = top && nodes.find((n) => n.id === top.martId);
   const defaultGoal: Goal | null = top && topNode
     ? { martId: top.martId, ...kindFor(top), dateField: dateCandidates(topNode)[0]?.path ?? null, alias: top.label, plan: null }

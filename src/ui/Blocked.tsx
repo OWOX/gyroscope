@@ -14,7 +14,6 @@ const STEPS: Record<BlockCode, string[]> = {
   NO_ACCESSIBLE_GOAL: [],
   NO_GOAL: ['Open Setup and answer "What is the main business goal?"'],
   GOAL_NO_DATE: ['Open Setup and answer "Which date does each value belong to?" for the Business Critical Number.'],
-  GOAL_PLACEHOLDER: [],
   GOAL_FIELD_NOT_FOUND: [
     'Open Setup and answer "What is the main business goal?" again: the field was renamed or removed.',
     'Pick the field in its Data Mart and the date that goes with it.',
@@ -28,7 +27,6 @@ const STEPS: Record<BlockCode, string[]> = {
     'Click Retry. If it keeps failing, ask a project admin to check the Data Mart in OWOX.',
   ],
 };
-STEPS.GOAL_PLACEHOLDER = STEPS.NO_GOAL;
 
 function stepContent(step: string, projectId: string, onOpen?: (path: string) => void): ReactNode[] {
   return step.split(PAGE_TOKEN).map((part, i) => {

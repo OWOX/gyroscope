@@ -10,7 +10,8 @@ export type Action =
   | { kind: 'append'; scope: Scope; text: string }
   | { kind: 'teams'; teams: { name: string; martIds: string[] }[] }
   | { kind: 'open'; path: string };
-export interface Option { id: string; label: string; recommended: boolean; action: Action }
+/** `keep` marks an option that leaves the saved value as it is, so a finished row has nothing to accept. */
+export interface Option { id: string; label: string; recommended: boolean; action: Action; keep?: boolean }
 export interface Row {
   id: string;                 // e.g. 'goal.metric', 'team:<ctxId>.plan', 'class:<martId>.key', 'metric:<metricId>.format', 'ratio:<id>', 'check.goal.pk'
   block: BlockId;

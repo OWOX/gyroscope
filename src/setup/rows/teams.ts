@@ -20,7 +20,7 @@ export function teamRows(ctx: Ctx): Row[] {
     const pool = mine.length ? mine : ctx.nodes;
     const saved = s.contexts[c.id] ?? { metric: null, plan: null };
     const write = (f: (cur: typeof saved) => typeof saved) => (x: ProjectSettingsV5): ProjectSettingsV5 => ({ ...x, contexts: { ...x.contexts, [c.id]: f(x.contexts[c.id] ?? { metric: null, plan: null }) } });
-    const cand = criticalCandidates(pool, ctx.edges);
+    const cand = criticalCandidates(pool, ctx.edges, { description: c.description, source: c.id });
     const top = cand[0];
     rows.push(metricRow(ctx, 'team.metric', `team:${c.id}.metric`, 'teams', vars, c.name, cand, saved.metric && { martId: saved.metric.martId, field: saved.metric.measure.field },
       (x, f) => write((cur) => ({ ...cur, metric: { martId: f.martId, ...kindFor(f), alias: f.label, dateField: dateCandidates(ctx.byId.get(f.martId)!)[0]?.path ?? null } }))(x)));

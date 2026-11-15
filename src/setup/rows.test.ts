@@ -261,3 +261,51 @@ describe('fix round 1', () => {
     expect(byId(buildRows(input(s)), 'ratio:x/y')).toMatchObject({ state: 'broken', severity: 'warning', dismissable: false });
   });
 });
+
+describe('review fixes', () => {
+  const rows = (s: ProjectSettingsV5, nodes: MartNode[], over: Partial<RowsInput> = {}) => buildRows(input(s, nodes, over));
+  const ctxMetric = { martId: 'customers', measure: { field: 'ltv', fn: 'SUM' as const }, dateField: 'created_at', kind: 'flow' as const, alias: 'LTV' };
+
+  test('a broken saved ratio recommends removing it', () => {
+    const s = { ...filled, ratios: [{ id: 'gone', name: 'Gone ratio', numerator: 'a', denominator: 'b', format: 'number' as const }] };
+    const r = byId(rows(s, [linked(), customers]), 'gone');
+    expect(r.state).toBe('broken');
+    expect(rec(r)).toBe('ratio:remove');
+  });
+
+  test('a passed data check shows OK', () => {
+    const a = rows(filled, [linked(), customers]);
+    for (const id of ['check.goal.access', 'check.goal.pk', 'check.access']) expect(byId(a, id), id).toMatchObject({ state: 'done', current: 'OK' });
+  });
+
+  test('a viewer centered on a context number sees the goal access check as done', () => {
+    const g = graph([customers]);
+    g.inputs.marts.push({ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' });
+    const s = { ...filled, contexts: { c1: { metric: ctxMetric, plan: null } } };
+    const d = deriveModel(s, g);
+    expect(d.ok).toBe(true);
+    const r = byId(buildRows({ ...input(s), graph: g, model: d.ok ? d.model : null }), 'check.goal.access');
+    expect(r).toMatchObject({ state: 'done', current: 'Using LTV critical number' });
+  });
+
+  test('without a saved update a kept custom threshold shows its value; the default stays Not set', () => {
+    expect(byId(buildRows(input({ ...EMPTY_SETUP, thresholdPct: 40 })), 'threshold')).toMatchObject({ state: 'done', current: '40%' });
+    expect(byId(buildRows(input(EMPTY_SETUP)), 'threshold')).toMatchObject({ state: 'open', current: null });
+  });
+
+  test('a Data Mart id is URL-encoded in the page link', () => {
+    const odd = node('a b/c', [f('order_id', 'STRING', { isPrimaryKey: true })], 'order_id');
+    const r = byId(buildRows(input({ ...filled, goal: { ...goal, martId: 'a b/c' } }, [odd])), 'check.goal.access');
+    expect(r.options[0]!.action).toEqual({ kind: 'open', path: '/ui/p1/data-marts/a%20b%2Fc/data-setup' });
+  });
+
+  test('the recommended critical number follows the description and prefers a Data Mart that can center the canvas', () => {
+    const id = '0f0e0d0c-0b0a-4908-8706-050403020100';
+    const two = node(id, [f('order_id', 'STRING', { isPrimaryKey: true }), f('date', 'DATE'), f('revenue', 'NUMERIC'), f('profit', 'NUMERIC')], 'order_id');
+    const g = graph([two]);
+    g.inputs.projectDescription = `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| Critical number | Profit | | [Profit](/ui/p1/data-marts/${id}/data-setup?field=profit) |`;
+    expect(rec(byId(buildRows({ ...input(EMPTY_SETUP, [two]), graph: g }), 'goal.metric'))).toBe(`field:${id}:profit`);
+    const loose = node('loose', [f('revenue', 'NUMERIC')]);
+    expect(rec(byId(buildRows(input(EMPTY_SETUP, [loose, orders])), 'goal.metric'))).toBe('field:orders:revenue');
+  });
+});

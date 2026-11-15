@@ -160,3 +160,16 @@ test('an older AI run settling after a reload does not clear the newer run\'s pe
   gates[1]!.resolve();
   await waitFor(() => expect(result.current.props.rows.every((r) => !r.aiPending)).toBe(true));
 });
+
+test('two quick choices both land and do not conflict with each other', async () => {
+  const store = memoryCollections();
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null })));
+  await act(() => result.current.reload());
+  const rec = (id: string) => result.current.props.rows.find((r) => r.id === id)!.options.find((o) => o.recommended)!.id;
+  const [m, d] = [rec('goal.metric'), rec('goal.date')];
+  await act(async () => { result.current.props.onChoose('goal.metric', m); result.current.props.onChoose('goal.date', d); });
+  await waitFor(() => expect(result.current.settings?.goal?.dateField).toBe('date'));
+  expect(result.current.settings!.goal!.measure.field).toBe('revenue');
+  expect(result.current.props.message).toBeNull();
+  expect((await loadSetup(store)).settings.goal?.dateField).toBe('date');
+});
