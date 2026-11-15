@@ -1,6 +1,6 @@
 import { extractLinks, type MartLink } from '../lib/links';
 
-export interface MetricRow { role: string; metric: string; plan: MartLink[]; fact: MartLink[] }
+export interface MetricRow { role: string; metric: string; plan: MartLink[]; /** The link after "date field" in the Plan cell, when there is one. */ planDate: MartLink | null; fact: MartLink[] }
 
 // splits a table line into cells; `\|` stays inside its cell
 export const cells = (line: string): string[] => {
@@ -28,10 +28,15 @@ export function findMetricRows(markdown: string | null | undefined, source: 'pro
       if (isMetrics) {
         const row = cells(lines[i]!);
         const factLinks = extractLinks(row[fact] ?? '', source, 0);
+        // the Plan cell may add "date field: [..](..)"; the links before that text are the plan, the first after it is its date
+        const planCell = row[plan] ?? '';
+        const cut = planCell.search(/date field/i);
+        const planDate = cut >= 0 ? extractLinks(planCell.slice(cut), source, 0)[0] ?? null : null;
         out.push({
           role: row[role] ?? '',
           metric: (metric >= 0 ? row[metric] : undefined) || factLinks[0]?.text || '',
-          plan: extractLinks(row[plan] ?? '', source, 0),
+          plan: extractLinks(cut >= 0 ? planCell.slice(0, cut) : planCell, source, 0),
+          planDate,
           fact: factLinks,
         });
       }

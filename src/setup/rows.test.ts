@@ -379,3 +379,43 @@ describe('review fixes', () => {
     expect(rec(byId(buildRows(input(EMPTY_SETUP, [loose, orders])), 'goal.metric'))).toBe('field:orders:revenue');
   });
 });
+
+describe('a plan named by the description', () => {
+  const OID = '0f0e0d0c-0b0a-4908-8706-050403020100';
+  const PID = '1a1b1c1d-2a2b-4c2d-8e3e-3f3f3f3f3f3f';
+  const retail = { ...node('retail', [f('order_id', 'STRING', { isPrimaryKey: true }), f('date', 'DATE'), f('retail_net_sales', 'NUMERIC')], 'order_id'), id: OID, title: 'Orders' };
+  const planMart = { ...node('planmart', [f('retail_net_sales_month', 'NUMERIC'), f('month', 'DATE'), f('reporting_date', 'DATE'), f('other_amount', 'NUMERIC')]), id: PID, title: 'Plan Data_Revenue' };
+  const table = (planCell: string) => `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| Critical number | Retail Net Sales | ${planCell} | [Orders · Retail Net Sales](https://app.owox.com/ui/p1/data-marts/${OID}/data-setup?field=retail_net_sales) |`;
+  const plan = (cell: string) => {
+    const g = graph([retail, planMart]);
+    g.inputs.projectDescription = table(cell);
+    return buildRows({ ...input(EMPTY_SETUP, [retail, planMart]), graph: g }).find((r) => r.id === 'goal.plan')!;
+  };
+  const link = (text: string, field: string) => `[${text}](https://app.owox.com/ui/p1/data-marts/${PID}/data-setup?field=${field})`;
+
+  test('a plan-titled Data Mart is offered, the named field first', () => {
+    const p = plan(link('Plan Data_Revenue · retail_net_sales_month', 'retail_net_sales_month'));
+    expect(p.options[0]).toMatchObject({ id: `field:${PID}:retail_net_sales_month`, label: 'Plan Data_Revenue · retail_net_sales_month', recommended: true });
+    expect(p.options.some((o) => o.id === 'none')).toBe(true);
+    const a = p.options[0]!.action;
+    if (a.kind !== 'set') throw new Error();
+    expect(a.next(EMPTY_SETUP).goal!.plan).toMatchObject({ martId: PID, dateField: 'month' });
+  });
+
+  test('without a description, the fields of a plan-titled Data Mart are still offered', () => {
+    const rows = buildRows(input(EMPTY_SETUP, [retail, planMart]));
+    expect(rows.find((r) => r.id === 'goal.plan')!.options.map((o) => o.id)).toContain(`field:${PID}:retail_net_sales_month`);
+  });
+
+  test('a "date field:" link in the Plan cell sets the plan date', () => {
+    const p = plan(`${link('Plan Data_Revenue · retail_net_sales_month', 'retail_net_sales_month')}, date field: ${link('Plan Data_Revenue · Reporting Date', 'reporting_date')}`);
+    const a = p.options[0]!.action;
+    if (a.kind !== 'set') throw new Error();
+    expect(a.next(EMPTY_SETUP).goal!.plan).toMatchObject({ martId: PID, measure: { field: 'retail_net_sales_month' }, dateField: 'reporting_date' });
+  });
+
+  test('a plan-titled Data Mart is never a critical number', () => {
+    const m = buildRows(input(EMPTY_SETUP, [retail, planMart])).find((r) => r.id === 'goal.metric')!;
+    expect(m.options.some((o) => o.id.includes(PID))).toBe(false);
+  });
+});

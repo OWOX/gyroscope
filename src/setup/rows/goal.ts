@@ -49,7 +49,7 @@ export function goalRows(ctx: Ctx): Row[] {
     options: aggs.map((a) => setOption(a.id, a.label, updGoal(ctx, (g) => ({ ...g, measure: { field: g.measure.field, fn: a.fn === 'calc' ? null : a.fn }, kind: a.kind })))),
   });
 
-  const plan = planRow(ctx, 'goal.plan', 'goal.plan', 'goal', {}, undefined, ctx.nodes, G?.martId, G?.kind ?? 'flow', goal?.plan ?? null, (x, p) => updGoal(ctx, (g) => ({ ...g, plan: p }))(x));
+  const plan = planRow(ctx, 'goal.plan', 'goal.plan', 'goal', {}, undefined, ctx.nodes, G?.martId, G?.kind ?? 'flow', goal?.plan ?? null, (x, p) => updGoal(ctx, (g) => ({ ...g, plan: p }))(x), { description: ctx.graph.inputs.projectDescription, source: 'project' });
 
   const rows = [metric, date, aggregation, plan];
   // the shape only matters once a plan is set; while no goal is saved the page still shows the question

@@ -3,7 +3,7 @@ import type { Graph } from '../../model/derive';
 import type { Model } from '../../types';
 import { buildEdges, type MartNode } from '../../model/graph';
 import { allFieldPaths, flattenFields } from '../../owox/sources';
-import { criticalCandidates, dateCandidates, kindFor, planCandidates, shapeFor, type FieldCand } from '../recommend/fields';
+import { cands, criticalCandidates, dateCandidates, isNumber, kindFor, planCandidates, shapeFor, type FieldCand } from '../recommend/fields';
 import { repick } from '../recommend/fixes';
 import { COPY, fill } from '../catalog';
 import { criticalRow, findMetricRows, isFieldLink } from '../tables';
@@ -109,19 +109,29 @@ export function metricRow(ctx: Ctx, key: string, id: string, block: BlockId, var
   return make(ctx, key, id, block, vars, { ...chk, group, current: current ? fieldText(ctx, current.martId, current.field) : null, options });
 }
 
-export const planFor = (ctx: Ctx, c: FieldCand, kind: MetricKind): PlanDef | null => {
+export const planFor = (ctx: Ctx, c: FieldCand, kind: MetricKind, date?: string | null): PlanDef | null => {
   const node = ctx.byId.get(c.martId);
-  const dateField = node && dateCandidates(node)[0]?.path;
+  // a date the description names wins, when the Data Mart has it as a date field
+  const dates = node ? dateCandidates(node) : [];
+  const dateField = (date && dates.find((d) => d.path === date)?.path) || dates[0]?.path;
   return dateField ? { martId: c.martId, measure: { field: c.path, fn: 'SUM' }, dateField, shape: shapeFor(null, kind) } : null;
 };
 
 /** A row that picks a plan field, or "No plan yet", which dismisses the row. */
-export function planRow(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, group: string | undefined, nodes: MartNode[], prefer: string | undefined, kind: MetricKind, current: PlanDef | null, write: (s: ProjectSettingsV5, plan: PlanDef | null) => ProjectSettingsV5): Row {
+export function planRow(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, group: string | undefined, nodes: MartNode[], prefer: string | undefined, kind: MetricKind, current: PlanDef | null, write: (s: ProjectSettingsV5, plan: PlanDef | null) => ProjectSettingsV5, hint?: { description: string | null | undefined; source: 'project' | string }): Row {
   const chk = current ? fieldCheck(ctx, current.martId, [current.measure.field, current.dateField]) : { state: 'open' as RowState };
-  const all = planCandidates(nodes, prefer).filter((c) => planFor(ctx, c, kind));
+  // the plan the description's critical row names comes first, with the date it names
+  const row = hint ? criticalRow(findMetricRows(hint.description, hint.source)) : null;
+  const link = row?.plan.find(isFieldLink);
+  const named = link && ctx.nodes.find((n) => n.id.toLowerCase() === link.martId);
+  const namedCand = named ? cands(named, (t) => isNumber(t)).find((c) => c.path === link.field) : undefined;
+  const dateLink = row?.planDate && isFieldLink(row.planDate) && row.planDate.martId === link?.martId ? row.planDate.field : null;
+  const dateFor = (c: FieldCand) => (c === namedCand ? dateLink : null);
+  const found = planCandidates(nodes, prefer).filter((c) => planFor(ctx, c, kind));
+  const all = namedCand && planFor(ctx, namedCand, kind) ? [namedCand, ...found.filter((c) => !(c.martId === namedCand.martId && c.path === namedCand.path))] : found;
   const list = current ? withRepick(ctx, current.martId, current.measure.field, chk.state, all) : all;
   const options: Plain[] = [
-    ...list.flatMap((c) => { const p = planFor(ctx, c, kind); return p ? [fieldOption(ctx, c, (s) => write(s, p))] : []; }),
+    ...list.flatMap((c) => { const p = planFor(ctx, c, kind, dateFor(c)); return p ? [fieldOption(ctx, c, (s) => write(s, p))] : []; }),
     { ...setOption('none', 'No plan yet', (s) => dismiss(write(s, null), id)), declines: true },
   ];
   return make(ctx, key, id, block, vars, { ...chk, group, current: current ? fieldText(ctx, current.martId, current.measure.field) : null, options });

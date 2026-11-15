@@ -18,7 +18,7 @@ const PLAN = { test: (text: string) => tokens(text).some((t) => PLAN_TOKENS.has(
 const LEVEL = { test: (text: string) => tokens(text).some((t) => LEVEL_TOKENS.has(t)) };
 const RATE = new Set(['rate', 'share', 'ratio', 'percent', 'pct', 'cr', 'ctr']);
 const MONEY_FORMAT = /revenue|sales|profit|gmv|amount|income|margin|cost|price|spend/i;
-const DATE_NAME = /(^|[^a-z])(date|day|created|order|event)/i;
+const DATE_NAME = /(^|[^a-z])(date|day|created|order|event|month|period|week)/i;
 const SYMBOLS: Record<string, string> = { $: 'USD', '€': 'EUR', '£': 'GBP', '₴': 'UAH' };
 const CODES = /(?<![a-z])(USD|EUR|GBP|UAH|PLN|CAD|AUD|CHF|JPY|CNY|INR|BRL|SEK|NOK|DKK|CZK|TRY)(?![a-z])/i;
 
@@ -29,10 +29,12 @@ export const cands = (n: MartNode, keep: (type: string, text: string, field: Sch
     return keep(type, text, field) ? [{ martId: n.id, martTitle: n.title, path, label: field.alias || field.name, type }] : [];
   });
 const ID_NAME = (name: string) => /(^|_)id$/i.test(name) || /[a-z]Id$/.test(name);
-const isNumber = (type: string) => type === 'METRIC' || (NUMERIC.test(type) && !DATE_TYPES.has(type));
+export const isNumber = (type: string) => type === 'METRIC' || (NUMERIC.test(type) && !DATE_TYPES.has(type));
 
 /** Numeric and metric-level fields of the Data Marts, leaving out dates and plan-like names. */
-export const numericFields = (nodes: MartNode[]): FieldCand[] => nodes.flatMap((n) => cands(n, (t, x, f) => isNumber(t) && !PLAN.test(x) && !f.isPrimaryKey && !ID_NAME(f.name)));
+/** A Data Mart whose title names a plan ("Plan Data_Revenue"): all its numbers are plans. */
+export const isPlanMart = (n: MartNode): boolean => PLAN.test(n.title);
+export const numericFields = (nodes: MartNode[]): FieldCand[] => nodes.filter((n) => !isPlanMart(n)).flatMap((n) => cands(n, (t, x, f) => isNumber(t) && !PLAN.test(x) && !f.isPrimaryKey && !ID_NAME(f.name)));
 
 /**
  * The field the description's Metrics table names as its critical number comes first. Then fields whose Data Mart has a primary key
@@ -58,9 +60,9 @@ export function dateCandidates(node: MartNode): FieldCand[] {
 export const kindFor = (f: FieldCand): { measure: Measure; kind: MetricKind } =>
   ({ measure: { field: f.path, fn: f.type === 'METRIC' ? null : 'SUM' }, kind: LEVEL.test(f.label) ? 'level' : 'flow' });
 
-/** Plan-like numeric fields; the preferred Data Mart's come first. */
+/** Plan-like numeric fields, and every number of a plan-titled Data Mart; the preferred Data Mart's come first. */
 export function planCandidates(nodes: MartNode[], prefer?: string): FieldCand[] {
-  const all = nodes.flatMap((n) => cands(n, (t, x) => isNumber(t) && PLAN.test(x)));
+  const all = nodes.flatMap((n) => cands(n, (t, x, f) => isNumber(t) && (PLAN.test(x) || (isPlanMart(n) && !f.isPrimaryKey && !ID_NAME(f.name)))));
   return [...all.filter((c) => c.martId === prefer), ...all.filter((c) => c.martId !== prefer)];
 }
 
