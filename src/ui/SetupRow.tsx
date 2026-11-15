@@ -66,8 +66,8 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     const tail = text ? text.slice(head.length) : label;
     return (
       <div key={key} className="gy-radio">
-        <input id={`${uid}-${key}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
-        <label htmlFor={`${uid}-${key}`}>{martIcon(o) || (iconed && <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" />)}{head}<span className="gy-radio-tail">{tail}{o && linkBtn(o)}{o?.recommended && <span className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></label>
+        <input id={`${uid}-${key}`} aria-labelledby={`${uid}-${key}-h ${uid}-${key}-w${o?.recommended ? ` ${uid}-${key}-r` : ''}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
+        <label htmlFor={`${uid}-${key}`}>{martIcon(o) || (iconed && <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" />)}<span className="gy-radio-text"><span id={`${uid}-${key}-h`}>{head}</span><span className="gy-radio-tail"><span id={`${uid}-${key}-w`}>{tail}</span>{o && linkBtn(o)}{o?.recommended && <span id={`${uid}-${key}-r`} className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></span></label>
       </div>
     );
   };

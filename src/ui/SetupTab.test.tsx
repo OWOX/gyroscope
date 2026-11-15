@@ -545,6 +545,9 @@ describe('an option that points at a Data Mart', () => {
     expect(order.map((e) => (e.matches('svg') ? 'icon' : e.matches('.gy-row-link') ? 'link' : 'pill'))).toEqual(['icon', 'link', 'pill']);
     expect(label.firstElementChild!.matches('svg.lucide-receipt')).toBe(true);
     expect(label.textContent).toContain('Orders · revenue');
+    const name = screen.getByRole('radio', { name: 'Orders · revenue Recommended' });
+    expect(name.getAttribute('id')).toBe(label.getAttribute('for'));
+    expect(screen.queryByRole('radio', { name: /Open/ })).toBeNull();
     // an option without a Data Mart has no icon of its own, only the reserved width
     expect(document.querySelector('label[for$="-g"] svg')).toBeNull();
   });

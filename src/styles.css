@@ -552,7 +552,9 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-radio { position: relative; min-width: 0; padding-left: 1.5rem; }
 .gy-radio label { cursor: pointer; overflow-wrap: anywhere; }
 .gy-radio input { position: absolute; left: 0; top: 0.1875rem; margin: 0; accent-color: var(--primary); }
-.gy-opt-icon { display: inline-block; vertical-align: -0.1875rem; margin-right: 0.375rem; color: var(--muted-foreground); }
+.gy-radio label { display: flex; align-items: flex-start; }
+.gy-radio-text { min-width: 0; flex: 1 1 auto; }
+.gy-opt-icon { flex: none; margin: 0.1875rem 0.375rem 0 0; color: var(--muted-foreground); }
 .gy-opt-gap { width: 14px; height: 14px; }
 /* the last word, the link icon and the pill wrap as one; a hidden link keeps its space (opacity only) */
 .gy-radio-tail { white-space: nowrap; }
@@ -563,7 +565,7 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-more, .gy-row-open { text-align: left; }
 .gy-save { display: flex; align-items: center; gap: 0.75rem; font-size: 0.8125rem; }
 .gy-btn:disabled { opacity: 0.5; cursor: default; }
-@media (max-width: 40rem) { .gy-row { grid-template-columns: 1.75rem minmax(0, 1fr); } .gy-row-title, .gy-row-text, .gy-row-side { grid-column: 2; } .gy-row-side { grid-row: 3; } }
+@media (max-width: 40rem) { .gy-row { grid-template-columns: 1.75rem minmax(0, 1fr); } .gy-row-title, .gy-row-text, .gy-row-side { grid-column: 2; } .gy-row-side { grid-row: 3; } .gy-row-text:not(:has(.gy-row-detail, .gy-hintbox:not([hidden]))) { display: none; } }
 .gy-save-notice { margin: 0; font-size: 0.8125rem; }
 
 /* the header, tabs and (on Setup) the progress bar stay put while the blocks scroll under them; the document scrolls, and no ancestor clips it */
