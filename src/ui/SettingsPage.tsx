@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { PRESET_GROUPS, PRESET_LABELS, type Preset, type ViewSettings, type WeekStart } from '../types';
 import { SetupSaveControls, SetupTab, type SetupTabProps } from './SetupTab';
@@ -22,6 +22,19 @@ export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab 
     go(TABS[to]!.id);
     tabRefs.current[TABS[to]!.id]?.focus();
   };
+  const page = useRef<HTMLDivElement>(null);
+  const sticky = useRef<HTMLDivElement>(null);
+  // the sticky top's height, for scroll-margin-top on rows and block headers, so a jump doesn't land under it
+  useEffect(() => {
+    const el = sticky.current; const root = page.current;
+    if (!el || !root) return;
+    const write = () => root.style.setProperty('--gy-sticky-h', `${el.offsetHeight}px`);
+    write();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [progressSlot, setProgressSlot] = useState<HTMLElement | null>(null);
   const [preset, setPreset] = useState<Preset | null>(settings.defaultPreset);
   const [weekStart, setWeekStart] = useState<WeekStart>(settings.weekStart);
@@ -30,8 +43,8 @@ export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab 
   const save = () => onSave({ ...settings, defaultPreset: preset, comparisonDefault: comparison, weekStart });
 
   return (
-    <div className="dm-page">
-      <div className="gy-settings-sticky">
+    <div className="dm-page" ref={page}>
+      <div className="gy-settings-sticky" ref={sticky}>
       <header className="dm-page-header gy-settings-header">
         <button type="button" className="gy-icon-btn" aria-label="Back" title="Back" onClick={onBack}><ArrowLeft size={16} /></button>
         <h1 className="dm-page-header-title">Settings</h1>

@@ -86,7 +86,7 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
     setTarget(null);
     // the card unfolds on the next render, and a folded (inert) row can't take focus yet
     setTimeout(() => {
-      el?.scrollIntoView?.({ block: 'center' });
+      el?.scrollIntoView?.({ block: 'start' });
       (el?.querySelector<HTMLElement>('input[type="radio"]') ?? el?.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true });
     }, 0);
   }, [target]);

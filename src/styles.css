@@ -565,3 +565,4 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-settings-progress:empty { display: none; }
 @media (max-width: 640px) { .gy-settings-progress { padding: 0.5rem 1.25rem 0.75rem; } }
 .gy-settings-sticky + main { padding-top: 1rem; }
+.gy-row, .dm-collapsible { scroll-margin-top: calc(var(--gy-sticky-h, 0px) + 0.5rem); }
