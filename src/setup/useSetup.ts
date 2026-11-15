@@ -26,6 +26,8 @@ interface Pick { rowId: string; optionId: string }
 
 interface Valid { pick: Pick; kind: Action['kind']; row: Row }
 
+interface Replayed { settings: ProjectSettingsV5; derived: Derived; valid: Valid[]; overridden: string[]; stale: Pick[] }
+
 interface Loaded { settings: ProjectSettingsV5; graph: Graph; legacyCore: string[]; derived: Derived; hash: string }
 
 /** A short fingerprint of a row's option ids: a stored pick is dropped when the options change. */
@@ -134,37 +136,48 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   }, [runAi]);
 
   /**
-   * Replays the picks over the saved settings: each runs against the rows the earlier ones produced, and a stale one (its row or option is gone) is skipped.
-   * A `set` pick a later pick undid is dropped and replayed without, and named in `overridden`: applying it again to the result would change its own
-   * row's answer (state or current value). Changes it makes to other rows don't count. `seen` caches rows per settings across the recursion.
+   * Replays the picks over the saved settings: each runs against the rows the earlier ones produced, and a stale one (its row or option is gone) is skipped
+   * and returned in `stale`. A `set` pick a later pick undid is dropped, replayed without, and named in `overridden`. Undone means: applying it again to the
+   * result would change its own row's answer (state or current value), or its row was sound right after it ran and is broken in the result. Changes it
+   * makes to other rows don't count. `seen` caches rows per settings across the recursion.
    */
-  const replay = (l: Loaded, staged: Pick[], seen = new Map<string, Row[]>()): { settings: ProjectSettingsV5; derived: Derived; valid: Valid[]; overridden: string[] } => {
-    let settings = l.settings;
-    let derived = l.derived;
-    const valid: Valid[] = [];
-    for (const pick of staged) {
-      // the row as it stood when this pick ran: its options are what the pick chose from
-      const row = rowsFor(l, settings, derived, {}, new Set()).find((r) => r.id === pick.rowId);
-      const action = actionOf(row, pick.optionId);
-      if (!action || action.kind === 'open') continue;
-      valid.push({ pick, kind: action.kind, row: row! });
-      if (action.kind === 'set') { settings = action.next(settings); derived = deriveModel(settings, l.graph); }
-    }
-    const done = stable(settings);
-    const rowsOf = (s: ProjectSettingsV5, key: string, d?: Derived): Row[] => {
+  const replay = (l: Loaded, staged: Pick[], seen = new Map<string, Row[]>()): Replayed => {
+    const rowsOf = (s: ProjectSettingsV5, key = stable(s), d?: Derived): Row[] => {
       let r = seen.get(key);
       if (!r) { r = rowsFor(l, s, d ?? deriveModel(s, l.graph), {}, new Set()); seen.set(key, r); }
       return r;
     };
+    const bad = (r: Row | undefined) => r?.state === 'broken' || r?.state === 'error';
+    let settings = l.settings;
+    let derived = l.derived;
+    let key = stable(settings);
+    const valid: Valid[] = [];
+    const stale: Pick[] = [];
+    // whether each `set` pick's row was sound right after it ran
+    const sound = new Map<Pick, boolean>();
+    for (const pick of staged) {
+      // the row as it stood when this pick ran: its options are what the pick chose from
+      const row = rowsOf(settings, key, derived).find((r) => r.id === pick.rowId);
+      const action = actionOf(row, pick.optionId);
+      if (!action || action.kind === 'open') { stale.push(pick); continue; }
+      valid.push({ pick, kind: action.kind, row: row! });
+      if (action.kind === 'set') {
+        settings = action.next(settings); derived = deriveModel(settings, l.graph); key = stable(settings);
+        sound.set(pick, !bad(rowsOf(settings, key, derived).find((r) => r.id === pick.rowId)));
+      }
+    }
+    const done = key;
+    const final = rowsOf(settings, done, derived);
     const answer = (rows: Row[], id: string) => { const r = rows.find((x) => x.id === id); return r ? `${r.state}|${r.current}` : ''; };
     const undone = valid.filter((v) => {
       const a = actionOf(v.row, v.pick.optionId);
       if (a?.kind !== 'set') return false;
+      if (sound.get(v.pick) && bad(final.find((r) => r.id === v.pick.rowId))) return true;
       const after = a.next(settings);
-      const key = stable(after);
-      return key !== done && answer(rowsOf(after, key), v.pick.rowId) !== answer(rowsOf(settings, done, derived), v.pick.rowId);
+      const k = stable(after);
+      return k !== done && answer(rowsOf(after, k), v.pick.rowId) !== answer(final, v.pick.rowId);
     });
-    if (undone.length === 0) return { settings, derived, valid, overridden: [] };
+    if (undone.length === 0) return { settings, derived, valid, overridden: [], stale };
     const again = replay(l, staged.filter((p) => !undone.some((v) => v.pick === p)), seen);
     return { ...again, overridden: [...undone.map((v) => v.row.title), ...again.overridden] };
   };
@@ -172,7 +185,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   // the draft: the saved settings with every staged `set` applied in pick order; the rows and the model follow it
   const draft = useMemo(() => {
     if (!loaded) return null;
-    if (picks.length === 0) return { settings: loaded.settings, derived: loaded.derived, valid: [] as Valid[], overridden: [] as string[] };
+    if (picks.length === 0) return { settings: loaded.settings, derived: loaded.derived, valid: [], overridden: [], stale: [] } as Replayed;
     return replay(loaded, picks);
   }, [loaded, picks]);
 
@@ -216,6 +229,9 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   }, [loaded, draft, picks, cached, pending, args.projectId, args.generateWith]);
   const rowsNow = useRef(rows);
   rowsNow.current = rows;
+  // every row title seen, to name a pick whose row a later pick removed
+  const titles = useRef(new Map<string, string>());
+  for (const r of rows) titles.current.set(r.id, r.title);
   const optionsNow = useRef(optionRows);
   optionsNow.current = optionRows;
   // a stale or overridden pick is dropped for good, so it can't come back when its row does
@@ -228,7 +244,8 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   useEffect(() => {
     if (!draft || !pickedNow.current) return;
     pickedNow.current = false;
-    if (draft.overridden.length) setNotice(`A later choice replaced your choice for ${[...new Set(draft.overridden)].join(', ')}.`);
+    const names = [...draft.overridden, ...draft.stale.map((p) => titles.current.get(p.rowId) ?? p.rowId)];
+    if (names.length) setNotice(`A later choice replaced your choice for ${[...new Set(names)].join(', ')}.`);
   }, [draft]);
   // the draft can bring new rows that want an AI pick
   useEffect(() => { if (loaded && draft && picks.length) void runAi(loaded, draft.settings); }, [loaded, draft, picks, runAi]);

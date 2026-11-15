@@ -118,6 +118,16 @@ describe('rows over a connected project', () => {
     expect(a.some((r) => r.id.endsWith('.plan') && r.id.startsWith('metric:'))).toBe(true);
   });
 
+  test('a ratio key option reads as the ratio name alone', () => {
+    const add = rows().find((r) => r.block === 'ratios')!.options.find((o) => o.id === 'ratio:add')!;
+    if (add.action.kind !== 'set') throw new Error();
+    const next = add.action.next(filled);
+    const ratio = next.ratios[0]!;
+    const opt = rows(next).filter((r) => r.id.endsWith('.key')).flatMap((r) => r.options).find((o) => o.id === `metric:${ratio.id}`)!;
+    expect(opt.label).toBe(ratio.name);
+    expect(opt.label).not.toContain(' · ');
+  });
+
   test('a ratio between connected classes is offered, added through settings, and skipping hides it', () => {
     const open = rows().filter((r) => r.block === 'ratios');
     expect(open).toHaveLength(1);

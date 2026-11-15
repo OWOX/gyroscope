@@ -24,7 +24,7 @@ export function metricRows(ctx: Ctx): Row[] {
 
     const rec = keyFor(cl.id, model);
     const alias = (id: string) => model.metrics.find((m) => m.id === id)?.alias ?? id;
-    const labelOf = (id: string) => { const m = model.metrics.find((x) => x.id === id); return m ? (m.isUniqueCount ? m.alias : fieldLabel(martTitle(ctx, m.martId), m.alias)) : id; };
+    const labelOf = (id: string) => { const m = model.metrics.find((x) => x.id === id); return m ? (m.isUniqueCount || m.ratio ? m.alias : fieldLabel(martTitle(ctx, m.martId), m.alias)) : id; };
     const keys = [...(rec ? [rec] : []), ...cl.metricIds.filter((id) => id !== rec)];
     const stored = saved?.keyMetricId ?? null;
     const keyState: RowState = stored ? (cl.metricIds.includes(stored) ? 'done' : 'broken') : 'open';

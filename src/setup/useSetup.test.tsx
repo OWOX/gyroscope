@@ -388,7 +388,7 @@ const overrideCase = async () => {
     projectDescription: 'We sell shoes', contexts: [],
     marts: [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }, { id: 'ads', title: 'Ads', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }],
     details: {
-      orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'shipped', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }] },
+      orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'shipped', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }, { name: 'items', type: 'NUMERIC', isPrimaryKey: false }] },
       ads: { id: 'ads', title: 'Ads', fields: [{ name: 'ad_id', type: 'STRING', isPrimaryKey: true }, { name: 'created', type: 'DATE', isPrimaryKey: false }, { name: 'cost', type: 'NUMERIC', isPrimaryKey: false }] },
     },
     blendables: { orders: { availableSources: [], mainUniqueCountKeyFields: ['order_id'] }, ads: { availableSources: [], mainUniqueCountKeyFields: ['ad_id'] } },
@@ -458,6 +458,67 @@ test('the override notice clears on reload and is not raised again by the replay
   await act(() => result.current.reload());
   expect(result.current.props.notice).toBeNull();
   expect(result.current.props.picked).toEqual({ 'goal.metric': 'field:ads:cost' });
+});
+
+test('a pick whose row a later pick removes from its options is dropped and named', async () => {
+  const { result } = await overrideCase();
+  await act(async () => result.current.props.onPick('goal.metric', 'field:ads:cost'));
+  await act(async () => result.current.props.onPick('goal.date', 'field:ads:created'));
+  expect(result.current.props.dirty).toBe(2);
+  await act(async () => result.current.props.onPick('goal.metric', 'field:orders:items'));
+  await waitFor(() => expect(result.current.props.picked).toEqual({ 'goal.metric': 'field:orders:items' }));
+  expect(result.current.props.notice).toBe(NOTICE);
+});
+
+/** One Data Mart, Orders, with revenue, items and discount; the saved goal is Orders · revenue. */
+const classCase = async (over: Record<string, unknown> = {}) => {
+  const store = memoryCollections();
+  const { saveSetup, EMPTY_SETUP } = await import('../store/settings');
+  const source = fakeOwox({
+    projectDescription: 'We sell shoes', contexts: [],
+    marts: [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }],
+    details: { orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }, { name: 'items', type: 'NUMERIC', isPrimaryKey: false }, { name: 'discount', type: 'NUMERIC', isPrimaryKey: false }] } },
+    blendables: { orders: { availableSources: [], mainUniqueCountKeyFields: ['order_id'] } },
+    rows: () => [],
+  });
+  const goal = { martId: 'orders', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'revenue', plan: null };
+  await saveSetup(store, EMPTY_SETUP, { ...EMPTY_SETUP, goal, ...over }, 'Ann', new Date());
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
+  await act(() => result.current.reload());
+  return { store, result };
+};
+
+test('a key metric a later goal pick takes off the class is dropped and named, not saved broken', async () => {
+  const { store, result } = await classCase();
+  await act(async () => result.current.props.onPick('class:orders.key', 'metric:orders:revenue:SUM'));
+  await act(async () => result.current.props.onPick('goal.metric', 'field:orders:items'));
+  await waitFor(() => expect(result.current.props.picked).toEqual({ 'goal.metric': 'field:orders:items' }));
+  expect(result.current.props.dirty).toBe(1);
+  expect(result.current.props.notice).toBe('A later choice replaced your choice for Orders Headline Number.');
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect((await loadSetup(store)).settings.classes.orders?.keyMetricId ?? null).toBeNull();
+});
+
+test('a key metric a later shown pick takes off the class is dropped and named', async () => {
+  const items = { martId: 'orders', measure: { field: 'items', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'items' };
+  const { result } = await classCase({ classes: { orders: { keyMetricId: null, shown: [items] } } });
+  await act(async () => result.current.props.onPick('class:orders.key', 'metric:orders:items:SUM'));
+  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:discount'));
+  await waitFor(() => expect(result.current.props.picked).toEqual({ 'class:orders.shown': 'shown:discount' }));
+  expect(result.current.props.dirty).toBe(1);
+  expect(result.current.props.notice).toBe('A later choice replaced your choice for Orders Headline Number.');
+});
+
+test('picking the goal field already in the draft keeps its aggregation', async () => {
+  const { result } = renderHook(() => useSetup(adminArgs(memoryCollections(), vi.fn() as never, { generateWith: null })));
+  await act(() => result.current.reload());
+  await act(async () => result.current.props.onPick('goal.aggregation', 'agg:MAX:level'));
+  await act(async () => result.current.props.onPick('goal.metric', recOf(result, 'goal.metric')));
+  expect(result.current.props.picked).toEqual({ 'goal.aggregation': 'agg:MAX:level', 'goal.metric': 'field:orders:revenue' });
+  expect(result.current.props.dirty).toBe(2);
+  expect(result.current.props.notice).toBeNull();
+  expect(result.current.props.rows.find((r) => r.id === 'goal.aggregation')!.current).toBe('Maximum, a level on a day');
 });
 
 test('a row that only exists in the draft and is already done does not count as unset', async () => {
