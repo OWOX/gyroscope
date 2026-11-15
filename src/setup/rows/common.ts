@@ -122,7 +122,7 @@ export function planRow(ctx: Ctx, key: string, id: string, block: BlockId, vars:
   const list = current ? withRepick(ctx, current.martId, current.measure.field, chk.state, all) : all;
   const options: Plain[] = [
     ...list.flatMap((c) => { const p = planFor(ctx, c, kind); return p ? [fieldOption(ctx, c, (s) => write(s, p))] : []; }),
-    setOption('none', 'No plan yet', (s) => dismiss(write(s, null), id)),
+    { ...setOption('none', 'No plan yet', (s) => dismiss(write(s, null), id)), declines: true },
   ];
   return make(ctx, key, id, block, vars, { ...chk, group, current: current ? fieldText(ctx, current.martId, current.measure.field) : null, options });
 }

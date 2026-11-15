@@ -153,15 +153,39 @@ test('a staged append or teams pick counts as done in the bar and the block badg
   expect(screen.queryByTestId('block-count')).toBeNull();
 });
 
-describe('dismissing a notice is staged', () => {
-  test('Dismiss picks, and a dismissed row offers Undo', () => {
-    const p = props([row({ id: 'goal.description', severity: 'notice', dismissable: true })]);
-    const { rerender } = render(<SetupTab {...p} />);
-    fireEvent.click(screen.getByText('Dismiss'));
+describe('dismissing a notice is a Not needed radio', () => {
+  const notice = (over: Partial<Row> = {}) => row({ id: 'goal.description', severity: 'notice', dismissable: true, ...over });
+  const labels = () => within(screen.getByRole('radiogroup')).getAllByRole('radio').map((r) => (r as HTMLInputElement).labels![0]!.textContent);
+
+  test('Not needed is the last visible radio, before Show more, and picking it stages dismiss', () => {
+    const p = props([notice({ options: four })]);
+    render(<SetupTab {...p} />);
+    expect(labels().at(-1)).toBe('Not needed');
+    expect(screen.queryByText('Dismiss')).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: 'Not needed' }));
     expect(p.onPick).toHaveBeenCalledWith('goal.description', 'dismiss');
-    rerender(<SetupTab {...props([row({ id: 'goal.description', severity: 'notice', dismissable: true, state: 'done' })], { picked: { 'goal.description': 'dismiss' }, savedOpen: new Set(['goal.description']) })} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Undo dismiss Business Critical Number', hidden: true }));
-    expect(p.onPick).toHaveBeenCalledTimes(1);
+  });
+
+  test('a staged dismiss checks Not needed, and Not set undoes it', () => {
+    const p = props([notice()], { picked: { 'goal.description': 'dismiss' } });
+    render(<SetupTab {...p} />);
+    expect(screen.getByRole('radio', { name: 'Not needed' })).toBeChecked();
+    expect(screen.queryByText(/Dismissed|Undo/)).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: 'Not set' }));
+    expect(p.onPick).toHaveBeenCalledWith('goal.description', null);
+  });
+
+  test('a row with its own no option gets no extra Not needed', () => {
+    render(<SetupTab {...props([notice({ options: [set('a', 'Orders · revenue'), { ...set('none', 'No plan yet'), declines: true }] })])} />);
+    expect(labels()).not.toContain('Not needed');
+  });
+
+  test('a non-dismissable row and a read-only viewer get none', () => {
+    const { unmount } = render(<SetupTab {...props([row({})])} />);
+    expect(screen.queryByRole('radio', { name: 'Not needed' })).toBeNull();
+    unmount();
+    render(<SetupTab {...props([notice()], { readOnly: true })} />);
+    expect(screen.queryByRole('radio')).toBeNull();
   });
 });
 

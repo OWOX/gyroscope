@@ -49,6 +49,9 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     </div>
   );
 
+  // a notice can be waved off; a row with its own "no" option already has that answer
+  const offerDismiss = row.dismissable && !implicit && !choices.some((o) => o.declines);
+
   const radios = (() => {
     const shown = more ? ordered : ordered.slice(0, SHOWN);
     // the checked option always shows, even when it sits behind "Show more"
@@ -62,6 +65,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
             ? (match ? null : radio('implicit', row.current, true, () => {}, undefined, true))
             : radio('keep', keepOpt ? keepOpt.label : keepLabel, picked === undefined, () => onPick(null), keepOpt)}
           {list.map((o) => radio(o.id, o.label, picked === o.id || match?.id === o.id, () => onPick(o.id), o))}
+          {offerDismiss && radio('dismiss', 'Not needed', picked === 'dismiss', () => onPick('dismiss'))}
         </div>
         {!more && hidden > 0 && <button type="button" className="gy-link gy-row-more" onClick={() => setMore(true)}>{`Show ${hidden} more`}</button>}
         {implicit && <span className="gy-muted gy-row-note">Set by your choice above</span>}
@@ -69,12 +73,9 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     );
   })();
 
-  const dismissed = picked === 'dismiss';
   const extras = !readOnly && (
     <>
       {row.state !== 'done' && links.map((o) => <button key={o.id} type="button" className="gy-link gy-row-open" onClick={() => o.action.kind === 'open' && onOpen?.(o.action.path)}>{o.label}</button>)}
-      {row.dismissable && !dismissed && row.state !== 'done' && <button type="button" className="gy-link" aria-label={`Dismiss ${row.title}`} disabled={saving} onClick={() => onPick('dismiss')}>Dismiss</button>}
-      {dismissed && <span className="gy-muted">Dismissed <button type="button" className="gy-link" aria-label={`Undo dismiss ${row.title}`} disabled={saving} onClick={() => onPick(null)}>Undo</button></span>}
     </>
   );
 

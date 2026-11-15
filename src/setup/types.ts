@@ -13,6 +13,8 @@ export type Action =
   | { kind: 'open'; path: string };
 /** `keep` marks an option that leaves the saved value as it is, so a finished row has nothing to accept. */
 export interface Option { id: string; label: string; recommended: boolean; action: Action; keep?: boolean;
+  /** Choosing this option dismisses the row, so the row needs no "Not needed" radio of its own. */
+  declines?: true;
   /** An OWOX page path for the Data Mart, or the field, this option points at. */
   link?: string;
   /** The destination's name for the link's label: a field with its Data Mart, or a Data Mart title. */

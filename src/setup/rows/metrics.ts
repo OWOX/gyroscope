@@ -42,7 +42,7 @@ export function metricRows(ctx: Ctx): Row[] {
     // the combined pick points at its one field, or at the class's Data Mart when it covers several
     if (recShown.length) picks.push(setOption(`shown:${recShown.map((c) => c.path).join(',')}`, recShown.map((c) => fieldLabel(c.martTitle, c.label)).join(', '), write((cur) => ({ ...cur, shown: recShown.map(choice) })), ...(recShown.length === 1 ? fieldLink(recShown[0]!) : [martPage(ctx, cl.id), cl.title] as const)));
     for (const c of recShown) picks.push(setOption(`shown:${c.path}`, fieldLabel(c.martTitle, c.label), write((cur) => ({ ...cur, shown: [choice(c)] })), ...fieldLink(c)));
-    picks.push(setOption('shown:none', 'No extra numbers', (x) => dismiss(write((cur) => ({ ...cur, shown: [] }))(x), `class:${cl.id}.shown`)));
+    picks.push({ ...setOption('shown:none', 'No extra numbers', (x) => dismiss(write((cur) => ({ ...cur, shown: [] }))(x), `class:${cl.id}.shown`)), declines: true });
     const shown = saved?.shown ?? [];
     const bad = shown.map((c) => ({ c, chk: fieldCheck(ctx, c.martId, [c.measure.field]) })).find((x) => x.chk.state !== 'done');
     rows.push(make(ctx, 'class.shown', `class:${cl.id}.shown`, 'metrics', vars, {
@@ -98,7 +98,7 @@ export function ratioRows(ctx: Ctx): Row[] {
       state: 'open', current: null,
       options: [
         setOption('ratio:add', `Add ${p.name}`, (x) => ({ ...x, ratios: [...x.ratios.filter((y) => y.id !== id), { id, name: p.name, numerator: p.numerator, denominator: p.denominator, format: 'number' }] }), numMart && martPage(ctx, numMart), numMart && martTitle(ctx, numMart)),
-        setOption('ratio:skip', 'Skip this ratio', (x) => dismiss(x, id)),
+        { ...setOption('ratio:skip', 'Skip this ratio', (x) => dismiss(x, id)), declines: true },
       ],
     }));
   }
