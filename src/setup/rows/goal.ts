@@ -1,7 +1,7 @@
 import type { Measure, MetricKind } from '../../types';
 import { cands, criticalCandidates, dateCandidates, kindFor, planCandidates, shapeFor } from '../recommend/fields';
 import type { Row, RowState } from '../types';
-import { descriptionRow, fieldCheck, fieldOption, fieldText, make, metricRow, planFor, planRow, setOption, updGoal, withRepick, type Ctx } from './common';
+import { descriptionRow, fieldCheck, fieldOption, fieldText, make, martTitle, metricRow, planFor, planRow, setOption, updGoal, withRepick, type Ctx } from './common';
 
 type Fn = NonNullable<Measure['fn']> | 'calc';
 const AGG: { fn: Fn; kind: MetricKind; label: string }[] = [
@@ -33,7 +33,7 @@ export function goalRows(ctx: Ctx): Row[] {
   const dates = node ? dateCandidates(node) : [];
   const dateChk = !goal ? open : goal.dateField ? fieldCheck(ctx, goal.martId, [goal.dateField]) : open;
   const date = make(ctx, 'goal.date', 'goal.date', 'goal', {}, {
-    ...dateChk, current: goal?.dateField ? fieldText(ctx, goal.martId, goal.dateField) : null,
+    ...dateChk, none: !G ? undefined : ctx.graph.failed.has(G.martId) ? `Not available yet: ${martTitle(ctx, G.martId)} couldn't be read` : node ? `Not available yet: add a date field to ${node.title}` : undefined, current: goal?.dateField ? fieldText(ctx, goal.martId, goal.dateField) : null,
     options: (goal?.dateField ? withRepick(ctx, goal.martId, goal.dateField, dateChk.state, dates) : dates).map((c) => fieldOption(c, updGoal(ctx, (g) => ({ ...g, dateField: c.path })))),
   });
 
@@ -43,7 +43,7 @@ export function goalRows(ctx: Ctx): Row[] {
   const calc = G?.measure.fn === null;
   const aggs = G && node ? AGG.filter((a) => (a.fn === 'calc') === calc).map((a) => ({ ...a, id: `agg:${a.fn}:${a.kind}` })).sort((a, b) => +(b.id === recId) - +(a.id === recId)) : [];
   const aggregation = make(ctx, 'goal.aggregation', 'goal.aggregation', 'goal', {}, {
-    ...(goal ? goalCheck : open), current: goal ? AGG.find((a) => a.fn === (goal.measure.fn ?? 'calc') && a.kind === goal.kind)?.label ?? null : null,
+    ...(goalCheck.state === 'error' ? goalCheck : goal ? { state: 'done' as RowState } : open), current: goal ? AGG.find((a) => a.fn === (goal.measure.fn ?? 'calc') && a.kind === goal.kind)?.label ?? null : null,
     options: aggs.map((a) => setOption(a.id, a.label, updGoal(ctx, (g) => ({ ...g, measure: { field: g.measure.field, fn: a.fn === 'calc' ? null : a.fn }, kind: a.kind })))),
   });
 
@@ -57,7 +57,7 @@ export function goalRows(ctx: Ctx): Row[] {
     const rec = shapeFor(null, G?.kind ?? 'flow');
     const planCheck = goal?.plan ? fieldCheck(ctx, goal.plan.martId, [goal.plan.measure.field, goal.plan.dateField]) : open;
     rows.push(make(ctx, 'goal.shape', 'goal.shape', 'goal', {}, {
-      ...planCheck, current: goal?.plan ? SHAPES[goal.plan.shape] : null,
+      ...(planCheck.state === 'error' ? planCheck : goal?.plan ? { state: 'done' as RowState } : open), current: goal?.plan ? SHAPES[goal.plan.shape] : null,
       options: (Object.keys(SHAPES) as (keyof typeof SHAPES)[]).sort((a, b) => +(b === rec) - +(a === rec)).map((k) => setOption(`shape:${k}`, SHAPES[k], updGoal(ctx, (g) => ({ ...g, plan: { ...(g.plan ?? shapePlan), shape: k } })))),
     }));
   }

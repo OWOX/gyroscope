@@ -207,3 +207,57 @@ describe('rows by block', () => {
     expect(none).toEqual([{ id: 'none', label: 'Not available yet: add a Data Mart with a number field', recommended: true, action: { kind: 'open', path: '/ui/p1/data-marts' } }]);
   });
 });
+
+describe('fix round 1', () => {
+  const sev = (rows: ReturnType<typeof buildRows>, id: string) => byId(rows, id);
+
+  test('a broken plan row is a non-dismissable warning', () => {
+    const g = graph([orders]);
+    g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: null }];
+    const plan = { martId: 'orders', measure: { field: 'gone_plan', fn: 'SUM' as const }, dateField: 'date', shape: 'daily' as const };
+    const s: ProjectSettingsV5 = { ...filled, contexts: { c1: { metric: null, plan } } };
+    expect(sev(buildRows({ ...input(s), graph: g }), 'team:c1.plan')).toMatchObject({ state: 'broken', severity: 'warning', dismissable: false });
+    const m: ProjectSettingsV5 = { ...filled, classes: { orders: { keyMetricId: null, shown: [{ martId: 'orders', measure: { field: 'revenue', fn: 'SUM' }, dateField: 'date', kind: 'flow', alias: 'revenue' }] } }, plans: { 'orders:revenue:SUM': plan } };
+    expect(sev(buildRows(input(m)), 'metric:orders:revenue:SUM.plan')).toMatchObject({ state: 'broken', severity: 'warning', dismissable: false });
+  });
+
+  test('a gone goal field gives exactly one broken row, and the goal rows stay blockers', () => {
+    const s: ProjectSettingsV5 = { ...filled, goal: { ...goal, measure: { field: 'revenue_old', fn: 'SUM' } } };
+    const broken = buildRows(input(s)).filter((r) => r.state === 'broken');
+    expect(broken.map((r) => r.id)).toEqual(['goal.metric']);
+    expect(broken[0]!.severity).toBe('error');
+  });
+
+  test('a gone plan field gives one broken row, not the shape row too', () => {
+    const plan = { martId: 'orders', measure: { field: 'gone_plan', fn: 'SUM' as const }, dateField: 'date', shape: 'daily' as const };
+    const broken = buildRows(input({ ...filled, goal: { ...goal, plan } })).filter((r) => r.state === 'broken');
+    expect(broken.map((r) => r.id)).toEqual(['goal.plan']);
+  });
+
+  test('the append snippet escapes Markdown in aliases and ids', () => {
+    const s: ProjectSettingsV5 = { ...filled, goal: { ...goal, alias: 'Rev | net [x]\nnew' } };
+    const a = byId(buildRows(input(s)), 'goal.description').options[0]!.action;
+    if (a.kind !== 'append') throw new Error();
+    expect(a.text).toContain('| Rev \\| net \\[x\\] new |');
+    expect(a.text).toContain('[Rev \\| net \\[x\\] new](/ui/p1/data-marts/orders/data-setup?field=revenue)');
+  });
+
+  test('none labels name the cause', () => {
+    const noDate = node('orders', [f('order_id', 'STRING', { isPrimaryKey: true }), f('revenue', 'NUMERIC')], 'order_id');
+    expect(byId(buildRows(input({ ...filled, goal: { ...goal, dateField: null } }, [noDate])), 'goal.date').options[0]!.label).toBe('Not available yet: add a date field to Orders');
+    const g = graph([]); g.failed.set('orders', 'HTTP 500');
+    g.inputs.marts = [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }];
+    expect(byId(buildRows({ ...input(filled, []), graph: g }), 'goal.date').options[0]!.label).toBe("Not available yet: Orders couldn't be read");
+  });
+
+  test('dismissed never closes an error-severity row', () => {
+    const a = buildRows(input({ ...EMPTY_SETUP, dismissed: ['goal.metric', 'goal.date', 'goal.plan'] }));
+    expect(byId(a, 'goal.metric').state).toBe('open');
+    expect(byId(a, 'goal.plan').state).toBe('done');
+  });
+
+  test('a saved ratio whose metrics are gone is broken, a warning', () => {
+    const s: ProjectSettingsV5 = { ...filled, ratios: [{ id: 'ratio:x/y', name: 'X per Y', numerator: 'x', denominator: 'y', format: 'number' }] };
+    expect(byId(buildRows(input(s)), 'ratio:x/y')).toMatchObject({ state: 'broken', severity: 'warning', dismissable: false });
+  });
+});

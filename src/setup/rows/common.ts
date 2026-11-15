@@ -64,24 +64,26 @@ export function fieldCheck(ctx: Ctx, martId: string, paths: (string | null)[]): 
   return gone === undefined ? { state: 'done' } : { state: 'broken', detail: `${gone} isn't in ${node.title} any more` };
 }
 
-export const noneOption = (ctx: Ctx): Option => ({ id: 'none', label: 'Not available yet: add a Data Mart with a number field', recommended: true, action: { kind: 'open', path: dataMartPage(ctx) } });
+export const noneOption = (ctx: Ctx, label = 'Not available yet: add a Data Mart with a number field'): Option => ({ id: 'none', label, recommended: true, action: { kind: 'open', path: dataMartPage(ctx) } });
 
 /** Marks exactly one option recommended: the AI's pick when it names a real option, else the first. */
-export function recommend(ctx: Ctx, id: string, options: Plain[]): Option[] {
+export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string): Option[] {
   const seen = new Set<string>();
   const uniq = options.filter((o) => !seen.has(o.id) && !!seen.add(o.id));
-  if (!uniq.length) return [noneOption(ctx)];
+  if (!uniq.length) return [noneOption(ctx, none)];
   const want = ctx.ai[id];
   const pick = uniq.some((o) => o.id === want) ? want : uniq[0]!.id;
   return uniq.map((o) => ({ ...o, recommended: o.id === pick }));
 }
 
 /** A row from its catalog key; `options` come first-is-recommended and are normalised here. */
-export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, rest: { state: RowState; current: string | null; options: Plain[]; detail?: string; group?: string; severity?: Severity }): Row {
+export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, rest: { state: RowState; current: string | null; options: Plain[]; detail?: string; group?: string; severity?: Severity; none?: string }): Row {
   const c = COPY[key]!;
-  const severity = rest.severity ?? c.severity;
-  const { options, ...more } = rest;
-  return { id, block, title: fill(c.title, vars), question: fill(c.question, vars), why: fill(c.why, vars), aiPending: ctx.aiPending.has(id), dismissable: severity === 'notice', ...more, severity, options: recommend(ctx, id, options) };
+  const base = rest.severity ?? c.severity;
+  // a broken saved value counts 🟡 unless the row is a blocker
+  const severity: Severity = rest.state === 'broken' && base !== 'error' ? 'warning' : base;
+  const { options, none, severity: _s, ...more } = rest;
+  return { id, block, title: fill(c.title, vars), question: fill(c.question, vars), why: fill(c.why, vars), aiPending: ctx.aiPending.has(id), dismissable: severity === 'notice', ...more, severity, options: recommend(ctx, id, options, none) };
 }
 
 export const fieldOption = (c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: `${c.label} (${c.martTitle})`, action: set(next) });
@@ -121,10 +123,12 @@ export function planRow(ctx: Ctx, key: string, id: string, block: BlockId, vars:
 }
 
 /** The one-row Metrics table that names a number, with its plan when there is one. */
+// text placed in a table cell or a link label: Markdown punctuation escaped, line breaks flattened
+const esc = (s: string) => s.replace(/[\\|[\]()]/g, '\\$&').replace(/\s*[\r\n]+\s*/g, ' ');
 export function metricsTable(ctx: Ctx, role: string, alias: string, martId: string, path: string, plan: PlanDef | null): string {
-  const link = (text: string, m: string, f: string) => `[${text}](/ui/${ctx.projectId}/data-marts/${m}/data-setup?field=${encodeURIComponent(f)})`;
+  const link = (text: string, m: string, f: string) => `[${esc(text)}](/ui/${ctx.projectId}/data-marts/${encodeURIComponent(m)}/data-setup?field=${encodeURIComponent(f)})`;
   const planCell = plan ? link(plan.measure.field, plan.martId, plan.measure.field) : '';
-  return `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| ${role} | ${alias} | ${planCell} | ${link(alias, martId, path)} |`;
+  return `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| ${esc(role)} | ${esc(alias)} | ${planCell} | ${link(alias, martId, path)} |`;
 }
 
 /** A row that asks to add the number to a description; done when the description already links the same Data Mart field. */
