@@ -45,7 +45,8 @@ export function buildCtx(input: RowsInput): Ctx {
 
 export const martTitle = (ctx: Ctx, id: string) => ctx.byId.get(id)?.title ?? ctx.graph.inputs.marts.find((m) => m.id === id)?.title ?? 'a Data Mart you can no longer see';
 /** "{Data Mart title} · {field}", as OWOX writes a field mention. */
-export const fieldLabel = (martTitle: string, field: string) => `${martTitle} · ${field}`;
+/** A Data Mart's unique count is named after the Data Mart, so it reads as just the title. */
+export const fieldLabel = (martTitle: string, field: string) => (field === martTitle ? field : `${martTitle} · ${field}`);
 /** The same label for a field of a Data Mart. */
 export function fieldText(ctx: Ctx, martId: string, path: string): string {
   const f = flattenFields(ctx.byId.get(martId)?.detail.fields ?? []).find((x) => x.path === path)?.field;

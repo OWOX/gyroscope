@@ -550,3 +550,4 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-save { display: flex; align-items: center; gap: 0.75rem; font-size: 0.8125rem; }
 .gy-btn:disabled { opacity: 0.5; cursor: default; }
 @media (max-width: 40rem) { .gy-row { grid-template-columns: auto minmax(0, 1fr); } .gy-row-side { grid-column: 2; } }
+.gy-save-notice { margin: 0; font-size: 0.8125rem; }

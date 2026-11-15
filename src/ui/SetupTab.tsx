@@ -17,6 +17,8 @@ export interface SetupTabProps {
   savedOpen: ReadonlySet<string>;
   /** For a row with a staged pick: the row as that pick ran against it. Its radios, their order and the recommendation come from here. */
   optionRows?: Record<string, Row>;
+  /** A line under the Save bar, e.g. which staged choice a later one replaced. */
+  notice?: string | null;
   onRetry: () => void; onOpen?: (path: string) => void;
 }
 
@@ -41,7 +43,7 @@ function Block({ info, rows, folded, hintOpen, onHint, attention, children }: { 
   );
 }
 
-export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, onSave, onDiscard, savedOpen, optionRows, onRetry, onOpen }: SetupTabProps) {
+export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, onSave, onDiscard, savedOpen, optionRows, notice, onRetry, onOpen }: SetupTabProps) {
   // a staged append or team write is done as far as the bar goes: it changes no setting, so the rows can't show it
   const eff = rows.map((r) => {
     const k = r.options.find((o) => o.id === picked[r.id])?.action.kind;
@@ -89,6 +91,7 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
           <button type="button" className="gy-btn gy-btn-primary" disabled={dirty === 0 || saving} onClick={onSave}>{saving ? 'Saving…' : 'Save'}</button>
         </div>
       )} />
+      {notice && <p className="gy-muted gy-save-notice" role="status">{notice}</p>}
       <div className="gy-setup-blocks">
       {BLOCKS.map((b) => {
         const mine = eff.filter((r) => r.block === b.id);

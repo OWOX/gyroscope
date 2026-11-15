@@ -251,7 +251,7 @@ test('a broken row with no current offers Keep the saved value and shows its det
 
 test('a row another pick filled in shows the matching option checked, no Not set and a note', () => {
   const r = row({ id: 'goal.aggregation', state: 'done', current: 'Sum, a total', options: [set('s', 'Sum, a total', true), set('m', 'Maximum')] });
-  render(<SetupTab {...props([r], { savedOpen: new Set(['goal.aggregation']), optionRows: { 'goal.aggregation': { ...r, state: 'open', current: null } } })} />);
+  render(<SetupTab {...props([r], { savedOpen: new Set(['goal.aggregation']) })} />);
   expect(screen.getByRole('radio', { name: /Sum, a total/ })).toBeChecked();
   expect(screen.queryByRole('radio', { name: 'Not set' })).toBeNull();
   expect(screen.getByText('Set by your choice above')).toBeInTheDocument();

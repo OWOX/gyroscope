@@ -24,7 +24,7 @@ export function metricRows(ctx: Ctx): Row[] {
 
     const rec = keyFor(cl.id, model);
     const alias = (id: string) => model.metrics.find((m) => m.id === id)?.alias ?? id;
-    const labelOf = (id: string) => { const m = model.metrics.find((x) => x.id === id); return m ? fieldLabel(martTitle(ctx, m.martId), m.alias) : id; };
+    const labelOf = (id: string) => { const m = model.metrics.find((x) => x.id === id); return m ? (m.isUniqueCount ? m.alias : fieldLabel(martTitle(ctx, m.martId), m.alias)) : id; };
     const keys = [...(rec ? [rec] : []), ...cl.metricIds.filter((id) => id !== rec)];
     const stored = saved?.keyMetricId ?? null;
     const keyState: RowState = stored ? (cl.metricIds.includes(stored) ? 'done' : 'broken') : 'open';
@@ -97,7 +97,7 @@ export function ratioRows(ctx: Ctx): Row[] {
     rows.push(make(ctx, 'ratio', id, 'ratios', { A: alias(p.numerator), B: alias(p.denominator) }, {
       state: 'open', current: null,
       options: [
-        setOption('ratio:add', `Add ${p.name}`, (x) => ({ ...x, ratios: [...x.ratios, { id, name: p.name, numerator: p.numerator, denominator: p.denominator, format: 'number' }] }), numMart && martPage(ctx, numMart), numMart && martTitle(ctx, numMart)),
+        setOption('ratio:add', `Add ${p.name}`, (x) => ({ ...x, ratios: [...x.ratios.filter((y) => y.id !== id), { id, name: p.name, numerator: p.numerator, denominator: p.denominator, format: 'number' }] }), numMart && martPage(ctx, numMart), numMart && martTitle(ctx, numMart)),
         setOption('ratio:skip', 'Skip this ratio', (x) => dismiss(x, id)),
       ],
     }));

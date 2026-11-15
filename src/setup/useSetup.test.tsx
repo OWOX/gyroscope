@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { SetupTab } from '../ui/SetupTab';
 import { useSetup } from './useSetup';
 import { memoryCollections } from '../store/collections';
 import { loadSetup, loadSuggestions } from '../store/settings';
@@ -377,4 +378,50 @@ test('a partial failure keeps the append staged and drops the written settings p
   await waitFor(() => expect(result.current.props.saving).toBe(false));
   expect(Object.keys(result.current.props.picked)).toEqual(['goal.description']);
   expect((await loadSetup(store)).settings.goal?.measure.field).toBe('revenue');
+});
+
+test('a pick a later pick undoes is dropped, named in a notice, and the derived value shows as set by the choice above', async () => {
+  const store = memoryCollections();
+  const { saveSetup, EMPTY_SETUP } = await import('../store/settings');
+  const source = fakeOwox({
+    projectDescription: 'We sell shoes', contexts: [],
+    marts: [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }, { id: 'ads', title: 'Ads', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }],
+    details: {
+      orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'shipped', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }] },
+      ads: { id: 'ads', title: 'Ads', fields: [{ name: 'ad_id', type: 'STRING', isPrimaryKey: true }, { name: 'created', type: 'DATE', isPrimaryKey: false }, { name: 'cost', type: 'NUMERIC', isPrimaryKey: false }] },
+    },
+    blendables: { orders: { availableSources: [], mainUniqueCountKeyFields: ['order_id'] }, ads: { availableSources: [], mainUniqueCountKeyFields: ['ad_id'] } },
+    rows: () => [],
+  });
+  const goal = { martId: 'orders', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: null, kind: 'flow' as const, alias: 'revenue', plan: null };
+  await saveSetup(store, EMPTY_SETUP, { ...EMPTY_SETUP, goal }, 'Ann', new Date());
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
+  await act(() => result.current.reload());
+  await act(async () => result.current.props.onPick('goal.date', 'field:orders:shipped'));
+  expect(result.current.props.picked).toEqual({ 'goal.date': 'field:orders:shipped' });
+  await act(async () => result.current.props.onPick('goal.metric', 'field:ads:cost'));
+  await waitFor(() => expect(result.current.props.picked).toEqual({ 'goal.metric': 'field:ads:cost' }));
+  expect(result.current.props.dirty).toBe(1);
+  expect(result.current.props.notice).toBe('A later choice replaced your choice for Critical Number Date.');
+  render(<SetupTab {...result.current.props} />);
+  expect(screen.getByText('A later choice replaced your choice for Critical Number Date.')).toBeInTheDocument();
+  expect(screen.getByText('Set by your choice above')).toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: /Ads · created/ })).toBeChecked();
+  expect(screen.queryByRole('radio', { name: /Orders · shipped/ })).toBeNull();
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect(result.current.settings!.goal).toMatchObject({ martId: 'ads', dateField: 'created' });
+  // the next pick clears the notice
+});
+
+test('a row that only exists in the draft and is already done does not count as unset', async () => {
+  const store = memoryCollections();
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null })));
+  await act(() => result.current.reload());
+  const before = new Set(result.current.props.rows.map((r) => r.id));
+  await act(async () => result.current.props.onPick('goal.metric', recOf(result, 'goal.metric')));
+  const fresh = result.current.props.rows.filter((r) => !before.has(r.id) && r.state === 'done');
+  expect(fresh.length).toBeGreaterThan(0);
+  for (const r of fresh) expect(result.current.props.savedOpen.has(r.id), r.id).toBe(false);
+  for (const r of result.current.props.rows.filter((r) => !before.has(r.id) && r.state !== 'done')) expect(result.current.props.savedOpen.has(r.id), r.id).toBe(true);
 });

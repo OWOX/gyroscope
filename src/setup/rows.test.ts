@@ -173,6 +173,13 @@ test('the description table names the Plan cell as Data Mart · field alias', ()
   expect(a.text).toContain('[Orders · revenue](/ui/p1/data-marts/orders/data-setup?field=revenue)');
 });
 
+test('a unique count reads as the Data Mart name alone, not "Orders · orders"', () => {
+  const r = byId(buildRows(input(filled, [linked(), customers])), 'class:orders.key');
+  expect(r.options.some((o) => o.label === 'orders')).toBe(true);
+  expect(r.options.some((o) => o.label === 'Orders · orders')).toBe(false);
+  expect(byId(buildRows(input({ ...filled, classes: { orders: { keyMetricId: r.options.find((o) => o.label === 'orders')!.id.slice(7), shown: [] } } }, [linked(), customers])), 'class:orders.key').current).toBe('orders');
+});
+
 describe('rows by block', () => {
   test('goal description is done once the project description links the goal field, and appends the one-row table otherwise', () => {
     const open = byId(buildRows(input(filled)), 'goal.description');
