@@ -111,3 +111,25 @@ describe('a finished row offers nothing to accept unless it is a settings change
     expect(accept()).not.toBeNull();
   });
 });
+
+describe('progress fill', () => {
+  const fill = (rows: Row[]) => { const { container } = render(<SetupTab {...props(rows)} />); return container.querySelector('.gy-progress-fill') as HTMLElement; };
+  const done = (id: string, severity: Row['severity']) => row({ id, severity, state: 'done', current: 'Revenue (Orders)' });
+  test('errors left: red, width is done/total', () => {
+    const f = fill([row({}), row({ id: 'x', severity: 'warning' }), done('y', 'notice'), done('z', 'notice')]);
+    expect(f).toHaveAttribute('data-severity', 'error');
+    expect(f.style.width).toBe('50%');
+  });
+  test('warnings only: orange', () => { expect(fill([row({ severity: 'warning' }), row({ id: 'x', severity: 'notice' }), done('y', 'error')])).toHaveAttribute('data-severity', 'warning'); });
+  test('notices only: notice', () => { expect(fill([row({ severity: 'notice' }), done('y', 'error')])).toHaveAttribute('data-severity', 'notice'); });
+  test('all done: done at 100%', () => {
+    const f = fill([done('x', 'error'), done('y', 'warning')]);
+    expect(f).toHaveAttribute('data-severity', 'done');
+    expect(f.style.width).toBe('100%');
+  });
+});
+
+test('the recommendation chip carries the full label as a title', () => {
+  render(<SetupTab {...props([row({})])} />);
+  expect(screen.getByRole('button', { name: /Accept.*Revenue/ })).toHaveAttribute('title', 'Revenue (Orders)');
+});

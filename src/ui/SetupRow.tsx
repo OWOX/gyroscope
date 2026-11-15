@@ -23,9 +23,9 @@ export function SetupRow({ row, readOnly, busy, onChoose, onDismiss, onRetry }: 
       <div className="gy-row-side">
         {row.current ? <span className="gy-row-value">{row.current}</span> : <span className="gy-muted">Not set</span>}
         {showChip && rec && (readOnly
-          ? <span className="gy-chip gy-row-chip">{row.aiPending ? <Loader2 size={12} className="gy-spin" aria-hidden="true" /> : <span aria-hidden="true">✨</span>} <span className="gy-row-chip-label">{rec.label}</span></span>
+          ? <span className="gy-chip gy-row-chip" title={rec.label}>{row.aiPending ? <Loader2 size={12} className="gy-spin" aria-hidden="true" /> : <span aria-hidden="true">✨</span>} <span className="gy-row-chip-label">{rec.label}</span></span>
           : (
-            <button type="button" className="gy-chip gy-row-chip" aria-label={`Accept ${rec.label}`} disabled={busy} onClick={() => onChoose(rec.id)}>
+            <button type="button" className="gy-chip gy-row-chip" title={rec.label} aria-label={`Accept ${rec.label}`} disabled={busy} onClick={() => onChoose(rec.id)}>
               {row.aiPending ? <Loader2 size={12} className="gy-spin" aria-hidden="true" /> : <span aria-hidden="true">✨</span>} <span className="gy-row-chip-label">{rec.label}</span> <span className="gy-row-accept">Accept</span>
             </button>
           ))}
