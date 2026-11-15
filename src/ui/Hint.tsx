@@ -10,13 +10,21 @@ export function HintButton({ title, id, open, onToggle, anchor }: { title: strin
   );
 }
 
+/** How far the caret's tip rises above the bubble's border box: the 8px square, rotated 45deg, sits 6px above it (top -5px from the padding edge plus the 1px border), so its centre is 2px above and its corner a half-diagonal further. */
+const CARET_TIP = 2 + 4 * Math.SQRT2;
+
 /** A bordered bubble whose top-edge caret points at the (?) button: `--caret-x` is the button's centre from the bubble's left edge. */
 export function HintBubble({ id, open, anchor, className, children }: { id: string; open: boolean; anchor: RefObject<HTMLButtonElement | null>; className?: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const place = () => {
       const a = anchor.current, b = ref.current;
-      if (a && b) b.style.setProperty('--caret-x', `${a.getBoundingClientRect().left - b.getBoundingClientRect().left + a.offsetWidth / 2}px`);
+      if (!a || !b) return;
+      b.style.setProperty('--caret-x', `${a.getBoundingClientRect().left - b.getBoundingClientRect().left + a.offsetWidth / 2}px`);
+      // the caret's tip meets the (?) svg's bottom edge: slide the bubble by the measured gap less the tip's height above the bubble's border box
+      const icon = a.querySelector('svg')?.getBoundingClientRect();
+      const gap = icon ? b.getBoundingClientRect().top - icon.bottom - CARET_TIP : NaN;
+      if (Number.isFinite(gap) && icon && icon.height > 0) b.style.marginTop = `${(parseFloat(getComputedStyle(b).marginTop) || 0) - gap}px`;
     };
     if (!open) return;
     place();

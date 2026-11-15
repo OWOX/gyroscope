@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Tags } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { BLOCKS } from '../setup/catalog';
 import { isOpen, progress } from '../setup/progress';
@@ -113,7 +113,7 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
               return (
                 <details key={g} className="gy-setup-group" open={inGroup.some((r) => savedOpen.has(r.id))}>
                   <summary>
-                    {gid !== undefined && <span className="gy-setup-group-icon" aria-hidden="true"><MartIcon icon={martIcons?.[gid] ?? null} size={16} aria-hidden="true" /></span>}
+                    <span className="gy-setup-group-icon" aria-hidden="true">{gid !== undefined ? <MartIcon icon={martIcons?.[gid] ?? null} size={16} aria-hidden="true" /> : <Tags size={16} aria-hidden="true" />}</span>
                     <span className="gy-setup-group-name">{g}</span>
                     <ChevronDown size={12} className="gy-setup-group-chevron" aria-hidden="true" />
                   </summary>
