@@ -1,10 +1,13 @@
 import type { Blocked, Measure, MetricDef } from '../types';
 import type { MartLink } from '../lib/links';
 import { DATE_TYPES, flattenFields } from '../owox/sources';
-import type { Blendable, MartDetail, SchemaField } from '../owox/sources';
+import type { MartDetail, SchemaField } from '../owox/sources';
 import { hasPrimaryKey } from './graph';
+import { metricId } from './derive';
 import type { AiMetric, AiOutput } from './interpret';
 import { fieldLabel } from './metricName';
+
+export { metricId, uniqueCountMetric } from './derive';
 
 export interface ValidateInput { ai: AiOutput; links: MartLink[]; details: Map<string, MartDetail>; visible: ReadonlySet<string> }
 export type ValidateResult =
@@ -13,7 +16,6 @@ export type ValidateResult =
 
 const pathsOf = (d: MartDetail) => new Map(flattenFields(d.fields).map((x) => [x.path, x.field]));
 const isDateField = (f: SchemaField | undefined) => !!f && DATE_TYPES.has(f.type.toUpperCase());
-export const metricId = (martId: string, m: Measure) => `${martId}:${m.field}:${m.fn ?? 'calc'}`;
 
 const blocked = (code: Blocked['code'], detail: string, mismatches: string[] = []): ValidateResult => ({ ok: false, blocked: { code, detail, mismatches } });
 
@@ -95,14 +97,4 @@ export function validate(input: ValidateInput): ValidateResult {
 
   if (mismatches.length) return blocked('AI_INVALID', "The AI's reading of the descriptions doesn't match the Data Mart schemas.", mismatches);
   return { ok: true, goal: { martId: goalMart, field: goalField, metricId: goalId }, metrics };
-}
-
-export function uniqueCountMetric(detail: MartDetail, blendable: Blendable): MetricDef | null {
-  const key = blendable.mainUniqueCountKeyFields[0];
-  if (key === undefined) return null;
-  const flat = flattenFields(detail.fields);
-  const dates = flat.filter((x) => isDateField(x.field));
-  const dateField = (dates.find((x) => x.field.isPrimaryKey) ?? dates.find((x) => /creat|date|time/i.test(x.field.name)) ?? dates[0])?.path ?? null;
-  const measure: Measure = { field: key, fn: 'COUNT_DISTINCT' };
-  return { id: metricId(detail.id, measure), martId: detail.id, alias: detail.title, measure, kind: 'flow', role: 'unique', source: 'schema', isUniqueCount: true, calculated: false, format: 'number', currency: null, plan: null, shown: true, forecast: null, dateField };
 }

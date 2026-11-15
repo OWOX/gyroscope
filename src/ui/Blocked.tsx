@@ -10,12 +10,8 @@ type Page = keyof typeof PAGES;
 const PAGE_TOKEN = new RegExp(`\\[(${Object.keys(PAGES).join('|')})\\]`);
 
 const STEPS: Record<BlockCode, string[]> = {
-  NO_GOAL: [
-    'Open [settings] in OWOX Data Marts and edit the project description.',
-    'Add a Metrics table with a "Critical number" row (snippet below).',
-    'Link the Fact cell to the Data Mart field that measures the goal: open the Data Mart, select the field, copy the link.',
-    'Come back and click Retry.',
-  ],
+  NO_GOAL: ['Open Setup and answer "What is the main business goal?"'],
+  GOAL_NO_DATE: ['Open Setup and answer "Which date does each value belong to?" for the Business Critical Number.'],
   GOAL_PLACEHOLDER: [],
   GOAL_FIELD_NOT_FOUND: [
     'Open the Data Mart linked in the Critical number row.',

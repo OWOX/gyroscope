@@ -16,7 +16,7 @@ test('AI_INVALID lists mismatches', () => {
 
 test('the step names the page to fix it on and opens it', () => {
   const onOpen = vi.fn();
-  render(<Blocked blocked={{ code: 'NO_GOAL', detail: 'x', mismatches: [] }} projectId="p42" onRetry={() => {}} onOpen={onOpen} />);
+  render(<Blocked blocked={{ code: 'GOAL_FIELD_NOT_FOUND', detail: 'x', mismatches: [] }} projectId="p42" onRetry={() => {}} onOpen={onOpen} />);
   fireEvent.click(screen.getByRole('button', { name: 'Project settings' }));
   expect(onOpen).toHaveBeenCalledWith('/ui/p42/project-settings');
 });
@@ -39,9 +39,9 @@ test('AI_REQUEST_FAILED says the model did not answer, links to Plugins, no snip
 });
 
 test('without navigation the page name is plain text', () => {
-  render(<Blocked blocked={{ code: 'NO_GOAL', detail: 'x', mismatches: [] }} projectId="p" onRetry={() => {}} />);
+  render(<Blocked blocked={{ code: 'GOAL_FIELD_NOT_FOUND', detail: 'x', mismatches: [] }} projectId="p" onRetry={() => {}} />);
   expect(screen.queryByRole('button', { name: 'Project settings' })).toBeNull();
-  expect(screen.getByText(/Open Project settings in OWOX Data Marts/)).toBeInTheDocument();
+  expect(screen.getByText(/Fix the link in the project description in Project settings/)).toBeInTheDocument();
 });
 
 test('Run checkup shows only when given and calls it', () => {
