@@ -9,12 +9,12 @@ The [shared ontology spec](docs/superpowers/specs/2026-11-11-shared-ontology-des
 
 ## Requirements in OWOX
 
-1. The project description has a Metrics table with a Critical number row that links to a Data Mart field. That field is the goal.
+1. A Data Mart field that holds the project goal. An admin picks it in Setup (Business Critical Number). Setup also offers to add a Critical number row linking to it in the project description.
 2. An AI Credential is optional. When one is mapped at install, Gyroscope uses it to recommend answers in Setup. It never saves one for you.
 3. Calculated fields in your Data Marts reference other Data Marts. Gyroscope draws a connection for each reference.
-4. An admin finishes Setup once. Until the goal is set, members see "An admin hasn't set up Gyroscope yet".
+4. An admin sets the goal in Setup once. Until then, a member sees the "Goal can't be tracked" screen: the Business Critical Number is not set, and they are told to ask a project admin to finish Setup.
 
-Settings has two tabs. General holds your view and, for admins, the project threshold. Setup replaces Checkup and Metrics: one list of questions (goal, core classes, contexts, key numbers, plans, formats, ratios, data checks). Each has a recommended answer. An admin picks an option, and Gyroscope stores exactly that. The AI only recommends one of the options the code built.
+Settings has two tabs. General holds your own view settings. Setup replaces Checkup and Metrics: one list of questions in blocks (goal, core classes, contexts, metrics with their plans and formats, ratios, data checks, housekeeping, which holds the On-Track Margin threshold). Each has a recommended answer. An admin picks an option, and Gyroscope stores exactly that. The AI only recommends one of the options the code built.
 
 ## Release notes
 
@@ -22,7 +22,7 @@ Settings has two tabs. General holds your view and, for admins, the project thre
 
 1. Setup replaces Checkup and Metrics. Settings are stored as chosen, not computed.
 2. The AI only recommends. Every question has a recommended option with or without an AI credential, and the AI can only pick from the options Gyroscope built.
-3. Existing projects start from empty settings, with recommendations for every question.
+3. Existing projects start from empty settings with recommendations for every question. The 0.4 threshold is kept, and the old core classes come back as recommendations.
 4. Ratio metrics: divide one metric by another.
 5. A member who can't access the project goal Data Mart sees the canvas centered on the nearest context critical number they can access, or is told to ask for access.
 6. Removed: the AI model build, rebuild proposals and the industry setting.

@@ -141,3 +141,22 @@ test('a reload does not wait for the AI', async () => {
   expect(result.current.props.loading).toBe(false);
   release();
 });
+
+test('an older AI run settling after a reload does not clear the newer run\'s pending rows', async () => {
+  const store = memoryCollections();
+  const gate = () => { let resolve!: () => void; const promise = new Promise<void>((r) => { resolve = r; }); return { promise, resolve }; };
+  const gates = [gate(), gate()];
+  let phase = 0;
+  const generateWith = vi.fn(async () => { await gates[phase]!.promise; return { pick: 0 }; });
+  const { result } = renderHook(() => useSetup(adminArgs(store, generateWith)));
+  await act(() => result.current.reload());
+  await waitFor(() => expect(result.current.props.rows.some((r) => r.aiPending)).toBe(true));
+  phase = 1;
+  await act(() => result.current.reload());
+  await waitFor(() => expect(result.current.props.rows.some((r) => r.aiPending)).toBe(true));
+  await act(async () => { gates[0]!.resolve(); await Promise.resolve(); });
+  await new Promise((r) => setTimeout(r, 20));
+  expect(result.current.props.rows.some((r) => r.aiPending)).toBe(true);
+  gates[1]!.resolve();
+  await waitFor(() => expect(result.current.props.rows.every((r) => !r.aiPending)).toBe(true));
+});

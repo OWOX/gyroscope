@@ -24,7 +24,6 @@ interface Props {
   visibleIds?: ReadonlySet<string> | null;
   /** Live schemas: metrics their fields can't aggregate are left off. */
   details?: ReadonlyMap<string, MartDetail>;
-  /** Classes whose Data Mart no longer exists. */
   /** Live description and definition type per mart id, from the mart list. */
   marts?: ReadonlyMap<string, MartInfo>;
   /** 'vs Last Month' and the like, for the comparison row under each number. */

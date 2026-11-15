@@ -105,7 +105,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
       setLoading(false);
       void runAi(l);
     } catch (e) {
-      if (id === runId.current) { setMessage(`Couldn't load setup: ${describeError(e)}`); setLoading(false); }
+      if (id === runId.current) { setMessage(`Couldn't load setup: ${describeError(e)}`); setLoading(false); setPending(new Set()); }
       throw e;
     }
   }, [runAi]);

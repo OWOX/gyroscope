@@ -19,7 +19,7 @@ export interface OwoxLike {
   getJson<T>(path: string, query?: Record<string, unknown>): Promise<T>;
   /** Optional so older callers compile; without it no data-quality icons show. */
   postJson?<T>(path: string, body: unknown): Promise<T>;
-  /** Optional: Checkup's Apply writes with it. */
+  /** Optional: Setup's actions write with it. */
   putJson?<T>(path: string, body: unknown): Promise<T>;
   /** Optional: renders Markdown to sanitized HTML (POST /api/markdown/parse-to-html). */
   markdown?: { parseToHtml(r: { markdown: string }): Promise<string> };
