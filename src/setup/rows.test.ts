@@ -399,7 +399,7 @@ describe('a plan named by the description', () => {
     expect(p.options.some((o) => o.id === 'none')).toBe(true);
     const a = p.options[0]!.action;
     if (a.kind !== 'set') throw new Error();
-    expect(a.next(EMPTY_SETUP).goal!.plan).toMatchObject({ martId: PID, dateField: 'month' });
+    expect(a.next(EMPTY_SETUP).goal!.plan).toMatchObject({ martId: PID, dateField: 'reporting_date' });
   });
 
   test('without a description, the fields of a plan-titled Data Mart are still offered', () => {
