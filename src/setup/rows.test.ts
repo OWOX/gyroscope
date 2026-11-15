@@ -180,6 +180,14 @@ test('a unique count reads as the Data Mart name alone, not "Orders · orders"',
   expect(byId(buildRows(input({ ...filled, classes: { orders: { keyMetricId: r.options.find((o) => o.label === 'orders')!.id.slice(7), shown: [] } } }, [linked(), customers])), 'class:orders.key').current).toBe('orders');
 });
 
+test('a field named like its Data Mart keeps both parts: "revenue · revenue"', () => {
+  const mart = { ...node('revenue', [f('id', 'STRING', { isPrimaryKey: true }), f('date', 'DATE'), f('revenue', 'NUMERIC')], 'id'), title: 'revenue' };
+  const g = { martId: 'revenue', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'revenue', plan: null };
+  const m = byId(buildRows(input({ ...EMPTY_SETUP, goal: g, updatedAt: 't' }, [mart])), 'goal.metric');
+  expect(m.current).toBe('revenue · revenue');
+  expect(m.options.find((o) => o.id === 'field:revenue:revenue')).toMatchObject({ label: 'revenue · revenue', linkLabel: 'revenue · revenue' });
+});
+
 describe('rows by block', () => {
   test('goal description is done once the project description links the goal field, and appends the one-row table otherwise', () => {
     const open = byId(buildRows(input(filled)), 'goal.description');

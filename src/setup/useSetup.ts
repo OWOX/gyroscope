@@ -58,6 +58,8 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   const savingNow = useRef(false);
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // set by a user pick: the next draft may name what that pick overrode; a reload or a prune never does
+  const pickedNow = useRef(false);
   // staged choices in pick order; Save writes them together
   const [picks, setPicksState] = useState<Pick[]>([]);
   const picksNow = useRef<Pick[]>([]);
@@ -108,6 +110,8 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     const { owox, store, onModel } = latest.current;
     const id = ++runId.current;
     inflight.current = new Set();
+    pickedNow.current = false;
+    setNotice(null);
     setLoading(true);
     try {
       const [{ settings, legacyCore }, graph] = await Promise.all([loadSetup(store), loadGraph(owox)]);
@@ -131,9 +135,10 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
 
   /**
    * Replays the picks over the saved settings: each runs against the rows the earlier ones produced, and a stale one (its row or option is gone) is skipped.
-   * A `set` pick a later pick undid (applying it again to the result would change the result) is dropped and replayed without, and named in `overridden`.
+   * A `set` pick a later pick undid is dropped and replayed without, and named in `overridden`: applying it again to the result would change its own
+   * row's answer (state or current value). Changes it makes to other rows don't count. `seen` caches rows per settings across the recursion.
    */
-  const replay = (l: Loaded, staged: Pick[]): { settings: ProjectSettingsV5; derived: Derived; valid: Valid[]; overridden: string[] } => {
+  const replay = (l: Loaded, staged: Pick[], seen = new Map<string, Row[]>()): { settings: ProjectSettingsV5; derived: Derived; valid: Valid[]; overridden: string[] } => {
     let settings = l.settings;
     let derived = l.derived;
     const valid: Valid[] = [];
@@ -146,9 +151,21 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
       if (action.kind === 'set') { settings = action.next(settings); derived = deriveModel(settings, l.graph); }
     }
     const done = stable(settings);
-    const undone = valid.filter((v) => { const a = actionOf(v.row, v.pick.optionId); return a?.kind === 'set' && stable(a.next(settings)) !== done; });
+    const rowsOf = (s: ProjectSettingsV5, key: string, d?: Derived): Row[] => {
+      let r = seen.get(key);
+      if (!r) { r = rowsFor(l, s, d ?? deriveModel(s, l.graph), {}, new Set()); seen.set(key, r); }
+      return r;
+    };
+    const answer = (rows: Row[], id: string) => { const r = rows.find((x) => x.id === id); return r ? `${r.state}|${r.current}` : ''; };
+    const undone = valid.filter((v) => {
+      const a = actionOf(v.row, v.pick.optionId);
+      if (a?.kind !== 'set') return false;
+      const after = a.next(settings);
+      const key = stable(after);
+      return key !== done && answer(rowsOf(after, key), v.pick.rowId) !== answer(rowsOf(settings, done, derived), v.pick.rowId);
+    });
     if (undone.length === 0) return { settings, derived, valid, overridden: [] };
-    const again = replay(l, staged.filter((p) => !undone.some((v) => v.pick === p)));
+    const again = replay(l, staged.filter((p) => !undone.some((v) => v.pick === p)), seen);
     return { ...again, overridden: [...undone.map((v) => v.row.title), ...again.overridden] };
   };
 
@@ -207,8 +224,12 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     const keep = picksNow.current.filter((p) => draft.valid.some((v) => v.pick === p));
     if (keep.length !== picksNow.current.length) setPicks(keep);
   }, [draft, picks, saving]);
-  // a later choice that undid an earlier one is named, until the next pick
-  useEffect(() => { if (draft?.overridden.length) setNotice(`A later choice replaced your choice for ${[...new Set(draft.overridden)].join(', ')}.`); }, [draft]);
+  // a pick that undid an earlier one names it, until the next pick, Discard, Save or reload
+  useEffect(() => {
+    if (!draft || !pickedNow.current) return;
+    pickedNow.current = false;
+    if (draft.overridden.length) setNotice(`A later choice replaced your choice for ${[...new Set(draft.overridden)].join(', ')}.`);
+  }, [draft]);
   // the draft can bring new rows that want an AI pick
   useEffect(() => { if (loaded && draft && picks.length) void runAi(loaded, draft.settings); }, [loaded, draft, picks, runAi]);
 
@@ -231,6 +252,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
       }
     }
     setNotice(null);
+    pickedNow.current = true;
     setPicks(next);
   }, []);
 
@@ -246,6 +268,8 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     savingNow.current = true;
     setSaving(true);
     setMessage(null);
+    pickedNow.current = false;
+    setNotice(null);
     const deps = { owox, store, by, now, open: open ?? (() => {}) };
     let ok = true;
     try {
@@ -284,7 +308,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
 
   const props: SetupTabProps = {
     rows, loading, readOnly: !args.isAdmin, message, picked: Object.fromEntries((draft?.valid ?? []).map((v) => [v.pick.rowId, v.pick.optionId])),
-    onPick, dirty: draft?.valid.length ?? 0, saving, onSave: () => void onSave(), onDiscard: () => { if (!savingNow.current) { setPicks([]); setNotice(null); } }, notice,
+    onPick, dirty: draft?.valid.length ?? 0, saving, onSave: () => void onSave(), onDiscard: () => { if (!savingNow.current) { pickedNow.current = false; setPicks([]); setNotice(null); } }, notice,
     savedOpen, optionRows,
     onRetry: () => void reload().catch(() => undefined),
     onOpen: args.open && ((path) => latest.current.open?.(path)),

@@ -380,7 +380,8 @@ test('a partial failure keeps the append staged and drops the written settings p
   expect((await loadSetup(store)).settings.goal?.measure.field).toBe('revenue');
 });
 
-test('a pick a later pick undoes is dropped, named in a notice, and the derived value shows as set by the choice above', async () => {
+/** Orders and Ads; the saved goal is Orders · revenue with no date. */
+const overrideCase = async () => {
   const store = memoryCollections();
   const { saveSetup, EMPTY_SETUP } = await import('../store/settings');
   const source = fakeOwox({
@@ -397,21 +398,66 @@ test('a pick a later pick undoes is dropped, named in a notice, and the derived 
   await saveSetup(store, EMPTY_SETUP, { ...EMPTY_SETUP, goal }, 'Ann', new Date());
   const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
   await act(() => result.current.reload());
-  await act(async () => result.current.props.onPick('goal.date', 'field:orders:shipped'));
-  expect(result.current.props.picked).toEqual({ 'goal.date': 'field:orders:shipped' });
-  await act(async () => result.current.props.onPick('goal.metric', 'field:ads:cost'));
-  await waitFor(() => expect(result.current.props.picked).toEqual({ 'goal.metric': 'field:ads:cost' }));
+  return { store, result };
+};
+const NOTICE = 'A later choice replaced your choice for Critical Number Date.';
+/** Picks the date on Orders, then the metric on Ads, which moves the date to Ads' own and so overrides the date pick. */
+const overrideDate = async () => {
+  const c = await overrideCase();
+  await act(async () => c.result.current.props.onPick('goal.date', 'field:orders:shipped'));
+  expect(c.result.current.props.picked).toEqual({ 'goal.date': 'field:orders:shipped' });
+  await act(async () => c.result.current.props.onPick('goal.metric', 'field:ads:cost'));
+  await waitFor(() => expect(c.result.current.props.picked).toEqual({ 'goal.metric': 'field:ads:cost' }));
+  expect(c.result.current.props.notice).toBe(NOTICE);
+  return c;
+};
+
+test('a pick a later pick undoes is dropped, named in a notice, and the derived value shows as set by the choice above', async () => {
+  const { result } = await overrideDate();
   expect(result.current.props.dirty).toBe(1);
-  expect(result.current.props.notice).toBe('A later choice replaced your choice for Critical Number Date.');
   render(<SetupTab {...result.current.props} />);
-  expect(screen.getByText('A later choice replaced your choice for Critical Number Date.')).toBeInTheDocument();
+  expect(screen.getByText(NOTICE)).toBeInTheDocument();
   expect(screen.getByText('Set by your choice above')).toBeInTheDocument();
   expect(screen.getByRole('radio', { name: /Ads · created/ })).toBeChecked();
   expect(screen.queryByRole('radio', { name: /Orders · shipped/ })).toBeNull();
   await act(async () => result.current.props.onSave());
   await waitFor(() => expect(result.current.props.dirty).toBe(0));
   expect(result.current.settings!.goal).toMatchObject({ martId: 'ads', dateField: 'created' });
-  // the next pick clears the notice
+  // a successful Save clears the notice
+  expect(result.current.props.notice).toBeNull();
+});
+
+test('a pick that also resets another row is not overridden when that row is answered after it', async () => {
+  const { result } = await overrideCase();
+  await act(async () => result.current.props.onPick('goal.metric', 'field:ads:cost'));
+  await act(async () => result.current.props.onPick('goal.aggregation', 'agg:MAX:level'));
+  expect(result.current.props.picked).toEqual({ 'goal.metric': 'field:ads:cost', 'goal.aggregation': 'agg:MAX:level' });
+  expect(result.current.props.dirty).toBe(2);
+  expect(result.current.props.notice).toBeNull();
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect(result.current.settings!.goal).toMatchObject({ martId: 'ads', measure: { field: 'cost', fn: 'MAX' }, kind: 'level' });
+});
+
+test('the override notice clears on the next pick', async () => {
+  const { result } = await overrideDate();
+  await act(async () => result.current.props.onPick('goal.aggregation', 'agg:MAX:level'));
+  expect(result.current.props.notice).toBeNull();
+  expect(result.current.props.dirty).toBe(2);
+});
+
+test('the override notice clears on Discard', async () => {
+  const { result } = await overrideDate();
+  await act(async () => result.current.props.onDiscard());
+  expect(result.current.props.notice).toBeNull();
+  expect(result.current.props.dirty).toBe(0);
+});
+
+test('the override notice clears on reload and is not raised again by the replay', async () => {
+  const { result } = await overrideDate();
+  await act(() => result.current.reload());
+  expect(result.current.props.notice).toBeNull();
+  expect(result.current.props.picked).toEqual({ 'goal.metric': 'field:ads:cost' });
 });
 
 test('a row that only exists in the draft and is already done does not count as unset', async () => {
