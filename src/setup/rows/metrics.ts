@@ -3,7 +3,7 @@ import { metricId, ratioMetricId } from '../../model/derive';
 import { dateCandidates, formatFor, kindFor, type FieldCand } from '../recommend/fields';
 import { keyFor, ratioPairs, shownFor } from '../recommend/structure';
 import type { Row, RowState } from '../types';
-import { dismiss, fieldCheck, make, planRow, setOption, type Ctx, type Plain } from './common';
+import { dismiss, fieldCheck, make, martPage, planRow, setOption, type Ctx, type Plain } from './common';
 
 const FORMATS: Record<MetricFormat, string> = { number: 'Number', percent: 'Percent', currency: 'Money' };
 
@@ -31,14 +31,14 @@ export function metricRows(ctx: Ctx): Row[] {
       group: cl.title,
       state: keyState, detail: keyState === 'broken' ? `${alias(stored!)} isn't on ${cl.title} any more` : undefined,
       current: stored && keyState === 'done' ? alias(stored) : null, severity: important ? 'warning' : 'notice',
-      options: keys.map((id) => setOption(`metric:${id}`, alias(id), write((cur) => ({ ...cur, keyMetricId: id })))),
+      options: keys.map((id) => { const m = model.metrics.find((x) => x.id === id); return setOption(`metric:${id}`, alias(id), write((cur) => ({ ...cur, keyMetricId: id })), m && martPage(ctx, m.martId, m.measure.field)); }),
     }));
 
     const choice = (c: FieldCand): MetricChoice => ({ martId: c.martId, ...kindFor(c), dateField: dateCandidates(node)[0]?.path ?? null, alias: c.label });
     const recShown = shownFor(cl.id, model, node);
     const picks: Plain[] = [];
     if (recShown.length) picks.push(setOption(`shown:${recShown.map((c) => c.path).join(',')}`, recShown.map((c) => c.label).join(', '), write((cur) => ({ ...cur, shown: recShown.map(choice) }))));
-    for (const c of recShown) picks.push(setOption(`shown:${c.path}`, c.label, write((cur) => ({ ...cur, shown: [choice(c)] }))));
+    for (const c of recShown) picks.push(setOption(`shown:${c.path}`, c.label, write((cur) => ({ ...cur, shown: [choice(c)] })), martPage(ctx, c.martId, c.path)));
     picks.push(setOption('shown:none', 'No extra numbers', (x) => dismiss(write((cur) => ({ ...cur, shown: [] }))(x), `class:${cl.id}.shown`)));
     const shown = saved?.shown ?? [];
     const bad = shown.map((c) => ({ c, chk: fieldCheck(ctx, c.martId, [c.measure.field]) })).find((x) => x.chk.state !== 'done');
@@ -75,8 +75,10 @@ export function ratioRows(ctx: Ctx): Row[] {
   for (const r of s.ratios) {
     const id = r.id;
     const live = model.metrics.some((m) => m.id === r.id);
-    const keep = { ...setOption('ratio:keep', 'Keep this ratio', (x) => x), keep: true };
-    const remove = setOption('ratio:remove', 'Remove this ratio', (x) => ({ ...x, ratios: x.ratios.filter((y) => y.id !== r.id) }));
+    const numMart = model.metrics.find((m) => m.id === r.numerator)?.martId;
+    const link = numMart && martPage(ctx, numMart);
+    const keep = { ...setOption('ratio:keep', 'Keep this ratio', (x) => x, link), keep: true };
+    const remove = setOption('ratio:remove', 'Remove this ratio', (x) => ({ ...x, ratios: x.ratios.filter((y) => y.id !== r.id) }), link);
     const row = make(ctx, 'ratio', id, 'ratios', { A: alias(r.numerator), B: alias(r.denominator) }, {
       state: live ? 'done' : 'broken', detail: live ? undefined : "This ratio's numbers aren't on the canvas any more", current: r.name,
       options: live ? [keep, remove] : [remove, keep],
@@ -86,10 +88,11 @@ export function ratioRows(ctx: Ctx): Row[] {
   for (const p of ratioPairs(model, ctx.nodes)) {
     const id = ratioMetricId(p.numerator, p.denominator);
     if (s.ratios.some((r) => r.id === id) || s.dismissed.includes(id)) continue;
+    const numMart = model.metrics.find((m) => m.id === p.numerator)?.martId;
     rows.push(make(ctx, 'ratio', id, 'ratios', { A: alias(p.numerator), B: alias(p.denominator) }, {
       state: 'open', current: null,
       options: [
-        setOption('ratio:add', `Add ${p.name}`, (x) => ({ ...x, ratios: [...x.ratios, { id, name: p.name, numerator: p.numerator, denominator: p.denominator, format: 'number' }] })),
+        setOption('ratio:add', `Add ${p.name}`, (x) => ({ ...x, ratios: [...x.ratios, { id, name: p.name, numerator: p.numerator, denominator: p.denominator, format: 'number' }] }), numMart && martPage(ctx, numMart)),
         setOption('ratio:skip', 'Skip this ratio', (x) => dismiss(x, id)),
       ],
     }));

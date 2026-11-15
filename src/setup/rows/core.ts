@@ -1,6 +1,6 @@
 import { coreCandidates, coreDefault } from '../recommend/structure';
 import type { Row, RowState } from '../types';
-import { make, martTitle, openOption, setOption, dataMartPage, type Ctx, type Plain } from './common';
+import { make, martPage, martTitle, openOption, setOption, dataMartPage, type Ctx, type Plain } from './common';
 
 /** The core entities row: the recommended set, then add or remove one at a time. */
 export function coreRows(ctx: Ctx): Row[] {
@@ -14,8 +14,8 @@ export function coreRows(ctx: Ctx): Row[] {
   const title = (id: string) => martTitle(ctx, id);
   const options: Plain[] = [];
   if (def.length) options.push(setOption(`core:${def.join(',')}`, def.map(title).join(', '), set(def)));
-  for (const id of cand) if (!chosen.includes(id) && chosen.length < 7) options.push(setOption(`core:+${id}`, `Add ${title(id)}`, set([...chosen, id])));
-  for (const id of chosen) options.push(setOption(`core:-${id}`, `Remove ${title(id)}`, set(chosen.filter((x) => x !== id))));
+  for (const id of cand) if (!chosen.includes(id) && chosen.length < 7) options.push(setOption(`core:+${id}`, `Add ${title(id)}`, set([...chosen, id]), martPage(ctx, id)));
+  for (const id of chosen) options.push(setOption(`core:-${id}`, `Remove ${title(id)}`, set(chosen.filter((x) => x !== id)), martPage(ctx, id)));
   if (!options.length) options.push(openOption('none', 'Not available yet: add Data Marts that other Data Marts reference', dataMartPage(ctx)));
   const enough = chosen.length >= 3 || (cand.length > 0 && cand.every((id) => chosen.includes(id)));
   const state: RowState = failed ? 'error' : gone.length ? 'broken' : enough ? 'done' : 'open';

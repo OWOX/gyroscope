@@ -162,6 +162,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     onChoose: (rowId, optionId) => void choose(rowId, optionId),
     onDismiss: (rowId) => void choose(rowId, 'dismiss', (s) => dismiss(s, rowId)),
     onRetry: () => void reload().catch(() => undefined),
+    onOpen: (path) => latest.current.open(path),
   };
   return { props, settings: loaded?.settings ?? null, reload };
 }

@@ -34,7 +34,7 @@ export function goalRows(ctx: Ctx): Row[] {
   const dateChk = !goal ? open : goal.dateField ? fieldCheck(ctx, goal.martId, [goal.dateField]) : open;
   const date = make(ctx, 'goal.date', 'goal.date', 'goal', {}, {
     ...dateChk, none: !G ? undefined : ctx.graph.failed.has(G.martId) ? `Not available yet: ${martTitle(ctx, G.martId)} couldn't be read` : node ? `Not available yet: add a date field to ${node.title}` : undefined, current: goal?.dateField ? fieldText(ctx, goal.martId, goal.dateField) : null,
-    options: (goal?.dateField ? withRepick(ctx, goal.martId, goal.dateField, dateChk.state, dates) : dates).map((c) => fieldOption(c, updGoal(ctx, (g) => ({ ...g, dateField: c.path })))),
+    options: (goal?.dateField ? withRepick(ctx, goal.martId, goal.dateField, dateChk.state, dates) : dates).map((c) => fieldOption(ctx, c, updGoal(ctx, (g) => ({ ...g, dateField: c.path })))),
   });
 
   const field = G && node ? cands(node, () => true).find((c) => c.path === G.measure.field) : undefined;

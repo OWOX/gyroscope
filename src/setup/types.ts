@@ -11,7 +11,9 @@ export type Action =
   | { kind: 'teams'; teams: { name: string; martIds: string[] }[] }
   | { kind: 'open'; path: string };
 /** `keep` marks an option that leaves the saved value as it is, so a finished row has nothing to accept. */
-export interface Option { id: string; label: string; recommended: boolean; action: Action; keep?: boolean }
+export interface Option { id: string; label: string; recommended: boolean; action: Action; keep?: boolean;
+  /** An OWOX page path for the Data Mart, or the field, this option points at. */
+  link?: string }
 export interface Row {
   id: string;                 // e.g. 'goal.metric', 'team:<ctxId>.plan', 'class:<martId>.key', 'metric:<metricId>.format', 'ratio:<id>', 'check.goal.pk'
   block: BlockId;
@@ -22,6 +24,7 @@ export interface Row {
   state: RowState;
   current: string | null;     // shown value; null is "Not set"
   options: Option[];          // never empty; exactly one recommended
+  aiPicked: boolean;          // the recommendation is the AI's pick, not the code's
   aiPending: boolean;         // an AI pick may still replace the recommendation
   detail?: string;            // broken or error reason
   dismissable: boolean;

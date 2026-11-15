@@ -28,7 +28,9 @@ export interface Ctx extends RowsInput {
 
 const set = (next: (s: ProjectSettingsV5) => ProjectSettingsV5): Action => ({ kind: 'set', next });
 export const dismiss = (s: ProjectSettingsV5, id: string): ProjectSettingsV5 => (s.dismissed.includes(id) ? s : { ...s, dismissed: [...s.dismissed, id] });
-export const dataMartPage = (ctx: Ctx, id?: string) => `/ui/${ctx.projectId}/data-marts${id ? `/${encodeURIComponent(id)}/data-setup` : ''}`;
+/** The OWOX page of a Data Mart, or of one of its fields. */
+export const martPage = (ctx: Ctx, martId: string, field?: string) => `/ui/${ctx.projectId}/data-marts/${encodeURIComponent(martId)}/data-setup${field === undefined ? '' : `?field=${encodeURIComponent(field)}`}`;
+export const dataMartPage = (ctx: Ctx, id?: string) => (id ? martPage(ctx, id) : `/ui/${ctx.projectId}/data-marts`);
 
 export function buildCtx(input: RowsInput): Ctx {
   const nodes = input.graph.nodes;
@@ -67,13 +69,14 @@ export function fieldCheck(ctx: Ctx, martId: string, paths: (string | null)[]): 
 export const noneOption = (ctx: Ctx, label = 'Not available yet: add a Data Mart with a number field'): Option => ({ id: 'none', label, recommended: true, action: { kind: 'open', path: dataMartPage(ctx) } });
 
 /** Marks exactly one option recommended: the AI's pick when it names a real option, else the first. */
-export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string): Option[] {
+export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string): { options: Option[]; aiPicked: boolean } {
   const seen = new Set<string>();
   const uniq = options.filter((o) => !seen.has(o.id) && !!seen.add(o.id));
-  if (!uniq.length) return [noneOption(ctx, none)];
+  if (!uniq.length) return { options: [noneOption(ctx, none)], aiPicked: false };
   const want = ctx.ai[id];
-  const pick = uniq.some((o) => o.id === want) ? want : uniq[0]!.id;
-  return uniq.map((o) => ({ ...o, recommended: o.id === pick }));
+  const aiPicked = uniq.some((o) => o.id === want);
+  const pick = aiPicked ? want : uniq[0]!.id;
+  return { options: uniq.map((o) => ({ ...o, recommended: o.id === pick })), aiPicked };
 }
 
 /** A row from its catalog key; `options` come first-is-recommended and are normalised here. */
@@ -83,11 +86,11 @@ export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Re
   // a broken saved value counts 🟡 unless the row is a blocker
   const severity: Severity = rest.state === 'broken' && base !== 'error' ? 'warning' : base;
   const { options, none, severity: _s, ...more } = rest;
-  return { id, block, title: fill(c.title, vars), question: fill(c.question, vars), why: fill(c.why, vars), aiPending: ctx.aiPending.has(id), dismissable: severity === 'notice', ...more, severity, options: recommend(ctx, id, options, none) };
+  return { id, block, title: fill(c.title, vars), question: fill(c.question, vars), why: fill(c.why, vars), aiPending: ctx.aiPending.has(id), dismissable: severity === 'notice', ...more, severity, ...recommend(ctx, id, options, none) };
 }
 
-export const fieldOption = (c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: `${c.label} (${c.martTitle})`, action: set(next) });
-export const setOption = (id: string, label: string, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id, label, action: set(next) });
+export const fieldOption = (ctx: Ctx, c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: `${c.label} (${c.martTitle})`, action: set(next), link: martPage(ctx, c.martId, c.path) });
+export const setOption = (id: string, label: string, next: (s: ProjectSettingsV5) => ProjectSettingsV5, link?: string): Plain => ({ id, label, action: set(next), ...(link ? { link } : {}) });
 export const openOption = (id: string, label: string, path: string): Plain => ({ id, label, action: { kind: 'open', path } });
 
 /** Candidates with the closest field to a gone saved one put first. */
@@ -100,7 +103,7 @@ export function withRepick(ctx: Ctx, martId: string, path: string, state: RowSta
 /** A row that picks one numeric field: a critical number of the goal or of a team. */
 export function metricRow(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, group: string | undefined, list: FieldCand[], current: { martId: string; field: string } | null, write: (s: ProjectSettingsV5, c: FieldCand) => ProjectSettingsV5): Row {
   const chk = current ? fieldCheck(ctx, current.martId, [current.field]) : { state: 'open' as RowState };
-  const options = withRepick(ctx, current?.martId ?? '', current?.field ?? '', chk.state, list).map((c) => fieldOption(c, (s) => write(s, c)));
+  const options = withRepick(ctx, current?.martId ?? '', current?.field ?? '', chk.state, list).map((c) => fieldOption(ctx, c, (s) => write(s, c)));
   return make(ctx, key, id, block, vars, { ...chk, group, current: current ? fieldText(ctx, current.martId, current.field) : null, options });
 }
 
@@ -116,7 +119,7 @@ export function planRow(ctx: Ctx, key: string, id: string, block: BlockId, vars:
   const all = planCandidates(nodes, prefer).filter((c) => planFor(ctx, c, kind));
   const list = current ? withRepick(ctx, current.martId, current.measure.field, chk.state, all) : all;
   const options: Plain[] = [
-    ...list.flatMap((c) => { const p = planFor(ctx, c, kind); return p ? [fieldOption(c, (s) => write(s, p))] : []; }),
+    ...list.flatMap((c) => { const p = planFor(ctx, c, kind); return p ? [fieldOption(ctx, c, (s) => write(s, p))] : []; }),
     setOption('none', 'No plan yet', (s) => dismiss(write(s, null), id)),
   ];
   return make(ctx, key, id, block, vars, { ...chk, group, current: current ? fieldText(ctx, current.martId, current.measure.field) : null, options });
@@ -126,7 +129,7 @@ export function planRow(ctx: Ctx, key: string, id: string, block: BlockId, vars:
 // text placed in a table cell or a link label: Markdown punctuation escaped, line breaks flattened
 const esc = (s: string) => s.replace(/[\\|[\]()]/g, '\\$&').replace(/\s*[\r\n]+\s*/g, ' ');
 export function metricsTable(ctx: Ctx, role: string, alias: string, martId: string, path: string, plan: PlanDef | null): string {
-  const link = (text: string, m: string, f: string) => `[${esc(text)}](/ui/${ctx.projectId}/data-marts/${encodeURIComponent(m)}/data-setup?field=${encodeURIComponent(f)})`;
+  const link = (text: string, m: string, f: string) => `[${esc(text)}](${martPage(ctx, m, f)})`;
   const planCell = plan ? link(plan.measure.field, plan.martId, plan.measure.field) : '';
   return `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| ${esc(role)} | ${esc(alias)} | ${planCell} | ${link(alias, martId, path)} |`;
 }

@@ -10,7 +10,7 @@ import { SetupRow } from './SetupRow';
 
 export interface SetupTabProps {
   rows: Row[]; loading: boolean; readOnly: boolean; busyRow: string | null; message: string | null;
-  onChoose: (rowId: string, optionId: string) => void; onDismiss: (rowId: string) => void; onRetry: () => void;
+  onChoose: (rowId: string, optionId: string) => void; onDismiss: (rowId: string) => void; onRetry: () => void; onOpen: (path: string) => void;
 }
 
 const ORDER: Severity[] = ['error', 'warning', 'notice'];
@@ -19,7 +19,7 @@ const SeverityIcon = ({ s }: { s: Severity | null }) => s
   ? <span className="gy-row-icon" data-severity={s} role="img" aria-label={`${s} left`}><Circle size={12} fill="currentColor" /></span>
   : <span className="gy-row-icon" data-done="true" role="img" aria-label="All set"><Check size={14} /></span>;
 
-export function SetupTab({ rows, loading, readOnly, busyRow, message, onChoose, onDismiss, onRetry }: SetupTabProps) {
+export function SetupTab({ rows, loading, readOnly, busyRow, message, onChoose, onDismiss, onRetry, onOpen }: SetupTabProps) {
   // the row a jump is heading for; its block opens through the card's `attention`, then the effect opens its group and focuses it
   const [target, setTarget] = useState<Row | null>(null);
   const jump = (s: Severity) => setTarget(rows.find((r) => isOpen(r) && r.severity === s) ?? null);
@@ -36,7 +36,7 @@ export function SetupTab({ rows, loading, readOnly, busyRow, message, onChoose, 
     }, 0);
   }, [target]);
   const renderRow = (r: Row) => (
-    <SetupRow key={r.id} row={r} readOnly={readOnly} busy={busyRow === r.id} onChoose={(o) => onChoose(r.id, o)} onDismiss={() => onDismiss(r.id)} onRetry={onRetry} />
+    <SetupRow key={r.id} row={r} readOnly={readOnly} busy={busyRow === r.id} onChoose={(o) => onChoose(r.id, o)} onDismiss={() => onDismiss(r.id)} onRetry={onRetry} onOpen={onOpen} />
   );
   return (
     <div className="gy-setup">

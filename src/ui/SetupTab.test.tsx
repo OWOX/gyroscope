@@ -3,9 +3,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SetupTab } from './SetupTab';
 import type { Row } from '../setup/types';
 
-const row = (over: Partial<Row>): Row => ({ id: 'goal.metric', block: 'goal', title: 'Business Critical Number', question: 'What is the main business goal?', why: 'Every card is judged by how it moves this number.', severity: 'error', state: 'open', current: null, aiPending: false, dismissable: false,
+const row = (over: Partial<Row>): Row => ({ id: 'goal.metric', block: 'goal', title: 'Business Critical Number', question: 'What is the main business goal?', why: 'Every card is judged by how it moves this number.', severity: 'error', state: 'open', current: null, aiPicked: false, aiPending: false, dismissable: false,
   options: [{ id: 'a', label: 'Revenue (Orders)', recommended: true, action: { kind: 'open', path: '/' } }, { id: 'b', label: 'Profit (Orders)', recommended: false, action: { kind: 'open', path: '/' } }], ...over });
-const props = (rows: Row[], over: object = {}) => ({ rows, loading: false, readOnly: false, busyRow: null, message: null, onChoose: vi.fn(), onDismiss: vi.fn(), onRetry: vi.fn(), ...over });
+const props = (rows: Row[], over: object = {}) => ({ rows, loading: false, readOnly: false, busyRow: null, message: null, onChoose: vi.fn(), onDismiss: vi.fn(), onRetry: vi.fn(), onOpen: vi.fn(), ...over });
 
 test('a not-set row shows its question, why, Not set and the recommendation to accept', () => {
   const p = props([row({})]);
@@ -132,4 +132,26 @@ describe('progress fill', () => {
 test('the recommendation chip carries the full label as a title', () => {
   render(<SetupTab {...props([row({})])} />);
   expect(screen.getByRole('button', { name: /Accept.*Revenue/ })).toHaveAttribute('title', 'Revenue (Orders)');
+});
+
+describe('the link to OWOX and the AI icon', () => {
+  const linked = (link?: string) => [{ id: 'a', label: 'Revenue (Orders)', recommended: true, action: { kind: 'open', path: '/' } as never, ...(link ? { link } : {}) }];
+  test('the button opens the path, also for a read-only viewer', () => {
+    const p = props([row({ options: linked('/ui/p1/data-marts/orders/data-setup?field=revenue') })], { readOnly: true });
+    render(<SetupTab {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Revenue (Orders) in OWOX' }));
+    expect(p.onOpen).toHaveBeenCalledWith('/ui/p1/data-marts/orders/data-setup?field=revenue');
+  });
+  test('an option without a link shows no button', () => {
+    render(<SetupTab {...props([row({ options: linked() })])} />);
+    expect(screen.queryByRole('button', { name: /in OWOX/ })).toBeNull();
+  });
+  test('the sparkles icon shows only on an AI pick', () => {
+    const { container, rerender } = render(<SetupTab {...props([row({})])} />);
+    expect(container.querySelector('.lucide-sparkles')).toBeNull();
+    rerender(<SetupTab {...props([row({ aiPicked: true })])} />);
+    expect(container.querySelector('.gy-row-chip .lucide-sparkles')).not.toBeNull();
+    rerender(<SetupTab {...props([row({ aiPicked: true })], { readOnly: true })} />);
+    expect(container.querySelector('.gy-row-chip .lucide-sparkles')).not.toBeNull();
+  });
 });
