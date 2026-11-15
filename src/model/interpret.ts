@@ -1,7 +1,9 @@
-import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import type { MartLink } from '../lib/links';
 import { normalizeCurrency } from '../lib/format';
+import { aiGenerateWith, type GenerateWith } from '../setup/ai';
+
+export { aiGenerateWith, type GenerateWith };
 
 const FORMAT = z.enum(['number', 'percent', 'currency']);
 const AGG = z.enum(['SUM', 'COUNT', 'COUNT_DISTINCT', 'AVG', 'MIN', 'MAX']);
@@ -77,22 +79,6 @@ export async function interpret(generate: Generate, input: InterpretInput): Prom
   const parsed = AiOutputSchema.safeParse(raw);
   if (!parsed.success) throw new Error('AI_INVALID: ' + parsed.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; '));
   return { ...parsed.data, metrics: parsed.data.metrics.map((m) => ({ ...m, currency: m.format === 'currency' ? normalizeCurrency(m.currency) : null })) };
-}
-
-/** Like `Generate`, with the answer's shape chosen by the caller. */
-export type GenerateWith = (prompt: string, schema: z.ZodType) => Promise<unknown>;
-
-export function aiGenerateWith(model: unknown, signal?: AbortSignal): GenerateWith {
-  return async (prompt, schema) => {
-    const { output } = await generateText({
-      model: model as never, // the SDK's provider-v4 handle; ai@7 accepts LanguageModelV4
-      output: Output.object({ schema }),
-      prompt,
-      temperature: 0,
-      abortSignal: signal,
-    });
-    return output;
-  };
 }
 
 export function aiGenerate(model: unknown, signal?: AbortSignal): Generate {
