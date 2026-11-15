@@ -3,7 +3,7 @@ import { SettingsPage } from './SettingsPage';
 import { DEFAULT_SETTINGS } from '../types';
 import type { SetupTabProps } from './SetupTab';
 
-const setupProps: SetupTabProps = { rows: [], loading: false, readOnly: false, busyRow: null, message: null, onChoose: () => {}, onDismiss: () => {}, onRetry: () => {}, onOpen: () => {} };
+const setupProps: SetupTabProps = { rows: [], loading: false, readOnly: false, message: null, picked: {}, onPick: () => {}, dirty: 0, saving: false, onSave: () => {}, onDiscard: () => {}, savedOpen: new Set(), onRetry: () => {}, onOpen: () => {} };
 
 test('saves the chosen week start', () => {
   const onSave = vi.fn();

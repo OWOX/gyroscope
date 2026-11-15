@@ -1,47 +1,86 @@
-import { Check, Loader2, Sparkles, SquareArrowOutUpRight } from 'lucide-react';
-import type { Row } from '../setup/types';
-import { Select } from './Select';
+import { Check, Loader2, SquareArrowOutUpRight } from 'lucide-react';
+import { useId, useRef, useState } from 'react';
+import type { Option, Row } from '../setup/types';
+import { HintBubble, HintButton } from './Hint';
 
-/** One setup question: what it is now, what is recommended, and the ways to change it. */
-export function SetupRow({ row, readOnly, busy, onChoose, onDismiss, onRetry, onOpen }: {
-  row: Row; readOnly: boolean; busy: boolean; onChoose: (optionId: string) => void; onDismiss: () => void; onRetry: () => void; onOpen?: (path: string) => void;
-}) {
-  const rec = row.options.find((o) => o.recommended);
-  // a finished row offers a change only when it is a settings change, not an append, a page or a no-op keep
-  const showChip = !!rec && rec.label !== row.current && (row.state !== 'done' || (rec.action.kind === 'set' && !rec.keep));
-  const options = row.options.map((o) => ({ value: o.id, label: o.recommended ? `${o.label} (Recommended)` : o.label }));
-  const lead = row.aiPending ? <Loader2 size={12} className="gy-spin" aria-hidden="true" /> : row.aiPicked ? <Sparkles size={12} aria-hidden="true" /> : null;
+const SHOWN = 3;
+
+export interface SetupRowProps {
+  row: Row; readOnly: boolean;
+  /** The staged option for this row, if any. */
+  picked?: string;
+  /** The row had no saved value: it shows the radio list. */
+  unset: boolean;
+  /** What the row showed in the saved settings, for its "Keep ..." radio. */
+  savedCurrent?: string | null;
+  hintOpen: boolean; onHint: () => void;
+  onPick: (optionId: string | null) => void; onRetry: () => void; onOpen?: (path: string) => void;
+}
+
+/** One setup question: the value now, and for an unanswered row (or on "Change") a radio list of the ways to answer it. */
+export function SetupRow({ row, readOnly, picked, unset, savedCurrent, hintOpen, onHint, onPick, onRetry, onOpen }: SetupRowProps) {
+  const [changing, setChanging] = useState(false);
+  const [more, setMore] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const hintId = useId();
+  const choices = row.options.filter((o) => o.action.kind !== 'open');
+  const links = row.options.filter((o) => o.action.kind === 'open');
+  // the recommended option first; `recommend()` only flags it
+  const ordered = [...choices.filter((o) => o.recommended), ...choices.filter((o) => !o.recommended)];
+  const rec = ordered.find((o) => o.recommended);
   const detailTone = row.state === 'error' || row.severity === 'error' ? 'bad' : 'warn';
+  const was = unset ? savedCurrent ?? null : savedCurrent ?? row.current;
+  const keepLabel = was ? `Keep ${was}` : 'Not set';
+
+  const choice = (o: Option) => (
+    <div key={o.id} className="gy-radio">
+      <label>
+        <input type="radio" name={row.id} checked={picked === o.id} onChange={() => onPick(o.id)} />
+        <span className="gy-radio-text">{o.label}{o.recommended && <span className="gy-muted gy-row-rec">Recommended</span>}</span>
+        {o.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}
+      </label>
+      {o.link && onOpen && <button type="button" className="gy-row-link" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={() => onOpen(o.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>}
+    </div>
+  );
+
+  const radios = (() => {
+    const shown = more ? ordered : ordered.slice(0, SHOWN);
+    return (
+      <div role="radiogroup" aria-label={row.title} className="gy-radios">
+        <div className="gy-radio"><label><input type="radio" name={row.id} checked={picked === undefined} onChange={() => onPick(null)} /><span className="gy-radio-text">{keepLabel}</span></label></div>
+        {shown.map(choice)}
+        {!more && ordered.length > SHOWN && <button type="button" className="gy-link gy-row-more" onClick={() => setMore(true)}>{`Show ${ordered.length - SHOWN} more`}</button>}
+      </div>
+    );
+  })();
+
+  const dismissed = picked === 'dismiss';
+  const extras = !readOnly && (
+    <>
+      {row.state !== 'done' && links.map((o) => <button key={o.id} type="button" className="gy-link gy-row-open" onClick={() => o.action.kind === 'open' && onOpen?.(o.action.path)}>{o.label}</button>)}
+      {row.dismissable && !dismissed && row.state !== 'done' && <button type="button" className="gy-link" aria-label={`Dismiss ${row.title}`} onClick={() => onPick('dismiss')}>Dismiss</button>}
+      {dismissed && <span className="gy-muted">Dismissed <button type="button" className="gy-link" aria-label={`Undo dismiss ${row.title}`} onClick={() => onPick(null)}>Undo</button></span>}
+    </>
+  );
+
   return (
     <div className="gy-row" data-row-id={row.id} data-severity={row.severity} data-state={row.state}>
       <span className="gy-row-icon" aria-hidden="true">{row.state === 'done' ? <Check size={14} /> : <span className="gy-row-dot" />}</span>
       <div className="gy-row-text">
-        <strong>{row.title}</strong>
-        <span className="gy-muted gy-row-q">{row.question}</span>
-        <span className="gy-muted gy-row-why">{row.why}</span>
+        <div className="gy-hint-line"><strong>{row.title}</strong><HintButton title={row.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></div>
         {row.detail && <span className="gy-row-detail" data-tone={detailTone}>{row.detail}</span>}
+        <HintBubble id={hintId} open={hintOpen} anchor={anchor}>{`${row.question} ${row.why}`}</HintBubble>
       </div>
       <div className="gy-row-side">
-        {row.current ? <span className="gy-row-value">{row.current}</span> : <span className="gy-muted">Not set</span>}
-        {showChip && rec && (
-          <div className="gy-row-suggest">
-            {readOnly
-              ? <span className="gy-chip gy-row-chip" title={rec.label}>{lead} <span className="gy-row-chip-label">{rec.label}</span></span>
-              : (
-                <button type="button" className="gy-chip gy-row-chip" title={rec.label} aria-label={`Accept ${rec.label}`} disabled={busy} onClick={() => onChoose(rec.id)}>
-                  {lead} <span className="gy-row-chip-label">{rec.label}</span> <span className="gy-row-accept">Accept</span>
-                </button>
-              )}
-            {rec.link && onOpen && <button type="button" className="gy-row-link" aria-label={`Open ${rec.linkLabel ?? rec.label} in OWOX`} title={`Open ${rec.linkLabel ?? rec.label} in OWOX`} onClick={() => onOpen(rec.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>}
-          </div>
-        )}
+        {readOnly || (!unset && !changing) ? (
+          <>
+            {row.current ? <span className="gy-row-value">{row.current}</span> : <span className="gy-muted">Not set</span>}
+            {readOnly && row.state !== 'done' && rec && <span className="gy-muted">Recommended: {rec.label}</span>}
+            {!readOnly && <button type="button" className="gy-link" aria-label={`Change ${row.title}`} onClick={() => setChanging(true)}>Change</button>}
+          </>
+        ) : radios}
         {row.state === 'error' && <button type="button" className="gy-link" onClick={onRetry}>Retry</button>}
-        {!readOnly && (
-          <div className="gy-row-actions">
-            <Select label={`Options for ${row.title}`} value="" options={[{ value: '', label: 'Other options…', disabled: true }, ...options]} onChange={(v) => { onChoose(v); }} className="gy-row-select" menu disabled={busy} />
-            {row.dismissable && row.state !== 'done' && <button type="button" className="gy-link" disabled={busy} aria-label={`Dismiss ${row.title}`} onClick={onDismiss}>Dismiss</button>}
-          </div>
-        )}
+        {extras}
       </div>
     </div>
   );

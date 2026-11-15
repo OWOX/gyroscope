@@ -1,44 +1,137 @@
 import { describe, expect, test, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { SetupTab } from './SetupTab';
-import type { Row } from '../setup/types';
+import { useState } from 'react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { SetupTab, type SetupTabProps } from './SetupTab';
+import type { Option, Row } from '../setup/types';
 
+const set = (id: string, label: string, recommended = false): Option => ({ id, label, recommended, action: { kind: 'set', next: (s) => s } });
 const row = (over: Partial<Row>): Row => ({ id: 'goal.metric', block: 'goal', title: 'Business Critical Number', question: 'What is the main business goal?', why: 'Every card is judged by how it moves this number.', severity: 'error', state: 'open', current: null, aiPicked: false, aiPending: false, dismissable: false,
-  options: [{ id: 'a', label: 'Revenue (Orders)', recommended: true, action: { kind: 'open', path: '/' } }, { id: 'b', label: 'Profit (Orders)', recommended: false, action: { kind: 'open', path: '/' } }], ...over });
-const props = (rows: Row[], over: object = {}) => ({ rows, loading: false, readOnly: false, busyRow: null, message: null, onChoose: vi.fn(), onDismiss: vi.fn(), onRetry: vi.fn(), onOpen: vi.fn(), ...over });
+  options: [set('a', 'Orders · revenue', true), set('b', 'Orders · profit')], ...over });
+const props = (rows: Row[], over: Partial<SetupTabProps> = {}): SetupTabProps => ({ rows, loading: false, readOnly: false, message: null, picked: {}, onPick: vi.fn(), dirty: 0, saving: false, onSave: vi.fn(), onDiscard: vi.fn(), savedOpen: new Set(rows.filter((r) => r.state !== 'done').map((r) => r.id)), onRetry: vi.fn(), onOpen: vi.fn(), ...over });
+const four = [set('a', 'Orders · revenue'), set('b', 'Orders · profit'), set('c', 'Orders · items', true), set('d', 'Orders · tax')];
 
-test('a not-set row shows its question, why, Not set and the recommendation to accept', () => {
-  const p = props([row({})]);
-  render(<SetupTab {...p} />);
-  expect(screen.getByText('What is the main business goal?')).toBeInTheDocument();
-  expect(screen.getByText('Every card is judged by how it moves this number.')).toBeInTheDocument();
-  expect(screen.getByText('Not set')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: /Accept.*Revenue \(Orders\)/ }));
-  expect(p.onChoose).toHaveBeenCalledWith('goal.metric', 'a');
+test('an unset row is a radio group: Not set checked, the recommended option first and tagged, the rest behind Show more', () => {
+  render(<SetupTab {...props([row({ options: four })])} />);
+  const group = screen.getByRole('radiogroup', { name: 'Business Critical Number' });
+  const radios = within(group).getAllByRole('radio');
+  expect(radios.map((r) => r.closest('label')!.textContent)).toEqual(['Not set', 'Orders · itemsRecommended', 'Orders · revenue', 'Orders · profit']);
+  expect(radios[0]).toBeChecked();
+  expect(within(group).getByText('Recommended')).toBeInTheDocument();
+  expect(within(group).queryByRole('radio', { name: /tax/ })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Show 1 more' }));
+  expect(within(group).getByRole('radio', { name: /tax/ })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Show .* more/ })).toBeNull();
 });
 
-test('a set row that differs shows current then the recommendation', () => {
-  render(<SetupTab {...props([row({ state: 'done', current: 'Profit (Orders)', options: [{ id: 'a', label: 'Revenue (Orders)', recommended: true, action: { kind: 'set', next: (s) => s } }] })])} />);
-  expect(screen.getByText('Profit (Orders)')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /Accept.*Revenue/, hidden: true })).toBeInTheDocument();
+function Stateful({ rows }: { rows: Row[] }) {
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const live = rows.map((r) => (picked[r.id] ? { ...r, state: 'done' as const } : r));
+  const onPick = (id: string, o: string | null) => setPicked((p) => { const n = { ...p }; if (o === null) delete n[id]; else n[id] = o; return n; });
+  return <SetupTab {...props(live, { picked, onPick, dirty: Object.keys(picked).length, savedOpen: new Set(rows.map((r) => r.id)) })} />;
+}
+
+test('picking an option checks it, raises the change count and moves the progress bar; Not set undoes it', () => {
+  render(<Stateful rows={[row({}), row({ id: 'x', title: 'Other', options: [set('x1', 'Customers · count', true)] })]} />);
+  const bar = () => screen.getByRole('progressbar');
+  expect(bar()).toHaveAttribute('aria-valuenow', '0');
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('radio', { name: /Orders · profit/ }));
+  expect(screen.getByRole('radio', { name: /Orders · profit/ })).toBeChecked();
+  expect(bar()).toHaveAttribute('aria-valuenow', '1');
+  expect(screen.getByText('1 change')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Business Critical Number' })).getByRole('radio', { name: 'Not set' }));
+  expect(bar()).toHaveAttribute('aria-valuenow', '0');
+  expect(screen.queryByText('1 change')).toBeNull();
 });
 
-test('a set row equal to the recommendation shows no chip', () => {
-  render(<SetupTab {...props([row({ state: 'done', current: 'Revenue (Orders)' })])} />);
-  expect(screen.queryByRole('button', { name: /Accept/ })).toBeNull();
+test('Save and Discard call back; both are inert while a save runs', () => {
+  const p = props([row({})], { dirty: 2 });
+  const { rerender } = render(<SetupTab {...p} />);
+  expect(screen.getByText('2 changes')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+  expect(p.onSave).toHaveBeenCalledTimes(1);
+  expect(p.onDiscard).toHaveBeenCalledTimes(1);
+  rerender(<SetupTab {...props([row({})], { dirty: 2, saving: true })} />);
+  expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
 });
 
-test('a broken row shows its detail', () => {
-  render(<SetupTab {...props([row({ state: 'broken', current: 'revenue_old (Orders)', detail: "revenue_old isn't in Orders any more" })])} />);
+test('a set row shows its value and Change, which opens the radios with Keep <value> checked', () => {
+  const done = row({ state: 'done', current: 'Orders · revenue' });
+  render(<SetupTab {...props([done], { savedCurrent: { 'goal.metric': 'Orders · revenue' } })} />);
+  expect(screen.getByText('Orders · revenue')).toBeInTheDocument();
+  expect(screen.queryByRole('radio', { hidden: true })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  expect(screen.getByRole('radio', { name: 'Keep Orders · revenue', hidden: true })).toBeChecked();
+  expect(screen.getByRole('radio', { name: /Orders · profit/, hidden: true })).not.toBeChecked();
+});
+
+test('a broken row keeps its saved value as the first radio and explains itself in the detail', () => {
+  render(<SetupTab {...props([row({ state: 'broken', current: 'Orders · revenue_old', detail: "revenue_old isn't in Orders any more" })], { savedCurrent: { 'goal.metric': 'Orders · revenue_old' } })} />);
   expect(screen.getByText("revenue_old isn't in Orders any more")).toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: 'Keep Orders · revenue_old' })).toBeChecked();
 });
 
-test('read-only shows values and recommendations without controls', () => {
-  render(<SetupTab {...props([row({ dismissable: true, severity: 'notice' })], { readOnly: true })} />);
-  expect(screen.queryByRole('button', { name: /Accept/ })).toBeNull();
-  expect(screen.queryByRole('combobox')).toBeNull();
-  expect(screen.queryByText('Dismiss')).toBeNull();
-  expect(screen.getByText(/Revenue \(Orders\)/)).toBeInTheDocument();
+describe('hints', () => {
+  test('open for an unset row, closed for a set row, and (?) toggles with aria-expanded', () => {
+    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'core', title: 'Entities', state: 'done', current: 'Orders' })])} />);
+    const unset = screen.getByRole('button', { name: 'About Business Critical Number' });
+    const set = screen.getByRole('button', { name: 'About Entities', hidden: true });
+    expect(unset).toHaveAttribute('aria-expanded', 'true');
+    expect(set).toHaveAttribute('aria-expanded', 'false');
+    expect(document.getElementById(unset.getAttribute('aria-controls')!)).toHaveTextContent('What is the main business goal? Every card is judged by how it moves this number.');
+    fireEvent.click(unset);
+    expect(unset).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(set);
+    expect(set).toHaveAttribute('aria-expanded', 'true');
+  });
+  test('a block hint is open when any of its rows is, and the block header no longer carries the question', () => {
+    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'core', title: 'Entities', state: 'done', current: 'Orders' })])} />);
+    expect(screen.getByRole('button', { name: 'About Goal' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'About Core Business Entities', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+    expect(document.querySelector('.gy-setup-why, .gy-setup-sub')).toBeNull();
+  });
+  test('staged choices do not reopen or close a hint', () => {
+    const { rerender } = render(<SetupTab {...props([row({})])} />);
+    const btn = screen.getByRole('button', { name: 'About Business Critical Number' });
+    expect(btn).toHaveAttribute('aria-expanded', 'true');
+    rerender(<SetupTab {...props([row({ state: 'done', current: 'Orders · profit' })], { picked: { 'goal.metric': 'b' }, savedOpen: new Set(['goal.metric']) })} />);
+    expect(screen.getByRole('button', { name: 'About Business Critical Number', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+  });
+});
+
+test('the block tile carries the worst open severity, with an accessible name', () => {
+  const { container } = render(<SetupTab {...props([row({}), row({ id: 'g2', severity: 'warning' }), row({ id: 'b', block: 'core', severity: 'warning', title: 'Entities' }), row({ id: 'c', block: 'teams', severity: 'notice', title: 'Teams' }), row({ id: 'd', block: 'metrics', state: 'done', current: 'x', title: 'Done' })])} />);
+  const tile = (name: string) => container.querySelector(`.dm-collapsible[aria-label="${name}"] .dm-collapsible-icon`)!;
+  expect(tile('Goal')).toHaveAttribute('data-severity', 'error');
+  expect(tile('Goal')).toHaveAttribute('aria-label', '1 blocker left');
+  expect(tile('Core Business Entities')).toHaveAttribute('data-severity', 'warning');
+  expect(tile('Teams')).not.toHaveAttribute('data-severity');
+  expect(tile('Metrics')).toHaveAttribute('aria-label', 'All set');
+  expect(tile('Metrics')).toHaveAttribute('role', 'img');
+  // the right side of the header holds only the chevron
+  expect(container.querySelector('.dm-collapsible-actions')!.children).toHaveLength(1);
+});
+
+test('read-only shows the value or Not set and the recommendation as text, without radios, Change or Save', () => {
+  render(<SetupTab {...props([row({}), row({ id: 'b', block: 'core', title: 'Entities', state: 'done', current: 'Orders' })], { readOnly: true })} />);
+  expect(screen.queryByRole('radio', { hidden: true })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Change/, hidden: true })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+  expect(screen.getByText('Not set')).toBeInTheDocument();
+  expect(screen.getByText('Recommended: Orders · revenue')).toBeInTheDocument();
+  expect(screen.getByText('Orders')).toBeInTheDocument();
+});
+
+test('no AI icon anywhere, even on an AI pick', () => {
+  const { container } = render(<SetupTab {...props([row({ aiPicked: true })])} />);
+  expect(container.querySelector('.lucide-sparkles')).toBeNull();
+});
+
+test('the spinner shows next to the recommended tag while the AI is pending', () => {
+  const { container } = render(<SetupTab {...props([row({ aiPending: true })])} />);
+  expect(container.querySelector('.gy-radio .gy-spin')).not.toBeNull();
 });
 
 test('the progress bar counts what is left by severity', () => {
@@ -49,31 +142,40 @@ test('the progress bar counts what is left by severity', () => {
   expect(screen.getByText('left')).toBeInTheDocument();
 });
 
-test('Dismiss on a notice calls onDismiss', () => {
-  const p = props([row({ id: 'goal.description', severity: 'notice', dismissable: true })]);
-  render(<SetupTab {...p} />);
-  fireEvent.click(screen.getByText('Dismiss'));
-  expect(p.onDismiss).toHaveBeenCalledWith('goal.description');
+test('a staged append or teams pick counts as done in the bar and the block badge', () => {
+  const append = { id: 'append', label: 'Add this line', recommended: true, action: { kind: 'append', scope: 'project', text: 'x' } as never };
+  const r = row({ id: 'goal.description', severity: 'notice', options: [append] });
+  const { rerender } = render(<SetupTab {...props([r])} />);
+  expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+  expect(screen.getByTestId('block-count')).toHaveTextContent('1 left');
+  rerender(<SetupTab {...props([r], { picked: { 'goal.description': 'append' }, dirty: 1 })} />);
+  expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
+  expect(screen.queryByTestId('block-count')).toBeNull();
 });
 
-test('a stray key on the closed options list does not choose anything', () => {
-  const p = props([row({})]);
-  render(<SetupTab {...p} />);
-  const box = screen.getByRole('combobox');
-  box.focus();
-  fireEvent.keyDown(box, { key: 'p' });
-  fireEvent.keyDown(box, { key: 'End' });
-  expect(p.onChoose).not.toHaveBeenCalled();
+describe('dismissing a notice is staged', () => {
+  test('Dismiss picks, and a dismissed row offers Undo', () => {
+    const p = props([row({ id: 'goal.description', severity: 'notice', dismissable: true })]);
+    const { rerender } = render(<SetupTab {...p} />);
+    fireEvent.click(screen.getByText('Dismiss'));
+    expect(p.onPick).toHaveBeenCalledWith('goal.description', 'dismiss');
+    rerender(<SetupTab {...props([row({ id: 'goal.description', severity: 'notice', dismissable: true, state: 'done' })], { picked: { 'goal.description': 'dismiss' }, savedOpen: new Set(['goal.description']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Undo dismiss Business Critical Number', hidden: true }));
+    expect(p.onPick).toHaveBeenCalledTimes(1);
+  });
 });
 
-test('busy disables the options list and Dismiss', () => {
-  render(<SetupTab {...props([row({ dismissable: true, severity: 'notice' })], { busyRow: 'goal.metric' })} />);
-  expect(screen.getByRole('combobox')).toHaveAttribute('aria-disabled', 'true');
-  expect(screen.getByRole('button', { name: 'Dismiss Business Critical Number' })).toBeDisabled();
+test('options that only open a page are link buttons, not radios', () => {
+  const open = { id: 'o', label: 'Ask an admin for access', recommended: true, action: { kind: 'open', path: '/x' } as never };
+  const p = props([row({ options: [open] })]);
+  render(<SetupTab {...p} />);
+  expect(screen.getAllByRole('radio')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Ask an admin for access' }));
+  expect(p.onOpen).toHaveBeenCalledWith('/x');
 });
 
 test('jumping opens a folded block and a closed group, then focuses the row', async () => {
-  const done = row({ id: 'a', state: 'done', current: 'Revenue (Orders)' });
+  const done = row({ id: 'a', state: 'done', current: 'Orders · revenue' });
   const open = row({ id: 'b', block: 'metrics', group: 'Orders', severity: 'warning', title: 'Orders Format' });
   render(<SetupTab {...props([done, open])} />);
   const group = document.querySelector('[data-row-id="b"]')!.closest('details')!;
@@ -91,30 +193,9 @@ test('an error row has a Retry that works read-only too', () => {
   expect(p.onRetry).toHaveBeenCalled();
 });
 
-test('read-only still shows the spinner while the AI is pending', () => {
-  const { container } = render(<SetupTab {...props([row({ aiPending: true })], { readOnly: true })} />);
-  expect(container.querySelector('.gy-row-chip .gy-spin')).not.toBeNull();
-});
-
-describe('a finished row offers nothing to accept unless it is a settings change', () => {
-  const opt = (action: object, label = 'Recommended thing') => [{ id: 'r', label, recommended: true, action: action as never }];
-  const done = (options: Row['options'], current = 'Something else') => render(<SetupTab {...props([row({ state: 'done', current, options })])} />);
-  const accept = () => screen.queryByRole('button', { name: /Accept/, hidden: true });
-  test('a done description row (append)', () => { done(opt({ kind: 'append', scope: 'project', text: 'x' }, 'Add this line to the description'), 'Named in the description'); expect(accept()).toBeNull(); });
-  test('a done teams row (teams)', () => { done(opt({ kind: 'teams', teams: [] }, 'Create Sales'), 'Sales, Marketing'); expect(accept()).toBeNull(); });
-  test('a passed check (open)', () => { done(opt({ kind: 'open', path: '/' }, 'Ask an admin for access'), 'OK'); expect(accept()).toBeNull(); });
-  test('a connected AI credential (open)', () => { done(opt({ kind: 'open', path: '/' }, 'Map an AI credential'), 'Connected'); expect(accept()).toBeNull(); });
-  test('a saved ratio (keep)', () => { done(opt({ kind: 'set', next: (s: unknown) => s }, 'Keep this ratio').map((o) => ({ ...o, keep: true })), 'Revenue per order'); expect(accept()).toBeNull(); });
-  test('a done set-row with a differing recommendation still shows Accept', () => { done(opt({ kind: 'set', next: (s: unknown) => s })); expect(accept()).not.toBeNull(); });
-  test('an open description row still shows Accept', () => {
-    render(<SetupTab {...props([row({ state: 'open', options: opt({ kind: 'append', scope: 'project', text: 'x' }, 'Add this line to the description') })])} />);
-    expect(accept()).not.toBeNull();
-  });
-});
-
 describe('progress fill', () => {
   const fill = (rows: Row[]) => { const { container } = render(<SetupTab {...props(rows)} />); return container.querySelector('.gy-progress-fill') as HTMLElement; };
-  const done = (id: string, severity: Row['severity']) => row({ id, severity, state: 'done', current: 'Revenue (Orders)' });
+  const done = (id: string, severity: Row['severity']) => row({ id, severity, state: 'done', current: 'Orders · revenue' });
   test('errors left: red, width is done/total', () => {
     const f = fill([row({}), row({ id: 'x', severity: 'warning' }), done('y', 'notice'), done('z', 'notice')]);
     expect(f).toHaveAttribute('data-severity', 'error');
@@ -129,21 +210,16 @@ describe('progress fill', () => {
   });
 });
 
-test('the recommendation chip carries the full label as a title', () => {
-  render(<SetupTab {...props([row({})])} />);
-  expect(screen.getByRole('button', { name: /Accept.*Revenue/ })).toHaveAttribute('title', 'Revenue (Orders)');
-});
-
-describe('the link to OWOX and the AI icon', () => {
-  const linked = (link?: string) => [{ id: 'a', label: 'Revenue (Orders)', recommended: true, action: { kind: 'open', path: '/' } as never, ...(link ? { link } : {}) }];
-  test('the button opens the path, also for a read-only viewer', () => {
-    const p = props([row({ options: linked('/ui/p1/data-marts/orders/data-setup?field=revenue') })], { readOnly: true });
+describe('the link to OWOX', () => {
+  const linked = (link?: string): Option[] => [{ ...set('a', 'Orders · revenue', true), ...(link ? { link } : {}) }];
+  test('the button opens the path', () => {
+    const p = props([row({ options: linked('/ui/p1/data-marts/orders/data-setup?field=revenue') })]);
     render(<SetupTab {...p} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Open Revenue (Orders) in OWOX' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Orders · revenue in OWOX' }));
     expect(p.onOpen).toHaveBeenCalledWith('/ui/p1/data-marts/orders/data-setup?field=revenue');
   });
   test('the label names the destination, and no onOpen means no button', () => {
-    const o = [{ id: 'a', label: 'Remove Orders', recommended: true, action: { kind: 'open', path: '/' } as never, link: '/x', linkLabel: 'Orders' }];
+    const o: Option[] = [{ ...set('a', 'Remove Orders', true), link: '/x', linkLabel: 'Orders' }];
     const { unmount } = render(<SetupTab {...props([row({ options: o })])} />);
     expect(screen.getByRole('button', { name: 'Open Orders in OWOX' })).toHaveAttribute('title', 'Open Orders in OWOX');
     unmount();
@@ -154,24 +230,15 @@ describe('the link to OWOX and the AI icon', () => {
     render(<SetupTab {...props([row({ options: linked() })])} />);
     expect(screen.queryByRole('button', { name: /in OWOX/ })).toBeNull();
   });
-  test('the sparkles icon shows only on an AI pick', () => {
-    const { container, rerender } = render(<SetupTab {...props([row({})])} />);
-    expect(container.querySelector('.lucide-sparkles')).toBeNull();
-    rerender(<SetupTab {...props([row({ aiPicked: true })])} />);
-    expect(container.querySelector('.gy-row-chip .lucide-sparkles')).not.toBeNull();
-    rerender(<SetupTab {...props([row({ aiPicked: true })], { readOnly: true })} />);
-    expect(container.querySelector('.gy-row-chip .lucide-sparkles')).not.toBeNull();
-  });
 });
 
 test('each block header shows its icon tile and an open-count badge', () => {
-  const done = row({ id: 'a', state: 'done', current: 'Revenue (Orders)' });
+  const done = row({ id: 'a', state: 'done', current: 'Orders · revenue' });
   const open1 = row({ id: 'b', block: 'metrics', severity: 'warning', title: 'Orders Format' });
   const open2 = row({ id: 'c', block: 'metrics', severity: 'notice', title: 'Orders Plan' });
   const { container } = render(<SetupTab {...props([done, open1, open2])} />);
   const cards = [...container.querySelectorAll('.dm-collapsible[data-variant="band"]')];
   expect(cards).toHaveLength(2);
   for (const c of cards) expect(c.querySelector('.dm-collapsible-icon svg')).not.toBeNull();
-  const counts = screen.getAllByTestId('block-count').map((e) => e.textContent);
-  expect(counts).toEqual(['2 left']);
+  expect(screen.getAllByTestId('block-count').map((e) => e.textContent)).toEqual(['2 left']);
 });

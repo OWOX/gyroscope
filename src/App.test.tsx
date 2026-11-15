@@ -28,10 +28,11 @@ test('a new project opens on the blocked screen; Open Setup shows the Setup tab'
   expect((await screen.findAllByText('Business Critical Number')).length).toBeGreaterThan(0);
 });
 
-test('accepting the recommended critical number in Setup and going back shows the canvas', async () => {
+test('picking the recommended critical number in Setup, saving and going back shows the canvas', async () => {
   render(<App ctx={ctxWith()} deps={deps()} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open Setup' }));
-  fireEvent.click((await screen.findAllByRole('button', { name: /^Accept / }))[0]!);
+  fireEvent.click((await screen.findAllByRole('radio', { name: /Recommended/ }))[0]!);
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument());
   await waitFor(() => expect(screen.queryByText(/blocker/)).toBeNull());
   fireEvent.click(screen.getByRole('button', { name: 'Back' }));
@@ -43,7 +44,8 @@ test('a member opening a new project is told to ask an admin, and Setup opens re
   expect(await screen.findByText('Ask a project admin to finish Setup.')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Open Setup' }));
   expect((await screen.findAllByText('Business Critical Number')).length).toBeGreaterThan(0);
-  expect(screen.queryByRole('button', { name: /^Accept / })).toBeNull();
+  expect(screen.queryByRole('radio')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
 });
 
 test('a project with saved settings opens on the canvas with the goal card', async () => {

@@ -8,8 +8,12 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
  * `collapsed` seeds the state and re-applies whenever it changes, so results can fold or open a card the user may still toggle;
  * `attention` opens it when it turns true, even if the user folded it.
  */
-export function CollapsibleCard({ title, icon: Icon, status, variant = 'block', collapsed = false, attention = false, label, children }: {
+export function CollapsibleCard({ title, icon: Icon, iconSeverity, iconLabel, status, hint, variant = 'block', collapsed = false, attention = false, label, children }: {
   title: ReactNode; icon?: LucideIcon; status?: ReactNode; variant?: 'section' | 'block' | 'band'; collapsed?: boolean; attention?: boolean; label?: string; children: ReactNode;
+  /** Tints the icon tile; with `iconLabel` the tile is an image with that name. */
+  iconSeverity?: string | null; iconLabel?: string;
+  /** Shown under the header, indented past the icon tile, outside the clickable header. */
+  hint?: ReactNode;
 }) {
   const [folded, setFolded] = useState(collapsed);
   const bodyId = useId();
@@ -20,7 +24,7 @@ export function CollapsibleCard({ title, icon: Icon, status, variant = 'block', 
     <div className="dm-collapsible" data-variant={variant} data-folded={folded} role="group" aria-label={label}>
       <div className="dm-collapsible-header" onClick={toggle}>
         <span className="dm-collapsible-title">
-          {Icon && <span className="dm-collapsible-icon" aria-hidden="true"><Icon size={18} /></span>}
+          {Icon && <span className="dm-collapsible-icon" data-severity={iconSeverity ?? undefined} {...(iconLabel ? { role: 'img', 'aria-label': iconLabel } : { 'aria-hidden': true })}><Icon size={18} aria-hidden="true" /></span>}
           {title}
         </span>
         <span className="dm-collapsible-actions">
@@ -30,6 +34,7 @@ export function CollapsibleCard({ title, icon: Icon, status, variant = 'block', 
           </button>
         </span>
       </div>
+      {hint && <div className="dm-collapsible-hint">{hint}</div>}
       <div className="dm-collapsible-grid" data-folded={folded}>
         <div id={bodyId} className="dm-collapsible-clip" aria-hidden={folded} inert={folded}>
           <div className="dm-collapsible-content">{children}</div>
