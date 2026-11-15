@@ -54,6 +54,8 @@ export interface MetricDef {
   format: MetricFormat;
   currency: string | null;   // ISO 4217 code; only for 'currency'
   forecast: ForecastDef | null; // null: extrapolate from the fact series
+  /** A ratio of two other metrics of the model, by id: value and series are numerator ÷ denominator. Its own measure is unused. */
+  ratio?: { numerator: string; denominator: string };
   /** The measure is a calculated field of the mart: only such a metric can colour a line. Absent on models built before it. */
   calculated?: boolean;
   description?: string | null; // the measure field's schema description; absent on models built before it
@@ -91,13 +93,10 @@ export interface Model {
 }
 
 export type BlockCode =
-  | 'NO_GOAL' | 'GOAL_PLACEHOLDER' | 'GOAL_FIELD_NOT_FOUND' | 'GOAL_NO_PRIMARY_KEY'
-  | 'GOAL_NO_ACCESS' | 'AI_NOT_CONFIGURED' | 'AI_INVALID' | 'AI_REQUEST_FAILED';
+  | 'NO_GOAL' | 'GOAL_NO_DATE' | 'GOAL_FIELD_NOT_FOUND' | 'GOAL_NO_PRIMARY_KEY'
+  | 'GOAL_NO_ACCESS' | 'NO_ACCESSIBLE_GOAL';
 
 export interface Blocked { code: BlockCode; detail: string; mismatches: string[] }
-
-/** `visible` are the Data Mart ids the builder could read; a rebuild proposal removes nothing outside them. */
-export type BuildResult = { ok: true; model: Model; visible: string[]; core: { classes: CoreClass[]; fromDescription: boolean } } | { ok: false; blocked: Blocked };
 
 export type Status = 'neutral' | 'above' | 'near' | 'below';
 export type Trend = 'up' | 'down' | 'flat';
@@ -153,15 +152,26 @@ export interface CacheDoc {
 }
 
 export type WeekStart = 'monday' | 'sunday';
-export type Industry = 'ecommerce' | 'saas' | 'marketplace' | 'media' | 'b2b' | 'apps' | 'finance' | 'other';
-export interface CoreClass { martId: string; why: string }
-/** Project-wide, admin only: settings collection, doc `project`. */
-export interface ProjectSettings { thresholdPct: number; industry: Industry | null; coreClasses: CoreClass[] | null }
+/** One number: a Data Mart field, how it adds up, and its date. */
+export interface MetricChoice { martId: string; measure: Measure; dateField: string | null; kind: MetricKind; alias: string }
+export interface RatioSetting { id: string; name: string; numerator: string; denominator: string; format: MetricFormat }
+/** Project-wide, admin only: settings collection, doc `project`, `v: 5`. Only values a person chose. */
+export interface ProjectSettingsV5 {
+  v: 5;
+  goal: (MetricChoice & { plan: PlanDef | null }) | null;
+  coreClasses: string[];
+  contexts: Record<string, { metric: MetricChoice | null; plan: PlanDef | null }>;
+  classes: Record<string, { keyMetricId: string | null; shown: MetricChoice[] }>;
+  plans: Record<string, PlanDef>;
+  formats: Record<string, { format: MetricFormat; currency: string | null }>;
+  ratios: RatioSetting[];
+  thresholdPct: number;
+  dismissed: string[];
+  updatedAt: string | null; updatedBy: string | null;
+}
 /** The member's own: preferences collection, doc `defaults`. null preset: no range, the ontology view. */
 export interface ViewSettings { defaultPreset: Preset | null; comparisonDefault: boolean; weekStart: WeekStart }
-export type Settings = ProjectSettings & ViewSettings;
-
-export const DEFAULT_SETTINGS: Settings = { thresholdPct: 20, industry: null, coreClasses: null, defaultPreset: null, comparisonDefault: true, weekStart: 'monday' };
+export const DEFAULT_SETTINGS: ViewSettings = { defaultPreset: null, comparisonDefault: true, weekStart: 'monday' };
 
 export const PRESET_LABELS: Record<Preset, string> = {
   last_year: 'Last year', last_quarter: 'Last quarter', last_month: 'Last month', last_week: 'Last week',

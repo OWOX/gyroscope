@@ -1,9 +1,7 @@
-import { RefreshCw, Settings as SettingsIcon, TriangleAlert } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { formatPeriod } from '../lib/format';
 import type { CacheDoc, CompareChoice, DateWindow, RangeChoice, WeekStart } from '../types';
 import { DateRangePicker } from './DateRangePicker';
-import { IssuesLayer, noticeCount, type Notices } from './IssuesLayer';
 
 function relativeTime(iso: string, now: Date): string {
   const s = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000));
@@ -22,33 +20,17 @@ interface Props {
   period?: { range: DateWindow; comparison: DateWindow | null };
   /** The loading step; replaces the update time while it is set. */
   status?: string | null;
-  /** Broken references and the out-of-date notice; the icon shows while there is any. */
-  notices?: Notices;
-  /** No date range is chosen: the title and the issues icon show, no period or update time. */
+  /** No date range is chosen: the title shows, no period or update time. */
   noRange?: boolean;
 }
 
-export function Header({ cache, now, period, status = null, notices, noRange = false }: Props) {
-  const [open, setOpen] = useState(false);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const layer = useRef<HTMLDivElement>(null);
-  const close = () => { setOpen(false); trigger.current?.focus(); };
-  const count = notices ? noticeCount(notices) : 0;
+export function Header({ cache, now, period, status = null, noRange = false }: Props) {
   const updated = status ?? (cache ? `Updated ${relativeTime(cache.refreshedAt, now)}` : 'Not loaded yet');
   const windows = period ? formatPeriod(period.range, period.comparison) : null;
   return (
     <header className="gy-header">
       <div className="gy-header-line">
         <h1 className="gy-header-title">Gyroscope</h1>
-        {notices && count > 0 && (
-          <span className="gy-issues-anchor">
-            <button ref={trigger} type="button" className="gy-icon-btn gy-issues-btn" aria-label={`${count} ${count === 1 ? 'issue' : 'issues'}`} title="Issues"
-              aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-              <TriangleAlert size={16} aria-hidden />
-            </button>
-            {open && <IssuesLayer notices={notices} layerRef={layer} triggerRef={trigger} onClose={close} />}
-          </span>
-        )}
         {!noRange && <span className="gy-header-sub num" aria-live="polite">{windows ? `${windows} · ${updated}` : updated}</span>}
       </div>
     </header>

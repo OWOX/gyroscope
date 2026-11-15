@@ -9,8 +9,9 @@ test('the delivery URL is the folder of this compatibility line', () => {
   expect(read('plugin.json').delivery.url).toBe(`https://owox.github.io/gyroscope/v${minor}/`);
 });
 
-test('0.4 declares the shared ontology collection, project scope', () => {
+test('0.5 declares the suggestions collection and keeps the old ones, project scope', () => {
   const cols = read('plugin.json').collections as { name: string; scope: string }[];
-  expect(cols).toContainEqual({ name: 'ontology_project', scope: 'project' });
-  expect(read('package.json').version).toMatch(/^0\.4\.\d+$/);
+  expect(cols).toContainEqual({ name: 'suggestions', scope: 'project' });
+  for (const name of ['model', 'ontology_project', 'settings']) expect(cols.some((c) => c.name === name)).toBe(true);
+  expect(read('package.json').version).toMatch(/^0\.5\.\d+$/);
 });

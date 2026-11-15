@@ -106,23 +106,7 @@ h2 { margin: 0; }
 
 /* --- loading notes and build checklist ----------------------------------- */
 .gy-loadnote { margin: 0.5rem 0 0; font-size: 0.75rem; }
-.gy-build { display: grid; gap: 1.5rem; margin-top: 1.5rem; }
-.gy-build-h { margin: 0 0 0.5rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); }
-.gy-build-h:not(:first-child) { margin-top: 1rem; }
-.gy-build-sub { margin: 0.5rem 0 0.35rem; font-size: 0.8125rem; font-weight: 500; }
-.gy-build-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
 .gy-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.gy-chk { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
-.gy-chk-mark { flex: none; display: inline-grid; place-items: center; width: 1rem; height: 1rem; border: 1px solid var(--muted-foreground); border-radius: 50%; font-size: 0.6875rem; line-height: 1; align-self: center; }
-.gy-chk[data-state='done'] .gy-chk-mark { border-color: var(--primary); color: var(--primary); }
-.gy-chk[data-bad='true'] .gy-chk-mark { border-color: var(--red); color: var(--red); }
-.gy-chk[data-state='running'] .gy-chk-mark { border-color: var(--primary); animation: gy-chk-pulse 1.2s ease-in-out infinite; }
-@keyframes gy-chk-pulse { 50% { opacity: 0.35; } }
-@media (prefers-reduced-motion: reduce) { .gy-chk[data-state='running'] .gy-chk-mark { animation: none; } }
-.gy-chk[data-state='missing']:not([data-bad='true']) .gy-chk-mark { border-color: transparent; color: var(--muted-foreground); }
-.gy-chk-tag, .gy-chk-note { font-size: 0.6875rem; color: var(--muted-foreground); }
-.gy-chk-tag { border: 1px solid var(--border); border-radius: 0.25rem; padding: 0 0.25rem; }
-.gy-chk-detail { flex-basis: 100%; margin-left: 1.5rem; font-size: 0.75rem; color: var(--red); }
 .dm-collapsible { border-radius: 0.375rem; }
 /* OWOX's default CollapsibleCard: muted, a line under it */
 .dm-collapsible[data-variant='section'] { border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--muted) 50%, transparent); }
@@ -144,45 +128,22 @@ h2 { margin: 0; }
 .dm-collapsible-clip { overflow: hidden; }
 .dm-collapsible-content { display: grid; gap: 0.75rem; padding: 0.25rem 1rem 1rem; }
 .dm-collapsible[data-variant='block'] .dm-collapsible-content { padding: 0 1rem 0.75rem; }
-/* A section's contexts side by side, as many columns as fit */
-.gy-ck-contexts { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 0.75rem; align-items: start; }
-.gy-ck-title { margin: 0; font-size: 1rem; font-weight: 500; }
+/* Data Flow's block chrome: a muted panel with a hairline under it, an icon tile, a bare chevron. */
+.dm-collapsible[data-variant='band'] { border-bottom: 1px solid var(--border); background: color-mix(in oklab, var(--muted) 50%, transparent); padding: 0.75rem 1rem 1rem; }
+.dm-collapsible[data-variant='band'][data-folded='true'] { padding-bottom: 0.75rem; }
+:root.dark .dm-collapsible[data-variant='band'] { background: color-mix(in oklab, white 4%, transparent); border-bottom-color: color-mix(in oklab, white 4%, transparent); }
+.dm-collapsible[data-variant='band'] .dm-collapsible-header { padding: 0; margin-bottom: 0.75rem; }
+.dm-collapsible[data-variant='band'][data-folded='true'] .dm-collapsible-header { margin-bottom: 0; }
+.dm-collapsible[data-variant='band'] .dm-collapsible-title { font-size: 0.9375rem; line-height: 1; min-width: 0; }
+.dm-collapsible[data-variant='band'] .dm-collapsible-icon { background: color-mix(in oklab, var(--border) 75%, transparent); }
+:root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon { background: color-mix(in oklab, white 8%, transparent); }
+.dm-collapsible[data-variant='band'] .dm-collapsible-toggle { width: auto; height: auto; padding: 0; border-radius: 0; background: none; transition: color 150ms; }
+.dm-collapsible[data-variant='band'] .dm-collapsible-toggle:hover { background: none; color: var(--foreground); }
+.dm-collapsible[data-variant='band'] .dm-collapsible-content { padding: 0; }
 @media (prefers-reduced-motion: reduce) { .dm-collapsible-grid, .dm-collapsible-toggle svg { transition: none; } }
-.gy-ck { display: grid; gap: 1.5rem; }
-.gy-ck-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
-.gy-ck-head h2 { margin: 0; font-size: 1rem; }
-.gy-ck-summary { font-size: 0.8125rem; }
-.gy-ck-summary:empty { display: none; }
-.gy-ck-when { color: var(--muted-foreground); font-size: 0.75rem; }
-.gy-ck-head .gy-icon-btn { margin-left: auto; }
-/* Fix links and the snippet start where the label does: past the mark (1rem) and the gap (0.5rem), as the detail does */
-.gy-ck-fix { display: flex; flex-basis: 100%; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin-left: 1.5rem; font-size: 0.75rem; }
-.gy-chk .gy-snippet { flex-basis: 100%; min-width: 0; margin: 0 0 0 1.5rem; }
-/* A section's or context's mark: the check marks' circle, a size up */
-.gy-ck-gmark { display: inline-grid; place-items: center; width: 1.125rem; height: 1.125rem; border: 1px solid currentColor; border-radius: 50%; font-size: 0.6875rem; font-weight: 400; line-height: 1; vertical-align: 0.15em; color: var(--muted-foreground); }
-.gy-ck-title .gy-ck-gmark { margin-left: 0.25rem; }
-.gy-ck-gmark[data-state='fail'] { color: var(--red); }
-.gy-ck-gmark[data-state='warn'] { color: var(--orange); }
-.gy-ck-gmark[data-state='ok'] { color: var(--green); }
-.gy-ck-gmark[data-state='recommend'] { border-color: transparent; }
-.gy-ck-count { margin-left: 0.5rem; font-size: 0.75rem; font-weight: 400; color: var(--muted-foreground); }
-.gy-chk .gy-tip { align-self: center; }
-.gy-ck-ask { display: grid; flex-basis: 100%; gap: 0.5rem; margin: 0.25rem 0 0.5rem 1.5rem; justify-items: start; }
-.gy-ck-ask > * { margin: 0; }
-.gy-ck-q { font-size: 0.8125rem; font-weight: 500; }
-.gy-ck-note { font-size: 0.75rem; }
-.gy-ck-opts { display: grid; gap: 0.25rem; }
-.gy-ck-opt { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; }
 .gy-tag { border: 1px solid var(--green); border-radius: 0.25rem; padding: 0 0.25rem; font-size: 0.6875rem; color: var(--green); }
-.gy-ck-ask .gy-btn { display: inline-flex; align-items: center; gap: 0.375rem; }
-.gy-ck-refused { display: grid; gap: 0.5rem; justify-items: start; max-width: 100%; }
 .gy-fieldset { display: grid; gap: 1rem; margin: 0; padding: 0; border: 0; }
 .gy-fieldset legend { padding: 0; margin-bottom: 0.5rem; font-weight: 500; }
-.gy-chk[data-state='ok'] .gy-chk-mark { border-color: var(--green); color: var(--green); }
-.gy-chk[data-state='warn'] .gy-chk-mark { border-color: var(--orange); color: var(--orange); }
-.gy-chk[data-state='skip'] .gy-chk-mark { border-color: var(--muted-foreground); color: var(--muted-foreground); }
-.gy-chk[data-state='warn'] .gy-chk-detail { color: var(--orange); }
-.gy-chk[data-state='ok'] .gy-chk-detail, .gy-chk[data-state='skip'] .gy-chk-detail { color: var(--muted-foreground); }
 
 /* --- cards -------------------------------------------------------------- */
 .gy-card {
@@ -459,100 +420,25 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-tab[aria-selected='true'] { color: var(--foreground); border-bottom-color: var(--primary); }
 .gy-tab:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--primary); border-radius: 0.25rem; }
 @media (max-width: 640px) { .gy-tabs { padding: 0 1.25rem; } }
-.gy-onto { display: grid; gap: 1rem; }
-.gy-onto-intro { display: grid; gap: 0.75rem; max-width: 40rem; }
-.gy-onto-note { margin: 0; font-weight: 500; }
-.gy-onto-class { display: grid; gap: 0.75rem; }
-.gy-onto-class-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
-.gy-onto-fold { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.gy-onto-fold:focus-visible, .gy-tip-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); border-radius: 0.25rem; }
-.gy-onto-body { display: grid; gap: 0.75rem; }
-.gy-onto-body[hidden] { display: none; }
-.gy-tip { position: relative; display: inline-flex; align-items: center; }
-.gy-tip-btn { display: inline-grid; place-items: center; padding: 0.125rem; border: 0; background: none; color: var(--muted-foreground); cursor: pointer; }
-.gy-tip-btn:hover { color: var(--foreground); }
-.gy-tip-pop { position: absolute; z-index: 20; top: 100%; left: 0; width: max-content; max-width: 18rem; margin-top: 0.25rem; padding: 0.5rem 0.625rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); color: var(--foreground); font-size: 0.8125rem; line-height: 1.4; box-shadow: 0 4px 12px rgb(0 0 0 / 0.12); }
-.gy-onto-contexts { font-size: 0.8125rem; }
-/* A class's contexts as pills: the OWOX secondary badge. */
-.gy-onto-pills { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
 .dm-badge { display: inline-flex; align-items: center; white-space: nowrap; padding: 0.125rem 0.375rem; border-radius: 9999px; border: 0; background: var(--muted); color: var(--muted-foreground); font-size: 0.6875rem; font-weight: 400; line-height: 1.2; }
-.gy-onto-check { width: 1rem; height: 1rem; margin: 0; accent-color: var(--primary); }
-/* the forecast list and the (i) popovers are placed fixed, so this scroll box doesn't clip them */
-.gy-onto-scroll { overflow-x: auto; }
-.gy-onto-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
-.gy-onto-table th, .gy-onto-table td { padding: 0.25rem 0.25rem; text-align: left; vertical-align: middle; white-space: nowrap; }
-.gy-onto-table thead th { font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); border-bottom: 1px solid var(--border); }
-.gy-onto-metric { border-top: 1px solid var(--border); }
-.gy-onto-metric tr:first-child > * { padding-top: 0.625rem; }
-.gy-onto-metric tr:last-child > * { padding-bottom: 0.625rem; }
-.gy-onto-metric td[rowspan] { vertical-align: top; }
-.gy-onto-first { display: flex; align-items: center; height: 2rem; }
-.gy-onto-grip { display: inline-grid; place-items: center; padding: 0.125rem; border: 0; border-radius: 0.25rem; background: none; color: var(--muted-foreground); cursor: grab; touch-action: none; user-select: none; }
-.gy-onto-grip:hover { color: var(--foreground); }
-.gy-onto-grip:active { cursor: grabbing; }
-.gy-onto-grip:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
-.gy-onto-metric.is-dragging { opacity: 0.5; }
-.gy-onto-metric.is-drop-before > tr:first-child > * { box-shadow: inset 0 2px 0 var(--primary); }
-.gy-onto-metric.is-drop-end > tr:last-child > * { box-shadow: inset 0 -2px 0 var(--primary); }
 .gy-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.gy-onto-label { font-weight: 500; color: var(--muted-foreground); }
-.gy-onto-mart { color: var(--muted-foreground); }
 /* A Data Mart's icon right before its title. */
 .gy-mart-title { display: inline-flex; align-items: center; gap: 0.375rem; min-width: 0; }
 .gy-mart-title > svg { flex-shrink: 0; }
-.gy-onto-cell { display: flex; align-items: center; gap: 0.25rem; }
-.gy-onto-name { display: block; width: 8.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foreground); }
-.gy-onto-stack { display: flex; flex-direction: column; align-items: stretch; gap: 0.25rem; }
-.gy-onto-format { width: 6.5rem; }
-.gy-onto-cur { width: 4.5rem; text-transform: uppercase; }
-.gy-onto-shape { width: 6rem; }
-.gy-onto-pick { min-width: 6.5rem; width: 100%; }
-/* The handle stays in view when a narrow window scrolls the table sideways. */
-.gy-onto-table .gy-onto-end { position: sticky; right: 0; z-index: 1; background: var(--card); }
 .gy-combo { position: relative; display: block; flex: 1; }
 .gy-combo-list { position: absolute; z-index: 20; top: 100%; left: 0; min-width: 100%; max-height: 18rem; overflow-y: auto; margin-top: 0.25rem; padding: 0.25rem 0; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); box-shadow: 0 4px 12px rgb(0 0 0 / 0.12); }
-.gy-combo-head { padding: 0.375rem 0.625rem 0.125rem; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); }
 .gy-combo-opt { padding: 0.25rem 0.625rem 0.25rem 1rem; cursor: pointer; }
 .gy-combo-opt:first-child { padding-left: 0.625rem; }
 .gy-combo-opt[aria-selected='true'] { font-weight: 500; }
 .gy-combo-active { background: var(--muted); }
 .gy-combo-off { color: var(--muted-foreground); cursor: default; }
 .gy-combo-flat .gy-combo-opt { padding-left: 0.625rem; }
-.gy-pick { display: flex; align-items: center; gap: 0.375rem; padding-right: 0.5rem; cursor: pointer; user-select: none; }
-.gy-pick-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gy-pick-chev { flex: none; color: var(--muted-foreground); }
-/* the controls read at the size of the column heads */
-.gy-onto-table .gy-input, .gy-onto-table .gy-combo-list { font-size: 0.75rem; }
-.gy-combo-note { padding: 0.25rem 0.625rem 0.25rem 1rem; color: var(--muted-foreground); }
 .gy-bad { border-color: var(--red); color: var(--red); }
 .gy-bad-text { color: var(--red); font-size: 0.8125rem; }
 .dm-page-content[hidden] { display: none; }
 .gy-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.gy-proposal { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
-.gy-proposal-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
 
-/* --- issues icon and layer --- */
 .gy-header { position: relative; }
-.gy-issues-anchor { align-self: center; display: inline-flex; }
-.gy-issues-btn { color: var(--orange); }
-.gy-issues-btn:hover { color: var(--orange); }
-.gy-issues {
-  position: absolute; top: calc(100% + 0.25rem); left: 0; z-index: 50; width: 26rem; max-width: 100%; padding: 0.75rem 1rem;
-.gy-proposal-group + .gy-proposal-group { margin-top: 1rem; }
-.gy-proposal-title { margin: 0 0 0.25rem; font-size: 0.95rem; font-weight: 600; }
-  background: var(--card); border: 1px solid var(--border); border-radius: 0.625rem; box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); font-size: 0.8125rem;
-}
-.gy-issues:focus { outline: none; }
-.gy-issues-group + .gy-issues-group { margin-top: 0.75rem; }
-.gy-issues-heading { margin: 0 0 0.375rem; font-size: 0.8125rem; font-weight: 600; }
-.gy-issues-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
-.gy-issues-list li { display: flex; flex-direction: column; }
-.gy-issues-where { font-weight: 500; }
-.gy-issues-text { margin: 0 0 0.5rem; color: var(--muted-foreground); }
-.gy-issues-foot { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
-@media (max-width: 640px) {
-  .gy-issues { right: 0; width: auto; }
-}
 .gy-quality { opacity: 1; position: relative; }
 .gy-quality .gy-hint-body { cursor: default; font-weight: 400; color: var(--background); }
 .gy-quality[data-tone='ok'] { color: var(--green); }
@@ -590,3 +476,86 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-md :is(th, td) { padding: 0.125rem 0.375rem; border: 1px solid color-mix(in oklab, var(--background) 30%, transparent); text-align: left; vertical-align: top; }
 .gy-md th { font-weight: 600; }
 .gy-md hr { border: 0; border-top: 1px solid color-mix(in oklab, var(--background) 30%, transparent); margin: 0.5rem 0; }
+
+/* Setup */
+.gy-setup { display: grid; gap: 1rem; }
+.gy-setup-banner span { white-space: pre-wrap; }
+.gy-setup-banner { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--orange); border-radius: 0.5rem; font-size: 0.8125rem; }
+.gy-setup-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.gy-setup-blocks { display: grid; gap: 0.75rem; }
+.gy-setup-name { font-weight: 500; }
+.gy-setup-count { display: inline-block; padding: 0.0625rem 0.4375rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; line-height: 1.25; background: color-mix(in oklab, var(--border) 75%, transparent); }
+:root.dark .gy-setup-count { background: color-mix(in oklab, white 8%, transparent); }
+.gy-setup-group { margin-top: 0.5rem; }
+.gy-setup-group > summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; font-size: 0.8125rem; font-weight: 500; padding: 0.25rem 0; }
+.gy-setup-group > summary::-webkit-details-marker { display: none; }
+/* the band's title text starts 2.25rem in (1.75rem tile + 0.5rem gap); the 1.25rem tile is centred under the band's tile, and the text follows it */
+.gy-setup-group-icon { flex: none; display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; margin: 0 0.25rem; border-radius: 0.25rem; background: color-mix(in oklab, var(--border) 75%, transparent); color: var(--foreground); }
+:root.dark .gy-setup-group-icon { background: color-mix(in oklab, white 8%, transparent); }
+.gy-setup-group-name { flex: 1; min-width: 0; }
+.gy-setup-group-chevron { flex: none; color: var(--muted-foreground); transition: transform 0.2s; }
+.gy-setup-group[open] > summary .gy-setup-group-chevron { transform: rotate(180deg); }
+.gy-progress { display: grid; gap: 0.5rem; }
+.gy-progress-track { height: 0.5rem; overflow: hidden; border-radius: 999px; background: var(--muted); }
+.gy-progress-fill { display: block; height: 100%; }
+.gy-progress-fill[data-severity='error'] { background: var(--red); }
+.gy-progress-fill[data-severity='warning'] { background: var(--orange); }
+.gy-progress-fill[data-severity='notice'], .gy-progress-fill[data-severity='done'] { background: var(--green); }
+.gy-progress-legend { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; font-size: 0.8125rem; }
+.gy-progress-btn { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.gy-progress-btn[data-severity='error'] { color: var(--red); }
+.gy-progress-btn[data-severity='warning'] { color: var(--orange); }
+.gy-progress-btn[data-severity='notice'] { color: var(--green); }
+/* the indicator column is as wide as the band's icon tile (1.75rem) with the same 0.5rem gap, so row titles, group titles and hint bubbles share the section title's left edge; text and options split the rest half and half */
+.gy-row { display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; align-items: start; padding: 0.625rem 0; border-top: 1px solid var(--border); }
+.gy-row:first-of-type { border-top: 0; }
+.gy-row-icon { display: inline-grid; place-items: center; width: 100%; height: 1.125rem; color: var(--muted-foreground); }
+.gy-row-icon[data-severity='error'], .gy-row[data-severity='error'] .gy-row-dot { color: var(--red); }
+.gy-row-icon[data-severity='warning'], .gy-row[data-severity='warning'] .gy-row-dot { color: var(--orange); }
+.gy-row-icon[data-severity='notice'], .gy-row[data-severity='notice'] .gy-row-dot { color: var(--green); }
+.gy-row-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
+.gy-row-text { position: relative; display: grid; gap: 0.125rem; min-width: 0; }
+.gy-row-detail { font-size: 0.75rem; }
+.gy-row-detail[data-tone='bad'] { color: var(--red); }
+.gy-row-detail[data-tone='warn'] { color: var(--orange); }
+.gy-row-side { min-width: 0; display: grid; gap: 0.375rem; justify-items: start; font-size: 0.8125rem; }
+.gy-link:disabled { opacity: 0.5; cursor: default; }
+.gy-row-value { overflow-wrap: anywhere; }
+.gy-row-link { flex: none; display: inline-grid; place-items: center; min-width: 1.5rem; min-height: 1.5rem; padding: 0; border: 0; background: none; border-radius: 0.25rem; color: var(--muted-foreground); cursor: pointer; }
+.gy-row-link:hover { color: var(--foreground); }
+/* the link icon after an option shows only while its line is hovered or has focus; it keeps its space, so nothing shifts */
+.gy-row-link.gy-row-link-reveal { opacity: 0; pointer-events: none; transition: opacity 120ms; }
+.gy-radio:hover .gy-row-link-reveal, .gy-radio:focus-within .gy-row-link-reveal, .gy-row-recline:hover .gy-row-link-reveal, .gy-row-recline:focus-within .gy-row-link-reveal { opacity: 1; pointer-events: auto; }
+@media (hover: none) { .gy-row-link.gy-row-link-reveal { opacity: 1; pointer-events: auto; } }
+@media (prefers-reduced-motion: reduce) { .gy-row-link.gy-row-link-reveal { transition: none; } }
+.gy-row-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
+.gy-progress-legend > span { display: inline-flex; gap: 0.75rem; }
+/* hint: a (?) button and the bubble it opens, its caret pointing back at the button */
+.gy-hintbox-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
+.gy-hintbox-btn { flex: none; display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted-foreground); cursor: pointer; }
+.gy-hintbox-btn:hover { color: var(--foreground); }
+.gy-hintbox-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
+.gy-hintbox { position: relative; margin-top: 0.4rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: var(--muted-foreground); }
+.gy-hintbox[hidden] { display: none; }
+.gy-hintbox::before { content: ''; position: absolute; top: -5px; left: calc(var(--caret-x, 1rem) - 4px); width: 8px; height: 8px; background: var(--card); border-top: 1px solid var(--border); border-left: 1px solid var(--border); transform: rotate(45deg); }
+.dm-collapsible-hint { display: flow-root; margin: -0.6rem 0 0.75rem 2.25rem; }
+.dm-collapsible-hint .gy-hintbox { margin-top: 0; }
+.dm-collapsible[data-folded='true'] .dm-collapsible-hint { display: none; }
+/* the block's icon tile takes the colour of its worst open severity */
+.dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='error'], :root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='error'] { color: var(--red); background: color-mix(in oklab, var(--red) 15%, transparent); }
+.dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'], :root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'] { color: var(--orange); background: color-mix(in oklab, var(--orange) 15%, transparent); }
+/* radio list in the right column */
+.gy-radios { display: grid; gap: 0.25rem; width: 100%; min-width: 0; }
+.gy-radio { position: relative; min-width: 0; padding-left: 1.5rem; }
+.gy-radio label { cursor: pointer; overflow-wrap: anywhere; }
+.gy-radio input { position: absolute; left: 0; top: 0.1875rem; margin: 0; accent-color: var(--primary); }
+.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; margin-left: 0.125rem; }
+.gy-row-recline .gy-row-link { display: inline-grid; vertical-align: middle; }
+.gy-row-note { font-size: 0.75rem; }
+.gy-row-rec { display: inline-block; margin-left: 0.375rem; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.6875rem; line-height: 1.4; color: var(--muted-foreground); white-space: nowrap; vertical-align: middle; }
+.gy-row-more, .gy-row-open { text-align: left; }
+.gy-progress-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.gy-save { display: flex; align-items: center; gap: 0.75rem; font-size: 0.8125rem; }
+.gy-btn:disabled { opacity: 0.5; cursor: default; }
+@media (max-width: 40rem) { .gy-row { grid-template-columns: 1.75rem minmax(0, 1fr); } .gy-row-side { grid-column: 2; } }
+.gy-save-notice { margin: 0; font-size: 0.8125rem; }

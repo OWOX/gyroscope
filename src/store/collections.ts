@@ -1,6 +1,5 @@
-import { upgradeModel } from '../model/upgrade';
 import { toDay } from '../lib/dates';
-import { DEFAULT_SETTINGS, PRESET_LABELS, type CacheDoc, type CompareChoice, type ComparePreset, type CoreClass, type DateWindow, type Day, type Industry, type RangeChoice, type Model, type Preset, type ProjectSettings, type Settings, type ViewSettings, type WeekStart } from '../types';
+import { DEFAULT_SETTINGS, PRESET_LABELS, type CacheDoc, type CompareChoice, type ComparePreset, type DateWindow, type Day, type RangeChoice, type Model, type Preset, type ViewSettings, type WeekStart } from '../types';
 
 export interface CollectionsLike {
   collections<T>(name: string): {
@@ -9,69 +8,10 @@ export interface CollectionsLike {
   };
 }
 
-/** The project's shared model: `ontology_project/current`. */
-export async function loadShared(ctx: CollectionsLike): Promise<Model | null> {
-  return upgradeModel((await ctx.collections<unknown>('ontology_project').get('current'))?.document);
-}
-export class ModelConflict extends Error {
-  constructor(public by: string | null, public at: string) {
-    super('The model changed since it was loaded');
-    this.name = 'ModelConflict';
-  }
-}
-/** A model is stored but this version can't read it. Nothing is written over it. */
-export class ModelUnreadable extends Error {
-  constructor() {
-    super("The stored model can't be read by this version of Gyroscope.");
-    this.name = 'ModelUnreadable';
-  }
-}
-/** Writes `next` only when the stored doc still has `base`'s builtAt and editedAt; else throws ModelConflict. base null: only when nothing is stored. */
-export async function saveShared(ctx: CollectionsLike, base: Model | null, next: Model): Promise<void> {
-  const col = ctx.collections<unknown>('ontology_project');
-  const raw = (await col.get('current'))?.document;
-  if (raw !== undefined && raw !== null) {
-    const stored = upgradeModel(raw);
-    if (!stored) throw new ModelUnreadable();
-    const same = !!base && stored.builtAt === base.builtAt && (stored.editedAt ?? null) === (base.editedAt ?? null);
-    if (!same) {
-      throw new ModelConflict(stored.editedBy ?? stored.builtBy ?? null, stored.editedAt ?? stored.builtAt);
-    }
-  }
-  await col.put('current', next);
-}
-/** The old project-wide model: read-only, only a source for a member's first ontology. */
-export async function loadProjectModel(ctx: CollectionsLike): Promise<Model | null> {
-  return upgradeModel((await ctx.collections<unknown>('model').get('current'))?.document);
-}
-
-const INDUSTRY_IDS: readonly Industry[] = ['ecommerce', 'saas', 'marketplace', 'media', 'b2b', 'apps', 'finance', 'other'];
-const coreOf = (v: unknown): CoreClass[] | null => {
-  if (!Array.isArray(v)) return null;
-  const out: CoreClass[] = [];
-  for (const e of v) {
-    const c = (e ?? {}) as Record<string, unknown>;
-    if (typeof c.martId === 'string' && typeof c.why === 'string') out.push({ martId: c.martId, why: c.why });
-  }
-  return out.slice(0, 7);
-};
 const readProject = async (ctx: CollectionsLike): Promise<Record<string, unknown>> => {
   const doc = (await ctx.collections<unknown>('settings').get('project'))?.document;
   return doc && typeof doc === 'object' ? (doc as Record<string, unknown>) : {};
 };
-export async function loadProjectSettings(ctx: CollectionsLike): Promise<ProjectSettings> {
-  const raw = await readProject(ctx);
-  const t = raw.thresholdPct;
-  return {
-    thresholdPct: typeof t === 'number' && Number.isFinite(t) ? Math.min(100, Math.max(1, t)) : DEFAULT_SETTINGS.thresholdPct,
-    industry: INDUSTRY_IDS.includes(raw.industry as Industry) ? (raw.industry as Industry) : null,
-    coreClasses: coreOf(raw.coreClasses),
-  };
-}
-/** Merges `patch` onto the raw stored doc, so fields the patch omits (and ones settings don't know) are never rewritten. */
-export async function saveProjectSettings(ctx: CollectionsLike, patch: Partial<ProjectSettings>): Promise<void> {
-  await ctx.collections<unknown>('settings').put('project', { ...(await readProject(ctx)), ...patch });
-}
 
 /** The member's own view settings; a stored default preset counts only from a 0.4 doc (`v: 4`), so a 0.3 choice is ignored once. */
 export async function loadViewSettings(ctx: CollectionsLike): Promise<ViewSettings> {
@@ -91,11 +31,6 @@ export async function loadViewSettings(ctx: CollectionsLike): Promise<ViewSettin
 export async function saveViewSettings(ctx: CollectionsLike, s: ViewSettings): Promise<void> {
   await ctx.collections<unknown>('preferences').put('defaults', { ...s, v: 4 });
 }
-export async function loadSettings(ctx: CollectionsLike): Promise<Settings> {
-  const [p, v] = await Promise.all([loadProjectSettings(ctx), loadViewSettings(ctx)]);
-  return { ...p, ...v };
-}
-
 const COMPARE_PRESETS: readonly ComparePreset[] = ['previous_period', 'preceding_days', 'year_before'];
 const isDay = (v: unknown): v is Day => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && toDay(Date.parse(`${v}T00:00:00Z`)) === v;
 function windowOf(v: unknown): DateWindow | null {
@@ -139,9 +74,9 @@ export async function loadCache(ctx: CollectionsLike, key: string): Promise<Cach
 }
 export const saveCache = async (ctx: CollectionsLike, key: string, doc: CacheDoc): Promise<void> => { await ctx.collections<CacheDoc>('cache').put(key, doc); };
 
-/** The model version is builtAt + editedAt: every content change sets one of them; inputHash can move alone and doesn't touch the numbers. */
+/** Stale when the model version (builtAt + editedAt), the schema-and-settings hash, the anchor or the threshold differ from the cached numbers'. */
 export const isStale = (doc: CacheDoc | null, model: Model, anchor: Day, thresholdPct: number): boolean =>
-  !doc || doc.anchor !== anchor || doc.builtAt !== model.builtAt || (doc.editedAt ?? null) !== model.editedAt || doc.thresholdPct !== thresholdPct;
+  !doc || doc.anchor !== anchor || doc.modelHash !== model.inputHash || doc.builtAt !== model.builtAt || (doc.editedAt ?? null) !== model.editedAt || doc.thresholdPct !== thresholdPct;
 
 export function memoryCollections(): CollectionsLike {
   const store = new Map<string, Map<string, unknown>>();

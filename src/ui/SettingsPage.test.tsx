@@ -1,14 +1,9 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { SettingsPage } from './SettingsPage';
 import { DEFAULT_SETTINGS } from '../types';
+import type { SetupTabProps } from './SetupTab';
 
-test('saves edited threshold', () => {
-  const onSave = vi.fn();
-  render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={onSave} onBack={() => {}} />);
-  fireEvent.change(screen.getByLabelText(/Red when below plan/), { target: { value: '15' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-  expect(onSave).toHaveBeenCalledWith({ ...DEFAULT_SETTINGS, thresholdPct: 15 });
-});
+const setupProps: SetupTabProps = { rows: [], loading: false, readOnly: false, message: null, picked: {}, onPick: () => {}, dirty: 0, saving: false, onSave: () => {}, onDiscard: () => {}, savedOpen: new Set(), onRetry: () => {}, onOpen: () => {} };
 
 test('saves the chosen week start', () => {
   const onSave = vi.fn();
@@ -20,80 +15,40 @@ test('saves the chosen week start', () => {
   expect(onSave).toHaveBeenCalledWith({ ...DEFAULT_SETTINGS, weekStart: 'sunday' });
 });
 
-test('the tabs are General, Metrics and Checkup, a tablist that arrow keys move through', () => {
+test('the tabs are General and Setup, a tablist that arrow keys move through', () => {
   const onTabChange = vi.fn();
   render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} onTabChange={onTabChange} />);
-  expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['General', 'Metrics', 'Checkup']);
+  expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['General', 'Setup']);
   const general = screen.getByRole('tab', { name: 'General' });
-  const checkup = screen.getByRole('tab', { name: 'Checkup' });
+  const setup = screen.getByRole('tab', { name: 'Setup' });
   expect(general).toHaveAttribute('aria-selected', 'true');
-  expect(checkup).toHaveAttribute('tabindex', '-1');
-  const metrics = screen.getByRole('tab', { name: 'Metrics' });
+  expect(setup).toHaveAttribute('tabindex', '-1');
   fireEvent.keyDown(general, { key: 'ArrowRight' });
-  expect(metrics).toHaveAttribute('aria-selected', 'true');
-  expect(onTabChange).toHaveBeenLastCalledWith('ontology');
-  fireEvent.keyDown(metrics, { key: 'ArrowRight' });
-  expect(checkup).toHaveAttribute('aria-selected', 'true');
-  expect(checkup).toHaveFocus();
-  expect(onTabChange).toHaveBeenLastCalledWith('checkup');
-  expect(screen.getByLabelText(/Red when below plan/)).not.toBeVisible();
-  fireEvent.keyDown(checkup, { key: 'ArrowRight' });
+  expect(setup).toHaveAttribute('aria-selected', 'true');
+  expect(setup).toHaveFocus();
+  expect(onTabChange).toHaveBeenLastCalledWith('setup');
+  expect(screen.getByLabelText('Week starts on')).not.toBeVisible();
+  fireEvent.keyDown(setup, { key: 'ArrowRight' });
   expect(general).toHaveAttribute('aria-selected', 'true');
   fireEvent.keyDown(general, { key: 'End' });
-  expect(checkup).toHaveAttribute('aria-selected', 'true');
-  fireEvent.keyDown(checkup, { key: 'Home' });
+  expect(setup).toHaveAttribute('aria-selected', 'true');
+  fireEvent.keyDown(setup, { key: 'Home' });
   expect(general).toHaveFocus();
 });
 
-test('the Checkup panel stays mounted behind General and runs each time it becomes active', () => {
-  const run = vi.fn(() => Promise.resolve([]));
-  const checkup = { run, projectId: 'p', now: () => new Date() };
-  render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} checkup={checkup} />);
-  expect(run).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('tab', { name: 'Checkup' }));
-  expect(run).toHaveBeenCalledTimes(1);
-  expect(document.getElementById('gy-panel-checkup')).not.toHaveAttribute('hidden');
-  fireEvent.click(screen.getByRole('tab', { name: 'General' }));
-  expect(document.getElementById('gy-panel-checkup')).toHaveAttribute('hidden');
-  expect(document.getElementById('gy-panel-checkup')!.childElementCount).toBeGreaterThan(0);
-  fireEvent.click(screen.getByRole('tab', { name: 'Checkup' }));
-  expect(run).toHaveBeenCalledTimes(2);
-});
-
-test('General has a Your view fieldset and a Project fieldset', () => {
+test('General keeps only the member view settings; the threshold moved to Setup', () => {
   render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} />);
-  const view = screen.getByRole('group', { name: 'Your view' });
-  const project = screen.getByRole('group', { name: 'Project' });
-  expect(within(view).getByLabelText('Default date range')).toBeInTheDocument();
-  expect(within(view).getByLabelText('Week starts on')).toBeInTheDocument();
-  expect(within(view).getByLabelText(/Compare with previous period/)).toBeInTheDocument();
-  expect(within(project).getByLabelText(/Red when below plan/)).toBeEnabled();
+  expect(screen.getByRole('group', { name: 'Your view' })).toBeInTheDocument();
+  expect(screen.queryByRole('group', { name: 'Project' })).toBeNull();
+  expect(screen.queryByLabelText(/Red when below plan/)).toBeNull();
 });
 
-test('a member sees the threshold disabled with the reason', () => {
-  render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} isAdmin={false} />);
-  const project = screen.getByRole('group', { name: 'Project' });
-  expect(within(project).getByLabelText(/Red when below plan/)).toBeDisabled();
-  expect(within(project).getByText('Only a project admin can change this')).toBeInTheDocument();
-});
-
-test('with no model the Metrics section says so', async () => {
-  const checkup = { run: () => Promise.resolve([{ id: 'model.built', group: 'metrics' as const, label: 'The model is built', purpose: 'p', status: 'ok' as const }]), projectId: 'p', now: () => new Date() };
-  render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} checkup={checkup} tab="checkup" noModel />);
-  expect(await screen.findByText("No model yet. It's built when you go back to the canvas.")).toBeInTheDocument();
-});
-
-test('tab="checkup" opens with the panel visible and a run started', () => {
-  const run = vi.fn(() => Promise.resolve([]));
-  render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} checkup={{ run, projectId: 'p', now: () => new Date() }} tab="checkup" />);
-  expect(document.getElementById('gy-panel-checkup')).not.toHaveAttribute('hidden');
-  expect(run).toHaveBeenCalledTimes(1);
-});
-
-test('General does not hold the model rebuild', () => {
-  const onRebuild = vi.fn();
-  render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} onRebuild={onRebuild} tab="general" />);
-  expect(screen.queryByRole('button', { name: 'Rebuild model' })).toBeNull();
+test('the Setup panel shows the Setup tab and stays mounted behind General', () => {
+  render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} setup={setupProps} tab="setup" />);
+  expect(document.getElementById('gy-panel-setup')).not.toHaveAttribute('hidden');
+  fireEvent.click(screen.getByRole('tab', { name: 'General' }));
+  expect(document.getElementById('gy-panel-setup')).toHaveAttribute('hidden');
+  expect(document.getElementById('gy-panel-setup')!.childElementCount).toBeGreaterThan(0);
 });
 
 test('every tab points at an existing panel', () => {
@@ -116,14 +71,4 @@ test('Settings offers None (ontology view) and it is selected when there is no d
   fireEvent.change(select, { target: { value: '' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(onSave).toHaveBeenCalledWith({ ...DEFAULT_SETTINGS, defaultPreset: null });
-});
-
-test('the Metrics panel shows the loading or no-model note and stays mounted behind other tabs', () => {
-  const { rerender } = render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} noModel tab="ontology" />);
-  expect(screen.getByText(/No model yet/)).toBeVisible();
-  fireEvent.click(screen.getByRole('tab', { name: 'General' }));
-  expect(document.getElementById('gy-panel-ontology')).toHaveAttribute('hidden');
-  expect(document.getElementById('gy-panel-ontology')!.childElementCount).toBeGreaterThan(0);
-  rerender(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} />);
-  expect(screen.getByText('Reading Data Marts…')).toBeInTheDocument();
 });

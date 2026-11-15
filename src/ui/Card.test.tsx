@@ -242,6 +242,8 @@ test('the corner icons sit in one group the stylesheet shows on hover and focus,
   const tools = container.querySelector('.gy-card-tools')!;
   expect(tools.querySelector('.gy-hint')).toBeNull();
   expect(tools.querySelector('[aria-label="Open Customers in OWOX"]')).not.toBeNull();
+  // the Setup tab's hint bubble has its own class; the canvas (i) never takes it
+  expect(container.querySelector('.gy-hintbox')).toBeNull();
 });
 
 test("the Data Mart's (i) sits beside its name, sized to the line", () => {
@@ -273,13 +275,6 @@ test('a badge with a warning shows the icon with its text', () => {
   expect(container.querySelector('.gy-badge .gy-warn')).toHaveAttribute('title', 'Field id no longer exists');
 });
 
-test('a class whose Data Mart is gone says so, like the no-access card', () => {
-  render(<Card cls={cls} metrics={[arr, uc]} cache={cache()} missing comparisonOn refreshing={false} onRetry={() => {}} />);
-  expect(screen.getByText('Data Mart not found or not accessible')).toBeInTheDocument();
-  expect(screen.getByLabelText('Warning')).toBeInTheDocument();
-  expect(screen.queryByText('1.24M')).toBeNull();
-});
-
 test('a failed key metric keeps the card: dash, error in the tooltip, badges, and a Retry button', () => {
   const onRetry = vi.fn();
   const { container } = render(<Card cls={cls} metrics={[arr, uc]} cache={cache({ fact: null, error: 'TIMEOUT' })} comparisonOn compareLabel="Last Month" refreshing={false} onRetry={onRetry} />);
@@ -296,10 +291,8 @@ test('a caught rejection (warning only) shows the same way', () => {
   expect(screen.getByRole('tooltip')).toHaveTextContent('Not found');
 });
 
-test('missing wins over noAccess; a plain noAccess keeps its text', () => {
-  const { rerender } = render(<Card cls={cls} metrics={[arr]} cache={cache()} missing noAccess comparisonOn refreshing={false} onRetry={() => {}} />);
-  expect(screen.getByText('Data Mart not found or not accessible')).toBeInTheDocument();
-  rerender(<Card cls={cls} metrics={[arr]} cache={cache()} noAccess comparisonOn refreshing={false} onRetry={() => {}} />);
+test('a noAccess card keeps its text', () => {
+  render(<Card cls={cls} metrics={[arr]} cache={cache()} noAccess comparisonOn refreshing={false} onRetry={() => {}} />);
   expect(screen.getByText("No access to this Data Mart")).toBeInTheDocument();
 });
 

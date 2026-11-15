@@ -1,54 +1,58 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { Blocked } from './Blocked';
 
-test('placeholder goal shows reason, steps and snippet with the project id', () => {
-  render(<Blocked blocked={{ code: 'GOAL_PLACEHOLDER', detail: 'The ARR link is a placeholder.', mismatches: [] }} projectId="p42" onRetry={() => {}} />);
+const base = { projectId: 'p42', onRetry: () => {}, onOpenSetup: () => {} };
+
+test('shows the reason and the steps, and Open Setup is the primary button', () => {
+  const onOpenSetup = vi.fn();
+  render(<Blocked {...base} blocked={{ code: 'NO_GOAL', detail: 'The Business Critical Number is not set.', mismatches: [] }} onOpenSetup={onOpenSetup} />);
   expect(screen.getByRole('heading', { name: "Goal can't be tracked" })).toBeInTheDocument();
-  expect(screen.getByText('The ARR link is a placeholder.')).toBeInTheDocument();
-  expect(screen.getByText(/Critical number \| ARR/)).toHaveTextContent('/ui/p42/data-marts/');
+  expect(screen.getByText('The Business Critical Number is not set.')).toBeInTheDocument();
+  expect(screen.getByText(/answer "What is the main business goal\?"/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Open Setup' }));
+  expect(onOpenSetup).toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
 });
 
-test('AI_INVALID lists mismatches', () => {
-  render(<Blocked blocked={{ code: 'AI_INVALID', detail: 'x', mismatches: ['ARR → field "a" not found in M'] }} projectId="p" onRetry={() => {}} />);
-  expect(screen.getByText('ARR → field "a" not found in M')).toBeInTheDocument();
+test('lists mismatches', () => {
+  render(<Blocked {...base} blocked={{ code: 'GOAL_NO_DATE', detail: 'x', mismatches: ['date not found'] }} />);
+  expect(screen.getByText('date not found')).toBeInTheDocument();
 });
 
-test('the step names the page to fix it on and opens it', () => {
-  const onOpen = vi.fn();
-  render(<Blocked blocked={{ code: 'NO_GOAL', detail: 'x', mismatches: [] }} projectId="p42" onRetry={() => {}} onOpen={onOpen} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Project settings' }));
-  expect(onOpen).toHaveBeenCalledWith('/ui/p42/project-settings');
+test('a missing goal field and a missing primary key point at Setup', () => {
+  const { rerender } = render(<Blocked {...base} blocked={{ code: 'GOAL_FIELD_NOT_FOUND', detail: 'x', mismatches: [] }} />);
+  expect(screen.getByText(/Open Setup and answer "What is the main business goal\?" again/)).toBeInTheDocument();
+  expect(screen.queryByText(/project description/)).toBeNull();
+  rerender(<Blocked {...base} blocked={{ code: 'GOAL_NO_PRIMARY_KEY', detail: 'x', mismatches: [] }} />);
+  expect(screen.getByText(/Goal Data Mart Primary Key/)).toBeInTheDocument();
 });
 
-test('AI_NOT_CONFIGURED links to Plugins', () => {
-  const onOpen = vi.fn();
-  render(<Blocked blocked={{ code: 'AI_NOT_CONFIGURED', detail: 'x', mismatches: [] }} projectId="p42" onRetry={() => {}} onOpen={onOpen} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Plugins' }));
-  expect(onOpen).toHaveBeenCalledWith('/ui/p42/plugins');
+test('a member is told to ask an admin and can still open Setup', () => {
+  render(<Blocked {...base} isAdmin={false} blocked={{ code: 'NO_GOAL', detail: 'x', mismatches: [] }} />);
+  expect(screen.getByText('Ask a project admin to finish Setup.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Open Setup' })).toBeInTheDocument();
 });
 
-test('AI_REQUEST_FAILED says the model did not answer, links to Plugins, no snippet', () => {
-  const onOpen = vi.fn();
-  render(<Blocked blocked={{ code: 'AI_REQUEST_FAILED', detail: "The request to the AI provider failed or timed out.", mismatches: ['AI provider request could not be completed'] }} projectId="p42" onRetry={() => {}} onOpen={onOpen} />);
-  expect(screen.getByRole('heading', { name: "The AI model didn't answer" })).toBeInTheDocument();
-  expect(screen.getByText('AI provider request could not be completed')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Plugins' }));
-  expect(onOpen).toHaveBeenCalledWith('/ui/p42/plugins');
-  expect(screen.queryByText(/Critical number \|/)).toBeNull();
+test('Back shows only when given', () => {
+  const { rerender } = render(<Blocked {...base} blocked={{ code: 'NO_GOAL', detail: 'x', mismatches: [] }} />);
+  expect(screen.queryByRole('button', { name: 'Back to canvas' })).toBeNull();
+  const onBack = vi.fn();
+  rerender(<Blocked {...base} blocked={{ code: 'NO_GOAL', detail: 'x', mismatches: [] }} onBack={onBack} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Back to canvas' }));
+  expect(onBack).toHaveBeenCalled();
 });
 
-test('without navigation the page name is plain text', () => {
-  render(<Blocked blocked={{ code: 'NO_GOAL', detail: 'x', mismatches: [] }} projectId="p" onRetry={() => {}} />);
-  expect(screen.queryByRole('button', { name: 'Project settings' })).toBeNull();
-  expect(screen.getByText(/Open Project settings in OWOX Data Marts/)).toBeInTheDocument();
+test('a failed goal read says it was a read failure and to Retry, for a member too', () => {
+  render(<Blocked {...base} isAdmin={false} blocked={{ code: 'GOAL_NO_ACCESS', detail: 'x', mismatches: [] }} />);
+  expect(screen.getByText(/couldn't be read/)).toBeInTheDocument();
+  expect(screen.getByText(/Click Retry/)).toBeInTheDocument();
+  expect(screen.queryByText(/ask for access/i)).toBeNull();
 });
 
-test('Run checkup shows only when given and calls it', () => {
-  const onCheckup = vi.fn();
-  const { rerender } = render(<Blocked blocked={{ code: 'NO_GOAL', detail: 'x', mismatches: [] }} projectId="p" onRetry={() => {}} />);
-  expect(screen.queryByRole('button', { name: 'Run checkup' })).toBeNull();
-  rerender(<Blocked blocked={{ code: 'NO_GOAL', detail: 'x', mismatches: [] }} projectId="p" onRetry={() => {}} onCheckup={onCheckup} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Run checkup' }));
-  expect(onCheckup).toHaveBeenCalled();
+test.each([true, false])('NO_ACCESSIBLE_GOAL shows the access copy and Open Setup (admin: %s)', (isAdmin) => {
+  const detail = "To use Gyroscope, you need access to a Data Mart with a critical number: the project's or a context's. Ask a project admin for access.";
+  render(<Blocked {...base} isAdmin={isAdmin} blocked={{ code: 'NO_ACCESSIBLE_GOAL', detail, mismatches: [] }} />);
+  expect(screen.getByText(detail)).toBeInTheDocument();
+  expect(screen.queryByText('How to fix')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Open Setup' })).toBeInTheDocument();
 });

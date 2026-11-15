@@ -10,54 +10,23 @@ type Page = keyof typeof PAGES;
 const PAGE_TOKEN = new RegExp(`\\[(${Object.keys(PAGES).join('|')})\\]`);
 
 const STEPS: Record<BlockCode, string[]> = {
-  NO_GOAL: [
-    'Open [settings] in OWOX Data Marts and edit the project description.',
-    'Add a Metrics table with a "Critical number" row (snippet below).',
-    'Link the Fact cell to the Data Mart field that measures the goal: open the Data Mart, select the field, copy the link.',
-    'Come back and click Retry.',
-  ],
-  GOAL_PLACEHOLDER: [],
+  // the detail already says what to do: nobody can fix this on this page
+  NO_ACCESSIBLE_GOAL: [],
+  NO_GOAL: ['Open Setup and answer "What is the main business goal?"'],
+  GOAL_NO_DATE: ['Open Setup and answer "Which date does each value belong to?" for the Business Critical Number.'],
   GOAL_FIELD_NOT_FOUND: [
-    'Open the Data Mart linked in the Critical number row.',
-    'Check the field name in the link\'s field= parameter against the schema.',
-    'Fix the link in the project description in [settings], then Retry.',
+    'Open Setup and answer "What is the main business goal?" again: the field was renamed or removed.',
+    'Pick the field in its Data Mart and the date that goes with it.',
   ],
   GOAL_NO_PRIMARY_KEY: [
-    'Open the Data Mart linked in the Critical number row.',
-    'Mark its primary key fields in the schema.',
-    'Retry.',
+    'Open the goal Data Mart in OWOX and mark its primary key fields in the schema.',
+    'Open Setup and check that "Goal Data Mart Primary Key" is clear, then Retry.',
   ],
   GOAL_NO_ACCESS: [
-    'Ask a project admin with access to the goal Data Mart',
-    'to build the model, then Retry.',
-  ],
-  AI_NOT_CONFIGURED: [
-    'Ask a project admin to open [plugins], select Gyroscope and map an AI Credential.',
-    'Retry.',
-  ],
-  AI_INVALID: [
-    'In [settings], make the metrics tables name exact fields through Data Mart links.',
-    'Make sure each linked Data Mart has a date field.',
-    'Retry.',
-  ],
-  AI_REQUEST_FAILED: [
-    'Ask a project admin to open [plugins], select Gyroscope and check the AI Credential: its key, and the model mapped to Reasoning.',
-    'A large project can take the model past the time limit. Mapping a faster model to Reasoning helps.',
-    'Retry.',
+    "The goal Data Mart couldn't be read, so Setup can't check it.",
+    'Click Retry. If it keeps failing, ask a project admin to check the Data Mart in OWOX.',
   ],
 };
-STEPS.GOAL_PLACEHOLDER = STEPS.NO_GOAL;
-
-const heading = (code: BlockCode): string =>
-  code === 'AI_NOT_CONFIGURED' ? 'AI model not configured'
-    : code === 'AI_REQUEST_FAILED' ? "The AI model didn't answer"
-      : code === 'AI_INVALID' ? "The model doesn't match your Data Marts"
-        : "Goal can't be tracked";
-
-export const metricsSnippet = (projectId: string): string => `## Metrics
-| Role | Metric | Owner | Plan | Fact |
-|---|---|---|---|---|
-| Critical number | ARR | <owner> | [Plan · ARR](https://app.owox.com/ui/${projectId}/data-marts/<plan-data-mart-id>/data-setup?field=<plan_field>) | [ARR](https://app.owox.com/ui/${projectId}/data-marts/<fact-data-mart-id>/data-setup?field=<fact_field>) |`;
 
 function stepContent(step: string, projectId: string, onOpen?: (path: string) => void): ReactNode[] {
   return step.split(PAGE_TOKEN).map((part, i) => {
@@ -69,32 +38,29 @@ function stepContent(step: string, projectId: string, onOpen?: (path: string) =>
   });
 }
 
-export function Blocked({ blocked, projectId, onRetry, onBack, backLabel = 'Back to canvas', embedded = false, onOpen, onCheckup }: {
-  blocked: BlockedInfo; projectId: string; onRetry: () => void; onCheckup?: () => void; onBack?: () => void; backLabel?: string;
+export function Blocked({ blocked, projectId, onRetry, onOpenSetup, onBack, backLabel = 'Back to canvas', embedded = false, onOpen, isAdmin = true }: {
+  blocked: BlockedInfo; projectId: string; onRetry: () => void; onOpenSetup: () => void; onBack?: () => void; backLabel?: string;
   /** Inside a page that has its own h1: the heading drops to h2. */
   embedded?: boolean;
   /** Goes to an OWOX page; without it the page names show as plain text. */
   onOpen?: (path: string) => void;
+  /** A member who isn't a project admin is told to ask one; Setup opens read-only. */
+  isAdmin?: boolean;
 }) {
-  const showSnippet = blocked.code === 'NO_GOAL' || blocked.code === 'GOAL_PLACEHOLDER';
-  const text = metricsSnippet(projectId);
+  const title = "Goal can't be tracked";
   return (
     <div className="gy-blocked">
-      {embedded ? <h2>{heading(blocked.code)}</h2> : <h1>{heading(blocked.code)}</h1>}
+      {embedded ? <h2>{title}</h2> : <h1>{title}</h1>}
       <p>{blocked.detail}</p>
       {blocked.mismatches.length > 0 && (
         <ol>{blocked.mismatches.map((m, i) => <li key={i}>{m}</li>)}</ol>
       )}
-      <h2>How to fix</h2>
-      <ol>{STEPS[blocked.code].map((s) => <li key={s}>{stepContent(s, projectId, onOpen)}</li>)}</ol>
-      {showSnippet && (
-        <div>
-          <pre className="gy-snippet">{text}</pre>
-          <button type="button" className="gy-btn" onClick={() => { void navigator.clipboard?.writeText(text)?.catch(() => {}); }}>Copy</button>
-        </div>
-      )}
-      <p><button type="button" className="gy-btn gy-btn-primary" onClick={onRetry}>Retry</button>
-        {onCheckup && <>{' '}<button type="button" className="gy-btn" onClick={onCheckup}>Run checkup</button></>}
+      {blocked.code !== 'NO_ACCESSIBLE_GOAL' && <h2>How to fix</h2>}
+      {blocked.code === 'NO_ACCESSIBLE_GOAL' ? null : isAdmin || blocked.code === 'GOAL_NO_ACCESS'
+        ? <ol>{STEPS[blocked.code].map((s) => <li key={s}>{stepContent(s, projectId, onOpen)}</li>)}</ol>
+        : <p>Ask a project admin to finish Setup.</p>}
+      <p><button type="button" className="gy-btn gy-btn-primary" onClick={onOpenSetup}>Open Setup</button>
+        {' '}<button type="button" className="gy-btn" onClick={onRetry}>Retry</button>
         {onBack && <>{' '}<button type="button" className="gy-btn" onClick={onBack}>{backLabel}</button></>}
       </p>
     </div>

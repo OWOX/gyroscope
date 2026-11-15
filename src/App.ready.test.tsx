@@ -1,32 +1,31 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from './test-host';
+import { cleanup, fireEvent, render, screen, waitFor, within } from './test-host';
 import { App, type AppDeps } from './App';
-import { buildModel } from './model/build';
+import { loadGraph } from './model/graph-load';
+import { deriveModel } from './model/derive';
 import { fakeOwox, type FakeOwoxData } from './owox/fake';
 import { cacheKey } from './metrics/refresh';
 import { rangeFor } from './lib/dates';
-import { loadShared, loadPreferences, loadViewSettings, memoryCollections, saveCache, savePreferences, saveViewSettings, type CollectionsLike } from './store/collections';
-import { seedShared } from './test/fixtures';
-import { type CacheDoc, type Model } from './types';
+import { loadPreferences, loadViewSettings, memoryCollections, saveCache, savePreferences, saveViewSettings, type CollectionsLike } from './store/collections';
+import { EMPTY_SETUP, saveSetup } from './store/settings';
+import { type CacheDoc, type Model, type ProjectSettingsV5 } from './types';
 
 const GID = '11111111-1111-1111-1111-111111111111';
 const NOW = new Date('2026-10-24T10:00:00Z');
-const goalAi = {
-  goal: { status: 'ok', metricRef: 'm1', note: '' },
-  metrics: [{ ref: 'm1', role: 'critical', source: 'project', alias: 'Revenue', factLink: 0, planLink: null, kind: 'flow', planShape: null, factDateField: null, planDateField: null, aggregation: null }],
-};
-const missingAi = { goal: { status: 'missing', metricRef: null, note: '' }, metrics: [] };
 const mart = (id: string, title: string) => ({ id, title, status: 'PUBLISHED', description: null, contexts: [], modifiedAt: 't' });
 const CID = 'c';
 const data = (): FakeOwoxData => ({
-  projectDescription: `| Critical number | Revenue | [Revenue](https://app.owox.com/ui/p/data-marts/${GID}/data-setup?field=revenue) |`,
+  projectDescription: null,
   contexts: [],
   marts: [mart(GID, 'Orders')],
-  details: { [GID]: { id: GID, title: 'Orders', fields: [{ name: 'id', type: 'STRING', isPrimaryKey: true }, { name: 'revenue', type: 'FLOAT', alias: 'Revenue', isPrimaryKey: false }] } },
+  details: { [GID]: { id: GID, title: 'Orders', fields: [{ name: 'id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'FLOAT', alias: 'Revenue', isPrimaryKey: false }] } },
   blendables: { [GID]: { availableSources: [], mainUniqueCountKeyFields: ['id'] } },
 });
+/** The settings of a filled project: Revenue of Orders is the critical number. */
+export const filled: ProjectSettingsV5 = { ...EMPTY_SETUP, goal: { martId: GID, measure: { field: 'revenue', fn: 'SUM' }, dateField: 'date', kind: 'flow', alias: 'Revenue', plan: null } };
 
-async function setup(opts: { generate?: AppDeps['generate']; cache?: 'fresh' | 'stale' | 'none'; store?: CollectionsLike; inputHash?: string; withCustomers?: boolean; range?: 'qtd' | 'none' | 'unset' } = {}) {
+async function setup(opts: { cache?: 'fresh' | 'stale' | 'none'; store?: CollectionsLike; withCustomers?: boolean; range?: 'qtd' | 'none' | 'unset'; roles?: string[] } = {}) {
   const d = data();
+  if (opts.roles) d.roles = opts.roles;
   if (opts.withCustomers) {
     d.marts.push(mart(CID, 'Customers'));
     d.details[CID] = { id: CID, title: 'Customers', fields: [{ name: 'id', type: 'STRING', isPrimaryKey: true }, { name: 'created_at', type: 'TIMESTAMP', isPrimaryKey: false }] };
@@ -36,10 +35,10 @@ async function setup(opts: { generate?: AppDeps['generate']; cache?: 'fresh' | '
   }
   const owox = fakeOwox(d);
   const store = opts.store ?? memoryCollections();
-  const built = await buildModel({ owox, generate: async () => goalAi, userId: 'u1', now: NOW, existingCore: null, industry: null });
-  if (!built.ok) throw new Error('fixture');
-  const model: Model = { ...built.model, inputHash: opts.inputHash ?? built.model.inputHash };
-  await seedShared(store, model);
+  const saved = await saveSetup(store, EMPTY_SETUP, filled, 'Ann', NOW);
+  const derived = deriveModel(saved, await loadGraph(owox));
+  if (!derived.ok) throw new Error('fixture');
+  const model: Model = derived.model;
   const cache = opts.cache ?? 'fresh';
   if (cache !== 'none') {
     const doc: CacheDoc = {
@@ -53,10 +52,10 @@ async function setup(opts: { generate?: AppDeps['generate']; cache?: 'fresh' | '
   const rangeOpt = opts.range ?? 'qtd';
   if (rangeOpt === 'qtd') await saveViewSettings(store, { defaultPreset: 'qtd', comparisonDefault: true, weekStart: 'monday' });
   let clock = NOW.getTime();
-  const deps: AppDeps = { owox, store, generate: opts.generate === undefined ? async () => goalAi : opts.generate, userId: 'u1', now: () => new Date(clock) };
+  const deps: AppDeps = { owox, store, userId: 'u1', now: () => new Date(clock) };
   const tick = () => { clock += 60_000; };
   const traversals = () => owox.calls.filter((c) => c.path.startsWith('traverse:')).length;
-  return { deps, traversals, store, d, owox, tick };
+  return { deps, traversals, store, d, owox, tick, model };
 }
 const ctxWith = (setRoute = vi.fn()) => ({ ctx: { projectId: 'p', ui: { setRoute } } as never, setRoute });
 
@@ -73,12 +72,6 @@ test('a cache from another anchor triggers a refresh', async () => {
   await waitFor(() => expect(traversals()).toBeGreaterThan(0));
 });
 
-test('changed inputs show the issues icon, and its layer the out-of-date group', async () => {
-  const { deps } = await setup({ inputHash: 'old' });
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  fireEvent.click(await screen.findByRole('button', { name: '1 issue' }));
-  expect(screen.getByText('The descriptions changed since this model was built.')).toBeInTheDocument();
-});
 
 test('Settings and Back set the route', async () => {
   const { deps } = await setup();
@@ -91,196 +84,13 @@ test('Settings and Back set the route', async () => {
   expect(await screen.findByRole('button', { name: 'Date range' })).toBeInTheDocument();
 });
 
-/** Settings is open: goes to the Metrics tab. */
-const openMetrics = async () => { fireEvent.click(screen.getByRole('tab', { name: 'Metrics' })); };
-const openOntology = async () => {
-  fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
-  await openMetrics();
-};
-// the metric's name is the field's alias, so a rebuild can no longer rename it; a changed kind is a difference it still proposes
-const changedAi = { ...goalAi, metrics: [{ ...goalAi.metrics[0]!, kind: 'level' }] };
-
-test('Rebuild with nothing new says the model matches and saves nothing', async () => {
-  const { deps, store } = await setup();
-  const before = await loadShared(store);
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  await openOntology();
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  expect(await screen.findByText('The model already matches the descriptions.')).toBeInTheDocument();
-  expect(await loadShared(store)).toEqual(before);
-});
-
-test('Rebuild with nothing new still draws a ref the stored model is missing when closed', async () => {
-  const { deps, store } = await setup({ withCustomers: true });
-  const built = (await loadShared(store))!;
-  expect(built.edges).toContainEqual(expect.objectContaining({ from: GID, to: CID }));
-  await seedShared(store, { ...built, edges: [], classes: built.classes.map((c) => (c.id === CID ? { ...c, depth: 5 } : c)) });
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  await openOntology();
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  expect(await screen.findByText('The model already matches the descriptions.')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-  await waitFor(async () => expect((await loadShared(store))?.edges).toEqual(built.edges));
-  const saved = (await loadShared(store))!;
-  expect(saved.classes.find((c) => c.id === CID)?.depth).toBe(1);
-  expect(saved.editedAt).toBe(built.editedAt);
-});
-
-test('a declined row does not keep a moved ref off the canvas: Apply with nothing selected draws it', async () => {
-  const { deps, store } = await setup({ withCustomers: true });
-  const built = (await loadShared(store))!;
-  await seedShared(store, { ...built, edges: [] });
-  render(<App ctx={ctxWith().ctx} deps={{ ...deps, generate: async () => changedAi }} />);
-  await openOntology();
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  fireEvent.click(await screen.findByRole('checkbox', { name: 'Revenue: kind' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Apply selected' }));
-  await waitFor(async () => expect((await loadShared(store))?.edges).toEqual(built.edges));
-  expect((await loadShared(store))?.metrics.find((m) => m.alias === 'Revenue')?.kind).toBe('flow');
-});
-
-test('Rebuild from Settings shows the build progress', async () => {
-  let release!: () => void;
-  const gate = new Promise<void>((r) => { release = r; });
-  const { deps } = await setup();
-  render(<App ctx={ctxWith().ctx} deps={{ ...deps, generate: async () => { await gate; return goalAi; } }} />);
-  await openOntology();
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  await waitFor(() => expect(screen.getByText('AI read the descriptions').closest('li')).toHaveAttribute('data-state', 'running'));
-  expect(screen.getByRole('progressbar')).toHaveAttribute('data-determinate', 'false');
-  release();
-  expect(await screen.findByText('The model already matches the descriptions.')).toBeInTheDocument();
-});
-
-test('Rebuild proposes changes; Apply selected saves them and returns to the canvas', async () => {
-  const { deps, store } = await setup();
-  const before = await loadShared(store);
-  render(<App ctx={ctxWith().ctx} deps={{ ...deps, generate: async () => changedAi }} />);
-  await openOntology();
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  const row = await screen.findByRole('checkbox', { name: 'Revenue: kind' });
-  expect(row).toBeChecked();
-  expect(screen.getByText('flow → level')).toBeInTheDocument();
-  // nothing is saved while the proposal is open
-  expect(await loadShared(store)).toEqual(before);
-  fireEvent.click(screen.getByRole('button', { name: 'Apply selected' }));
-  expect(await screen.findByRole('button', { name: 'Date range' })).toBeInTheDocument();
-  const saved = await loadShared(store);
-  expect(saved?.metrics.find((m) => m.alias === 'Revenue')?.kind).toBe('level');
-  expect(saved?.editedAt).toBe(NOW.toISOString());
-});
-
-test('Discard leaves the stored model as it was', async () => {
-  const { deps, store } = await setup();
-  const before = await loadShared(store);
-  render(<App ctx={ctxWith().ctx} deps={{ ...deps, generate: async () => changedAi }} />);
-  await openOntology();
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  await screen.findByRole('checkbox', { name: 'Revenue: kind' });
-  fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
-  expect(await screen.findByRole('button', { name: 'Rebuild model' })).toBeEnabled();
-  expect(await loadShared(store)).toEqual(before);
-});
-
-test('Rebuild is off while the draft has unsaved edits', async () => {
-  const { deps } = await setup();
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  await openOntology();
-  const rebuild = await screen.findByRole('button', { name: 'Rebuild model' });
-  fireEvent.click(within(screen.getAllByRole('region').find((r) => r.classList.contains('gy-onto-class'))!).getAllByRole('button')[0]!);
-  fireEvent.click(screen.getAllByLabelText('Format')[0]!);
-  fireEvent.click(screen.getByRole('option', { name: 'Percent' }));
-  expect(rebuild).toBeDisabled();
-  expect(screen.getByText('Save or cancel your edits first')).toBeInTheDocument();
-});
-
-test('Closing a rebuild with no differences stores the new input hash, keeps editedAt and clears the notice', async () => {
-  const { deps, store } = await setup({ inputHash: 'old' });
-  const before = await loadShared(store);
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  fireEvent.click(await screen.findByRole('button', { name: '1 issue' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Rebuild to see proposed changes' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  await screen.findByText('The model already matches the descriptions.');
-  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-  await screen.findByRole('button', { name: 'Date range' });
-  const saved = await loadShared(store);
-  expect(saved?.inputHash).not.toBe('old');
-  expect(saved).toEqual({ ...before, inputHash: saved?.inputHash });
-  expect(saved?.editedAt).toBe(before?.editedAt);
-  await new Promise((r) => setTimeout(r, 50));
-  expect(screen.queryByRole('button', { name: /issue/ })).toBeNull();
-});
-
-test('Discard hides the out-of-date notice for this session without touching the doc', async () => {
-  const { deps, store } = await setup({ inputHash: 'old' });
-  const before = await loadShared(store);
-  render(<App ctx={ctxWith().ctx} deps={{ ...deps, generate: async () => changedAi }} />);
-  fireEvent.click(await screen.findByRole('button', { name: '1 issue' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Rebuild to see proposed changes' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  await screen.findByRole('checkbox', { name: 'Revenue: kind' });
-  fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
-  await screen.findByRole('button', { name: 'Date range' });
-  await new Promise((r) => setTimeout(r, 50));
-  expect(screen.queryByRole('button', { name: /issue/ })).toBeNull();
-  expect(await loadShared(store)).toEqual(before);
-});
-
-/** A saved model without the Customers class, so a rebuild proposes adding it and its hash covers one mart fewer. */
-async function dropCustomers(store: CollectionsLike) {
-  const m = (await loadShared(store))!;
-  const keep = m.classes.filter((c) => c.martId !== CID);
-  await seedShared(store, {
-    ...m, inputHash: 'old', classes: keep, edges: [],
-    metrics: m.metrics.filter((x) => keep.some((c) => c.id === x.martId)),
-  });
-}
-
-test('Discarding a proposal that adds a class hides the notice', async () => {
-  const { deps, store } = await setup({ withCustomers: true });
-  await dropCustomers(store);
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  fireEvent.click(await screen.findByRole('button', { name: '1 issue' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Rebuild to see proposed changes' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  await screen.findByRole('checkbox', { name: 'Add class Customers' });
-  fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Back' }));
-  await screen.findByRole('button', { name: 'Date range' });
-  await new Promise((r) => setTimeout(r, 50));
-  expect(screen.queryByRole('button', { name: /issue/ })).toBeNull();
-});
-
-test('a partial Apply that leaves a new class unchecked does not bring the notice back', async () => {
-  const { deps, store } = await setup({ withCustomers: true });
-  await dropCustomers(store);
-  render(<App ctx={ctxWith().ctx} deps={{ ...deps, generate: async () => changedAi }} />);
-  fireEvent.click(await screen.findByRole('button', { name: '1 issue' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Rebuild to see proposed changes' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  fireEvent.click(await screen.findByRole('checkbox', { name: 'Add class Customers' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Apply selected' }));
-  await screen.findByRole('button', { name: 'Date range' });
-  const saved = await loadShared(store);
-  expect(saved?.classes.some((c) => c.martId === CID)).toBe(false);
-  expect(saved?.inputHash).not.toBe('old');
-  await new Promise((r) => setTimeout(r, 100));
-  expect(screen.queryByRole('button', { name: /issue/ })).toBeNull();
-});
-
-test('saving a changed threshold refreshes; an unchanged one does not', async () => {
+test('saving unchanged view settings does not refresh', async () => {
   const { deps, traversals } = await setup();
   render(<App ctx={ctxWith().ctx} deps={deps} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await screen.findByText(/Updated 1 h ago/);
   expect(traversals()).toBe(0);
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  fireEvent.change(screen.getByLabelText(/Red when below plan/), { target: { value: '15' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-  await waitFor(() => expect(traversals()).toBeGreaterThan(0));
 });
 
 test('a failed settings save shows an error and stays on the page', async () => {
@@ -288,30 +98,19 @@ test('a failed settings save shows an error and stays on the page', async () => 
   const store: CollectionsLike = {
     collections: <T,>(name: string) => {
       const c = mem.collections<T>(name);
-      return name === 'settings' ? { ...c, put: async () => { throw new Error('boom'); } } : c;
+      return name === 'preferences' ? { ...c, put: async () => { throw new Error('boom'); } } : c;
     },
   };
-  const { deps } = await setup({ store });
+  const { deps } = await setup({ store, range: 'unset' });
   render(<App ctx={ctxWith().ctx} deps={deps} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
-  fireEvent.change(screen.getByLabelText(/Red when below plan/), { target: { value: '15' } });
+  fireEvent.change(screen.getByLabelText('Week starts on'), { target: { value: 'sunday' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(await screen.findByText("Couldn't save settings: boom")).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
 });
 
-test('saving a changed threshold keeps the stored industry and core classes', async () => {
-  const { deps, store } = await setup();
-  const stored = { thresholdPct: 20, industry: 'saas', coreClasses: [{ martId: 'a', why: 'x' }] };
-  await store.collections('settings').put('project', stored);
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
-  fireEvent.change(screen.getByLabelText(/Red when below plan/), { target: { value: '15' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-  await waitFor(async () => expect((await store.collections('settings').get('project'))!.document).toEqual({ ...stored, thresholdPct: 15 }));
-});
-
-test('saving with an unchanged threshold writes nothing to the settings collection', async () => {
+test('saving view settings writes nothing to the project settings collection', async () => {
   const mem = memoryCollections();
   const puts: string[] = [];
   const store: CollectionsLike = {
@@ -321,6 +120,7 @@ test('saving with an unchanged threshold writes nothing to the settings collecti
     },
   };
   const { deps } = await setup({ store });
+  puts.length = 0;
   render(<App ctx={ctxWith().ctx} deps={deps} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -328,81 +128,28 @@ test('saving with an unchanged threshold writes nothing to the settings collecti
   expect(puts).toEqual([]);
 });
 
-test('retry after a failed initial load re-runs the load, not the AI build', async () => {
+test('retry after a failed initial load re-runs the load', async () => {
   const mem = memoryCollections();
-  let failed = false;
+  let armed = false;
   const store: CollectionsLike = {
     collections: <T,>(name: string) => {
       const c = mem.collections<T>(name);
-      return { ...c, get: async (id: string) => { if (!failed) { failed = true; throw new Error('boom'); } return c.get(id); } };
+      return { ...c, get: async (id: string) => { if (armed) { armed = false; throw new Error('boom'); } return c.get(id); } };
     },
   };
-  const generate = vi.fn(async () => goalAi);
-  const { deps } = await setup({ store, generate, cache: 'none' });
-  failed = false;
+  const { deps } = await setup({ store, cache: 'none' });
+  armed = true;
   render(<App ctx={ctxWith().ctx} deps={deps} />);
   expect(await screen.findByText('boom')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
   expect(await screen.findByRole('button', { name: 'Date range' })).toBeInTheDocument();
-  expect(generate).not.toHaveBeenCalled();
 });
 
-test('a blocked rebuild shows inside the tab and keeps the current model', async () => {
-  const { deps, store } = await setup({ generate: async () => missingAi });
-  const before = await loadShared(store);
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
-  await openMetrics();
-  fireEvent.click(await screen.findByRole('button', { name: 'Rebuild model' }));
-  expect(await screen.findByRole('heading', { name: "Goal can't be tracked" })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Back to the model' }));
-  expect(await screen.findByRole('button', { name: 'Rebuild model' })).toBeEnabled();
-  expect(await loadShared(store)).toEqual(before);
-});
 
-test('modifiedAt churn alone shows no banner; a class-mart formula change does', async () => {
-  const { deps, d } = await setup({ cache: 'none' });
-  d.marts = d.marts.map((m) => ({ ...m, modifiedAt: 'later' }));
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  await screen.findByRole('button', { name: 'Date range' });
-  await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull());
-  await new Promise((r) => setTimeout(r, 50));
-  expect(screen.queryByRole('button', { name: /issue/ })).toBeNull();
-});
 
-test('a formula change in a class mart shows the banner', async () => {
-  const { deps, d } = await setup();
-  d.details[GID]!.fields.push({ name: 'x', type: 'FLOAT', isPrimaryKey: false, calculated: { formula: 'SUM(1)', level: 'column' } });
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  expect(await screen.findByRole('button', { name: '1 issue' })).toBeInTheDocument();
-});
 
-test('a refused contexts call skips the out-of-date check', async () => {
-  const { deps } = await setup({ inputHash: 'old' });
-  const inner = deps.owox;
-  deps.owox = { ...inner, getJson: async (path: string, q?: Record<string, unknown>) => { if (path === '/api/contexts') throw new Error('403'); return inner.getJson(path, q); } } as AppDeps['owox'];
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  await screen.findByRole('button', { name: 'Date range' });
-  await new Promise((r) => setTimeout(r, 50));
-  expect(screen.queryByRole('button', { name: /issue/ })).toBeNull();
-});
 
-test('a class whose mart the member cannot see renders as a no-access card and is not queried', async () => {
-  const { deps, d, owox } = await setup({ cache: 'none', withCustomers: true });
-  d.marts = d.marts.filter((m) => m.id !== CID);
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  await waitFor(() => expect(owox.calls.some((c) => c.path === `traverse:${GID}`)).toBe(true));
-  expect(screen.getByText('Customers', { selector: '.gy-card-title' })).toBeInTheDocument();
-  expect(owox.calls.some((c) => c.path === `traverse:${CID}`)).toBe(false);
-});
 
-test('an invisible main shows the no-access card', async () => {
-  const { deps, d } = await setup({ cache: 'none', withCustomers: true });
-  d.marts = d.marts.filter((m) => m.id !== GID);
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  expect((await screen.findAllByText('No access to this Data Mart')).length).toBeGreaterThan(0);
-  expect(screen.queryByText('Data Mart not found or not accessible')).toBeNull();
-});
 
 test('a failed cache save keeps the new values on screen and shows a note', async () => {
   const mem = memoryCollections();
@@ -460,11 +207,12 @@ test('the toolbar shows the cut windows when a comparison is cut short', async (
 
 test('the week start setting changes the cache key of a week preset', async () => {
   const mk = async (weekStart: 'monday' | 'sunday') => {
-    const { deps, store, traversals } = await setup({ cache: 'none', range: 'unset' });
+    const ctxModel = await setup({ cache: 'none', range: 'unset' });
+    const { deps, store, traversals } = ctxModel;
     await saveViewSettings(store, { defaultPreset: 'wtd', comparisonDefault: false, weekStart });
     // a fresh doc under the Monday key only
     const monday = cacheKey({ kind: 'preset', preset: 'wtd' }, { kind: 'off' });
-    const m = (await loadShared(store))!;
+    const { model: m } = ctxModel;
     await saveCache(store, monday, { modelHash: m.inputHash, builtAt: m.builtAt, editedAt: m.editedAt, thresholdPct: 20, anchor: rangeFor('wtd', NOW).anchor, refreshedAt: '2026-10-24T09:00:00Z', key: monday, comparison: false, cards: {} });
     render(<App ctx={ctxWith().ctx} deps={deps} />);
     return traversals;
@@ -576,7 +324,7 @@ test('without a cache the line and step text walk through the steps and go away'
   const s = await setup({ cache: 'none' });
   const g = gated(s.deps);
   render(<App ctx={ctxWith().ctx} deps={g.deps} />);
-  expect(await screen.findByText(/Reading Data Marts…/)).toBeInTheDocument();
+  expect(await screen.findByText(/Loading settings and model…/)).toBeInTheDocument();
   await waitFor(() => expect(line()).toHaveAttribute('data-determinate', 'false'));
   g.openList();
   expect(await screen.findByText(/Loading metrics 0 of \d+/)).toBeInTheDocument();
@@ -597,6 +345,7 @@ test('a stale cache refreshes behind the line, cards stay interactive', async ()
   const g = gated(s.deps);
   const { container } = render(<App ctx={ctxWith().ctx} deps={g.deps} />);
   g.openList();
+  await screen.findByRole('button', { name: 'Date range' });
   await waitFor(() => expect(line()).not.toBeNull());
   expect(container.querySelector('.gy-bands')).not.toHaveAttribute('inert');
   g.open();
@@ -633,9 +382,9 @@ test('a stale cache starts with Loading metrics, not Reading Data Marts', async 
   const s = await setup({ cache: 'stale' });
   const g = gated(s.deps);
   render(<App ctx={ctxWith().ctx} deps={g.deps} />);
+  g.openList();
   await screen.findByRole('button', { name: 'Date range' });
   expect(screen.queryByText(/Reading Data Marts/)).toBeNull();
-  g.openList();
   expect(await screen.findByText(/Loading metrics/)).toBeInTheDocument();
   expect(screen.queryByText(/Reading Data Marts/)).toBeNull();
   g.open();
@@ -739,8 +488,8 @@ test('a custom range already on screen is not blanked by Settings and Back', asy
   const card = () => container.querySelector(`[data-class-id="${GID}"]`)!;
   expect(card()).toHaveTextContent('4.24K');
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  // a new threshold re-runs the refresh for the range on screen; hold it to look at the canvas meanwhile
-  fireEvent.change(await screen.findByLabelText('Red when below plan by more than (%)'), { target: { value: '30' } });
+  // coming back re-runs the refresh for the range on screen; hold it to look at the canvas meanwhile
+  await screen.findByLabelText('Week starts on');
   p.values[GID] = 9999;
   const openG = p.hold(GID);
   const again = p.started.count;
@@ -753,48 +502,8 @@ test('a custom range already on screen is not blanked by Settings and Back', asy
   expect(card()).toHaveTextContent('10K');
 });
 
-test('a failed access check marks every class no-access rather than queried', async () => {
-  const s = await setup({ withCustomers: true });
-  const o = s.deps.owox;
-  const owox = { ...o, dataMarts: { ...o.dataMarts, list: async () => { throw new Error('boom'); } } } as AppDeps['owox'];
-  render(<App ctx={ctxWith().ctx} deps={{ ...s.deps, owox }} />);
-  expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't check which Data Marts you can access");
-  expect(screen.getAllByText("No access to this Data Mart").length).toBeGreaterThan(0);
-});
 
-test('a member without access to a class sees a lock card, no issues badge and no broken health', async () => {
-  const s = await setup({ withCustomers: true });
-  // the member lists only Orders; the server refuses Customers' detail
-  const base = fakeOwox({ ...s.d, marts: [mart(GID, 'Orders')], roles: ['viewer'] });
-  const owox = { ...base, getJson: (async (path: string) => { if (path === `/api/data-marts/${CID}`) throw Object.assign(new Error('403'), { status: 403 }); return base.getJson(path); }) as typeof base.getJson } as AppDeps['owox'];
-  const { container } = render(<App ctx={ctxWith().ctx} deps={{ ...s.deps, owox }} />);
-  await waitFor(() => expect(container.querySelector(`[data-class-id="${CID}"]`)).toHaveTextContent('No access to this Data Mart'));
-  expect(container.querySelector(`[data-class-id="${CID}"]`)).not.toHaveTextContent('not found or not accessible');
-  await waitFor(() => expect(screen.queryByRole('button', { name: /issue/ })).toBeNull());
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  fireEvent.click(await screen.findByRole('tab', { name: 'Checkup' }));
-  await screen.findByText(/^Checked /);
-  expect(screen.queryByText(/^\d+ broken references?$/)).toBeNull();
-});
 
-test('a broken reference shows the icon with its count, and the layer link opens Settings', async () => {
-  const { deps, d } = await setup();
-  d.details[GID]!.fields.splice(1, 1);
-  const { ctx, setRoute } = ctxWith();
-  render(<App ctx={ctx} deps={deps} />);
-  fireEvent.click(await screen.findByRole('button', { name: '1 issue' }));
-  expect(screen.getByRole('dialog', { name: 'Issues' })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Review in Metrics' }));
-  expect(setRoute).toHaveBeenCalledWith('/settings/ontology');
-  expect(screen.getByRole('tab', { name: 'Metrics' })).toHaveAttribute('aria-selected', 'true');
-});
-
-test('no issues icon while the model matches its schemas', async () => {
-  const { deps } = await setup();
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  await screen.findByRole('button', { name: 'Date range' });
-  expect(screen.queryByRole('button', { name: /issue/ })).toBeNull();
-});
 
 describe('data quality icons', () => {
   const summary = { state: 'PASSED', enabledChecks: 4, passedChecks: 4, failedChecks: 0, errorChecks: 0, warningFindings: 0, errorFindings: 0, highestSeverity: null, lastRunAt: null };
@@ -863,12 +572,6 @@ test('a member who cleared the range reopens on the ontology view', async () => 
   expect(await screen.findByRole('button', { name: 'Date range' })).toHaveTextContent('Select date range');
 });
 
-test('with no range an admin still gets the out-of-date notice', async () => {
-  const { deps } = await setup({ range: 'unset', cache: 'none', inputHash: 'old' });
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  fireEvent.click(await screen.findByRole('button', { name: '1 issue' }));
-  expect(screen.getByText('The descriptions changed since this model was built.')).toBeInTheDocument();
-});
 
 test('from no range, a preset applied without touching Compare brings the comparison default', async () => {
   const { deps, store } = await setup({ range: 'unset', cache: 'none' });

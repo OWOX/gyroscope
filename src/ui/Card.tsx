@@ -29,8 +29,6 @@ interface Props {
   comparisonOn: boolean;
   refreshing: boolean;
   noAccess?: boolean;
-  /** The class's Data Mart no longer exists. */
-  missing?: boolean;
   /** 'vs Last Month' and the like; the comparison row shows only when it is given and comparison is on. */
   compareLabel?: string;
   /** The diff chip shows an absolute difference instead of a relative one. */
@@ -308,7 +306,7 @@ function CardSkeleton({ badges, spark }: { badges: number; spark: boolean }) {
   );
 }
 
-export function Card({ cls, mart, marts, metrics, cache, comparisonOn, refreshing, noAccess, missing, compareLabel, absolute = false, onToggleDiff, projectId = '', quality, details, markdown, onOpen, weekStart, onRetry }: Props) {
+export function Card({ cls, mart, marts, metrics, cache, comparisonOn, refreshing, noAccess, compareLabel, absolute = false, onToggleDiff, projectId = '', quality, details, markdown, onOpen, weekStart, onRetry }: Props) {
   const nameOf = (m: MetricDef) => metricName(m, details?.get(m.martId));
   // The metric the reader swapped in for this session, with the secondary order it leaves behind.
   const [swap, setSwap] = useState<{ main: string; rest: string[] } | null>(null);
@@ -325,18 +323,10 @@ export function Card({ cls, mart, marts, metrics, cache, comparisonOn, refreshin
   const pick = (id: string) => { if (key) setSwap({ main: id, rest: secondary.map((m) => (m.id === id ? key.id : m.id)) }); };
   const res = key ? cache?.metrics[key.id] : undefined;
   const comparingNow = comparisonOn && !!compareLabel;
-  const hidden = noAccess || missing || !key;
+  const hidden = noAccess || !key;
   const note = key && !key.isUniqueCount ? fieldNote(details?.get(key.martId), key.measure.field) : undefined;
-  const header = <CardHead title={cls.title} martId={cls.martId} metric={hidden ? undefined : key.isUniqueCount ? 'Count' : nameOf(key)} metricNote={hidden ? undefined : note} mart={mart} markdown={markdown} openPath={noAccess || missing ? undefined : `/ui/${projectId}/data-marts/${cls.martId}/overview`} onOpen={onOpen} tools={onOpen && !noAccess && !missing ? <QualityTool quality={quality} path={`/ui/${projectId}/data-marts/${cls.martId}/quality`} onOpen={onOpen} /> : undefined} />;
+  const header = <CardHead title={cls.title} martId={cls.martId} metric={hidden ? undefined : key.isUniqueCount ? 'Count' : nameOf(key)} metricNote={hidden ? undefined : note} mart={mart} markdown={markdown} openPath={noAccess ? undefined : `/ui/${projectId}/data-marts/${cls.martId}/overview`} onOpen={onOpen} tools={onOpen && !noAccess ? <QualityTool quality={quality} path={`/ui/${projectId}/data-marts/${cls.martId}/quality`} onOpen={onOpen} /> : undefined} />;
 
-  if (missing) {
-    return (
-      <article className="gy-card" data-class-id={cls.id} data-status="empty">
-        {header}
-        <p className="gy-muted"><TriangleAlert size={14} aria-label="Warning" /> Data Mart not found or not accessible</p>
-      </article>
-    );
-  }
   if (noAccess) {
     return (
       <article className="gy-card" data-class-id={cls.id} data-status="empty">

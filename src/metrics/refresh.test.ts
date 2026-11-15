@@ -171,7 +171,7 @@ test('a hidden class and a hidden metric are not queried', async () => {
   expect(traversed.every((c) => c.path === 'traverse:a')).toBe(true);
 });
 
-describe('broken references', () => {
+describe('sources and failures', () => {
   const metric = (id: string, over = {}) => ({ id, martId: 'a', alias: id, measure: { field: 'id', fn: 'COUNT_DISTINCT' as const }, kind: 'flow' as const, dateField: null, role: 'unique' as const, source: 'schema', isUniqueCount: true, format: 'number' as const, currency: null, plan: null, shown: true, forecast: null, ...over });
   const model = (metrics: ReturnType<typeof metric>[]): Model => ({
     version: 3, inputHash: 'h1', builtAt: '', builtBy: 'u', editedAt: null, editedBy: null,
@@ -181,31 +181,6 @@ describe('broken references', () => {
   });
   const spec = rangeFor('last_7d', new Date('2026-10-24T10:00:00Z'));
   const ok = () => fakeOwox({ projectDescription: null, contexts: [], marts: [], details: {}, blendables: {}, rows: () => [{ 'Unique Count': 5 }] });
-
-  test('a metric with a broken fact field is not queried; the others are', async () => {
-    const owox = ok();
-    const m = model([metric('bad'), metric('good')]);
-    const doc = await refreshCanvas({ owox, model: m, spec, key: 'k', thresholdPct: 20, issues: [{ kind: 'fact_field_missing', classId: 'a', martId: 'a', metricId: 'bad', text: 'Field id no longer exists in A' }] });
-    const r = doc.cards.a!.metrics;
-    expect(r.bad).toMatchObject({ fact: null, status: 'neutral', warning: 'Field id no longer exists in A' });
-    expect(r.good!.fact).toBe(5);
-    expect(owox.calls.filter((c) => c.path === 'traverse:a')).toHaveLength(1);
-  });
-
-  test('a class whose Data Mart is gone queries nothing', async () => {
-    const owox = ok();
-    const doc = await refreshCanvas({ owox, model: model([metric('m')]), spec, key: 'k', thresholdPct: 20, issues: [{ kind: 'mart_missing', classId: 'a', martId: 'a', metricId: null, text: 'Data Mart not found or not accessible' }] });
-    expect(doc.cards.a!.metrics.m!.warning).toBe('Data Mart not found or not accessible');
-    expect(owox.calls).toHaveLength(0);
-  });
-
-  test('a plan issue drops the plan and warns; the fact stays', async () => {
-    const plan = { martId: 'p', measure: { field: 'x', fn: 'SUM' as const }, dateField: 'd', shape: 'daily' as const };
-    const owox = ok();
-    const doc = await refreshCanvas({ owox, model: model([metric('m', { plan })]), spec, key: 'k', thresholdPct: 20, issues: [{ kind: 'plan_field_missing', classId: 'a', martId: 'a', metricId: 'm', text: 'The plan field x no longer exists in p' }] });
-    expect(doc.cards.a!.metrics.m).toMatchObject({ fact: 5, plan: null, warning: 'The plan field x no longer exists in p' });
-    expect(owox.calls.some((c) => c.path === 'traverse:p')).toBe(false);
-  });
 
   test('a plan on a Data Mart the viewer cannot access is dropped without an issue; the fact stays', async () => {
     const plan = { martId: 'p', measure: { field: 'x', fn: 'SUM' as const }, dateField: 'd', shape: 'daily' as const };
@@ -245,20 +220,6 @@ describe('broken references', () => {
     expect(doc.cards.a!.metrics.good!.fact).toBe(5);
   });
 
-  test('a failed forecast source and a soft issue show as one joined warning', async () => {
-    const plan = { martId: 'p', measure: { field: 'x', fn: 'SUM' as const }, dateField: 'd', shape: 'daily' as const };
-    const forecast = { martId: 'f', measure: { field: 'id', fn: 'COUNT_DISTINCT' as const }, dateField: 'date' };
-    const owox = ok();
-    const base = owox.dataMarts.traverseData;
-    owox.dataMarts.traverseData = async (id, o) => {
-      if (id === 'f') throw new Error('BOOM');
-      return base(id, o);
-    };
-    const m = model([metric('m', { dateField: 'date', plan, forecast })]);
-    const future = rangeFor('cur_quarter', new Date('2026-10-24T10:00:00Z'));
-    const doc = await refreshCanvas({ owox, model: m, spec: future, key: 'k', thresholdPct: 20, issues: [{ kind: 'plan_field_missing', classId: 'a', martId: 'a', metricId: 'm', text: 'The plan field x no longer exists in p' }] });
-    expect(doc.cards.a!.metrics.m!.warning).toBe('The plan field x no longer exists in p; Forecast source failed: BOOM');
-  });
 });
 
 test('a unique count on an INTEGER key shows on the canvas and asks uniqueCount', async () => {
@@ -290,4 +251,23 @@ test('a server that ignores uniqueCount gives that metric an error while the oth
   expect(doc.cards.a!.metrics['a:id']!.error).toContain("didn't return a Unique Count");
   expect(doc.cards.a!.metrics['a:qty']!.error).toBeNull();
   expect(doc.cards.a!.metrics['a:qty']!.fact).toBe(5);
+});
+
+test('a ratio metric divides two metrics, one of them on no card', async () => {
+  const owox = fakeOwox({ projectDescription: null, contexts: [], marts: [], details: {}, blendables: {}, rows: () => [{ 'Unique Count': 10, 'revenue | SUM': 4, date: '2026-10-20' }] });
+  const base = { martId: 'a', kind: 'flow' as const, dateField: 'date', role: 'unique' as const, source: 'schema', isUniqueCount: false, format: 'number' as const, currency: null, plan: null, shown: true, forecast: null };
+  const a = { ...base, id: 'a', alias: 'A', measure: { field: 'id', fn: 'COUNT_DISTINCT' as const }, isUniqueCount: true };
+  const b = { ...base, id: 'b', alias: 'B', measure: { field: 'revenue', fn: 'SUM' as const }, shown: false };
+  const r = { ...a, id: 'r', alias: 'R', isUniqueCount: false, ratio: { numerator: 'a', denominator: 'b' } };
+  const model: Model = {
+    version: 3, inputHash: 'h1', builtAt: '', builtBy: 'u', editedAt: null, editedBy: null,
+    goal: { classId: 'a', metricId: null, goalMartId: 'a', viaFallback: false },
+    classes: [{ id: 'a', martId: 'a', title: 'A', contexts: [], depth: 0, keyMetricId: 'a', metricIds: ['a', 'r'], shown: true, core: false, inbound: 0 }],
+    edges: [], metrics: [a, b, r],
+  };
+  const doc = await refreshCanvas({ owox, model, spec: rangeFor('last_7d', new Date('2026-10-24T10:00:00Z')), key: 'k', thresholdPct: 20 });
+  const m = doc.cards.a!.metrics;
+  expect(m.a!.fact).toBe(10);
+  expect(m.r!.fact).toBe(m.a!.fact! / 4);
+  expect(m.b).toBeUndefined();
 });

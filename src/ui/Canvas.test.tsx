@@ -168,7 +168,7 @@ test('the ontology mode shows names only', () => {
 test('the ontology mode with no core classes says so', () => {
   const none = { ...onto, classes: onto.classes.map((x) => ({ ...x, core: false })) } as Model;
   render(<Canvas mode="ontology" model={none} cache={null} comparisonOn refreshing={false} onRetry={() => {}} />);
-  expect(screen.getByText('No core classes yet. An admin can set them in Settings, Checkup.')).toBeInTheDocument();
+  expect(screen.getByText('No core classes yet. An admin can set them in Settings, Setup.')).toBeInTheDocument();
 });
 
 const orbitOf = (n: number) => ({
@@ -216,7 +216,7 @@ test('the ontology chips list only contexts of core classes', () => {
 });
 
 // Real grid geometry: 224px cells, 48px gaps, goal 224x144, other cards 112 tall and centred on their row.
-const gb = (col: number, row: number, h: number, rowTop: number, rowH: number) => {
+const gb = (col: number, _row: number, h: number, rowTop: number, rowH: number) => {
   const left = col * (224 + 48), top = rowTop + (rowH - h) / 2;
   return { left, top, right: left + 224, bottom: top + h, width: 224, height: h };
 };

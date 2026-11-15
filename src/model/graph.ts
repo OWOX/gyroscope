@@ -1,6 +1,6 @@
 import type { Edge } from '../types';
 import { parseRefs } from '../lib/refs';
-import { DATE_TYPES, flattenFields, type Blendable, type MartDetail, type SchemaField } from '../owox/sources';
+import type { Blendable, MartDetail, SchemaField } from '../owox/sources';
 
 export interface MartNode {
   id: string; title: string;
@@ -19,9 +19,6 @@ export function primaryKeyPaths(fields: SchemaField[], prefix = ''): string[] {
 }
 
 export const hasPrimaryKey = (detail: MartDetail): boolean => primaryKeyPaths(detail.fields).length > 0;
-
-/** A reportable date field, as the metrics see one: hidden and disconnected fields don't count. */
-export const hasDateField = (detail: MartDetail): boolean => flattenFields(detail.fields).some((x) => DATE_TYPES.has(x.field.type.toUpperCase()));
 
 function resolveTarget(path: string, b: Blendable, visible: ReadonlySet<string>, allowHiddenTarget?: string): string | null {
   const segs = path.split('.');
