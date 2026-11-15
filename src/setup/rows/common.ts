@@ -82,7 +82,7 @@ export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string)
 }
 
 /** A row from its catalog key; `options` come first-is-recommended and are normalised here. */
-export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, rest: { state: RowState; current: string | null; options: Plain[]; detail?: string; group?: string; severity?: Severity; none?: string }): Row {
+export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, rest: { state: RowState; current: string | null; options: Plain[]; detail?: string; group?: string; groupId?: string; severity?: Severity; none?: string }): Row {
   const c = COPY[key]!;
   const base = rest.severity ?? c.severity;
   // a broken saved value counts 🟡 unless the row is a blocker

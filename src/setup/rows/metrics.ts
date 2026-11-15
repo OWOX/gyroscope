@@ -29,7 +29,7 @@ export function metricRows(ctx: Ctx): Row[] {
     const stored = saved?.keyMetricId ?? null;
     const keyState: RowState = stored ? (cl.metricIds.includes(stored) ? 'done' : 'broken') : 'open';
     rows.push(make(ctx, 'class.key', `class:${cl.id}.key`, 'metrics', vars, {
-      group: cl.title,
+      group: cl.title, groupId: cl.id,
       state: keyState, detail: keyState === 'broken' ? `${alias(stored!)} isn't on ${cl.title} any more` : undefined,
       current: stored && keyState === 'done' ? labelOf(stored) : null, severity: important ? 'warning' : 'notice',
       options: keys.map((id) => { const m = model.metrics.find((x) => x.id === id); return setOption(`metric:${id}`, labelOf(id), write((cur) => ({ ...cur, keyMetricId: id })), m && martPage(ctx, m.martId, m.measure.field), m && labelOf(id)); }),
@@ -46,7 +46,7 @@ export function metricRows(ctx: Ctx): Row[] {
     const shown = saved?.shown ?? [];
     const bad = shown.map((c) => ({ c, chk: fieldCheck(ctx, c.martId, [c.measure.field]) })).find((x) => x.chk.state !== 'done');
     rows.push(make(ctx, 'class.shown', `class:${cl.id}.shown`, 'metrics', vars, {
-      group: cl.title,
+      group: cl.title, groupId: cl.id,
       state: bad ? bad.chk.state : shown.length ? 'done' : 'open', detail: bad?.chk.detail,
       current: shown.length ? shown.map((c) => fieldLabel(martTitle(ctx, c.martId), c.alias)).join(', ') : null, options: picks,
     }));
@@ -54,13 +54,13 @@ export function metricRows(ctx: Ctx): Row[] {
     for (const c of shown) {
       const mid = metricId(c.martId, c.measure);
       const mvars = { ...vars, Metric: c.alias };
-      rows.push(planRow(ctx, 'metric.plan', `metric:${mid}.plan`, 'metrics', mvars, cl.title, ctx.nodes, c.martId, c.kind, s.plans[mid] ?? null,
-        (x, p) => { const plans = { ...x.plans }; if (p) plans[mid] = p; else delete plans[mid]; return { ...x, plans }; }));
+      rows.push({ ...planRow(ctx, 'metric.plan', `metric:${mid}.plan`, 'metrics', mvars, cl.title, ctx.nodes, c.martId, c.kind, s.plans[mid] ?? null,
+        (x, p) => { const plans = { ...x.plans }; if (p) plans[mid] = p; else delete plans[mid]; return { ...x, plans }; }), groupId: cl.id });
       const fr = formatFor(c.alias);
       const fmt = s.formats[mid];
       const order = (Object.keys(FORMATS) as MetricFormat[]).sort((a, b) => +(b === fr.format) - +(a === fr.format));
       rows.push(make(ctx, 'metric.format', `metric:${mid}.format`, 'metrics', mvars, {
-      group: cl.title,
+      group: cl.title, groupId: cl.id,
         state: fmt ? 'done' : 'open', current: fmt ? FORMATS[fmt.format] : null,
         options: order.map((f) => setOption(`format:${f}`, FORMATS[f], (x) => ({ ...x, formats: { ...x.formats, [mid]: { format: f, currency: f === 'currency' ? fr.currency : null } } }))),
       }));

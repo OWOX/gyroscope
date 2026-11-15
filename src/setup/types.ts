@@ -22,6 +22,8 @@ export interface Row {
   block: BlockId;
   /** A per-class or per-team sub-group title, such as the class title. */
   group?: string;
+  /** The Data Mart's id when the group is a Data Mart, to look its icon up. */
+  groupId?: string;
   title: string; question: string; why: string;
   severity: Severity;
   state: RowState;

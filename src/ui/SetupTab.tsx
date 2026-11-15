@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { BLOCKS } from '../setup/catalog';
 import { isOpen, progress } from '../setup/progress';
@@ -5,6 +6,7 @@ import type { BlockInfo, Row, Severity } from '../setup/types';
 import { CollapsibleCard } from './CollapsibleCard';
 import { HintBubble, HintButton } from './Hint';
 import { LoadingBar } from './LoadingBar';
+import { MartIcon } from './MartIcon';
 import { ProgressBar } from './ProgressBar';
 import { SetupRow } from './SetupRow';
 
@@ -19,6 +21,8 @@ export interface SetupTabProps {
   optionRows?: Record<string, Row>;
   /** A line under the Save bar, e.g. which staged choice a later one replaced. */
   notice?: string | null;
+  /** Data Mart id to its icon (a recommended key, `lucide:<name>` or null), for the group headers. */
+  martIcons?: Record<string, string | null>;
   onRetry: () => void; onOpen?: (path: string) => void;
 }
 
@@ -43,7 +47,7 @@ function Block({ info, rows, folded, hintOpen, onHint, attention, children }: { 
   );
 }
 
-export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, onSave, onDiscard, savedOpen, optionRows, notice, onRetry, onOpen }: SetupTabProps) {
+export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, onSave, onDiscard, savedOpen, optionRows, notice, martIcons, onRetry, onOpen }: SetupTabProps) {
   // a staged append or team write is done as far as the bar goes: it changes no setting, so the rows can't show it
   const eff = rows.map((r) => {
     const k = r.options.find((o) => o.id === picked[r.id])?.action.kind;
@@ -105,9 +109,14 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
             {loose.map(renderRow)}
             {groups.map((g) => {
               const inGroup = mine.filter((r) => r.group === g);
+              const gid = inGroup.find((r) => r.groupId)?.groupId;
               return (
                 <details key={g} className="gy-setup-group" open={inGroup.some((r) => savedOpen.has(r.id))}>
-                  <summary>{g}</summary>
+                  <summary>
+                    {gid !== undefined && <span className="gy-setup-group-icon" aria-hidden="true"><MartIcon icon={martIcons?.[gid] ?? null} size={16} aria-hidden="true" /></span>}
+                    <span className="gy-setup-group-name">{g}</span>
+                    <ChevronDown size={12} className="gy-setup-group-chevron" aria-hidden="true" />
+                  </summary>
                   {inGroup.map(renderRow)}
                 </details>
               );

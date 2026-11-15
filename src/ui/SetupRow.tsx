@@ -44,7 +44,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const radio = (key: string, label: ReactNode, checked: boolean, onChange: () => void, o?: Option, disabled = false) => (
     <div key={key} className="gy-radio">
       <input id={`${uid}-${key}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
-      <label htmlFor={`${uid}-${key}`}>{label}{o?.recommended && <span className="gy-muted gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</label>
+      <label htmlFor={`${uid}-${key}`}>{label}{o?.recommended && <span className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</label>
       {o && linkBtn(o)}
     </div>
   );

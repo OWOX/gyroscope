@@ -492,7 +492,14 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-setup-count { display: inline-block; padding: 0.0625rem 0.4375rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; line-height: 1.25; background: color-mix(in oklab, var(--border) 75%, transparent); }
 :root.dark .gy-setup-count { background: color-mix(in oklab, white 8%, transparent); }
 .gy-setup-group { margin-top: 0.5rem; }
-.gy-setup-group > summary { cursor: pointer; font-size: 0.8125rem; font-weight: 500; padding: 0.25rem 0; }
+.gy-setup-group > summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; font-size: 0.8125rem; font-weight: 500; padding: 0.25rem 0; }
+.gy-setup-group > summary::-webkit-details-marker { display: none; }
+/* the band's title text starts 2.25rem in (1.75rem tile + 0.5rem gap); the 1.25rem tile is centred under the band's tile, and the text follows it */
+.gy-setup-group-icon { flex: none; display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; margin: 0 0.25rem; border-radius: 0.25rem; background: color-mix(in oklab, var(--border) 75%, transparent); color: var(--foreground); }
+:root.dark .gy-setup-group-icon { background: color-mix(in oklab, white 8%, transparent); }
+.gy-setup-group-name { flex: 1; min-width: 0; }
+.gy-setup-group-chevron { flex: none; color: var(--muted-foreground); transition: transform 0.2s; }
+.gy-setup-group[open] > summary .gy-setup-group-chevron { transform: rotate(180deg); }
 .gy-progress { display: grid; gap: 0.5rem; }
 .gy-progress-track { height: 0.5rem; overflow: hidden; border-radius: 999px; background: var(--muted); }
 .gy-progress-fill { display: block; height: 100%; }
@@ -527,10 +534,10 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-hint-btn { flex: none; display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted-foreground); cursor: pointer; }
 .gy-hint-btn:hover { color: var(--foreground); }
 .gy-hint-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
-.gy-hint { position: relative; margin-top: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: var(--muted-foreground); }
+.gy-hint { position: relative; margin-top: 0.4rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: var(--muted-foreground); }
 .gy-hint[hidden] { display: none; }
 .gy-hint::before { content: ''; position: absolute; top: -5px; left: calc(var(--caret-x, 1rem) - 4px); width: 8px; height: 8px; background: var(--card); border-top: 1px solid var(--border); border-left: 1px solid var(--border); transform: rotate(45deg); }
-.dm-collapsible-hint { margin: -0.25rem 0 0.75rem 2.25rem; }
+.dm-collapsible-hint { margin: -0.6rem 0 0.75rem 2.25rem; }
 .dm-collapsible-hint .gy-hint { margin-top: 0; }
 .dm-collapsible[data-folded='true'] .dm-collapsible-hint { display: none; }
 /* the block's icon tile takes the colour of its worst open severity */
@@ -544,7 +551,7 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; margin-left: 0.125rem; }
 .gy-row-recline .gy-row-link { display: inline-grid; vertical-align: middle; }
 .gy-row-note { font-size: 0.75rem; }
-.gy-row-rec { margin-left: 0.375rem; font-size: 0.6875rem; }
+.gy-row-rec { display: inline-block; margin-left: 0.375rem; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.6875rem; line-height: 1.4; color: var(--muted-foreground); white-space: nowrap; vertical-align: middle; }
 .gy-row-more, .gy-row-open { text-align: left; }
 .gy-progress-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
 .gy-save { display: flex; align-items: center; gap: 0.75rem; font-size: 0.8125rem; }

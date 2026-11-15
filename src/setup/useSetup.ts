@@ -327,6 +327,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     rows, loading, readOnly: !args.isAdmin, message, picked: Object.fromEntries((draft?.valid ?? []).map((v) => [v.pick.rowId, v.pick.optionId])),
     onPick, dirty: draft?.valid.length ?? 0, saving, onSave: () => void onSave(), onDiscard: () => { if (!savingNow.current) { pickedNow.current = false; setPicks([]); setNotice(null); } }, notice,
     savedOpen, optionRows,
+    martIcons: Object.fromEntries((loaded?.graph.inputs.marts ?? []).map((m) => [m.id, m.icon ?? null])),
     onRetry: () => void reload().catch(() => undefined),
     onOpen: args.open && ((path) => latest.current.open?.(path)),
   };

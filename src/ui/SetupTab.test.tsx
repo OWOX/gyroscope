@@ -16,7 +16,7 @@ test('an unset row is a radio group: Not set checked, the recommended option fir
   const radios = within(group).getAllByRole('radio');
   expect(radios.map((r) => (r as HTMLInputElement).labels![0]!.textContent)).toEqual(['Not set', 'Orders · itemsRecommended', 'Orders · revenue', 'Orders · profit']);
   expect(radios[0]).toBeChecked();
-  expect(within(group).getByText('Recommended')).toBeInTheDocument();
+  expect(within(group).getByText('Recommended')).toHaveClass('gy-row-rec');
   expect(within(group).queryByRole('radio', { name: /tax/ })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Show 1 more' }));
   expect(within(group).getByRole('radio', { name: /tax/ })).toBeInTheDocument();
@@ -351,4 +351,12 @@ test('rows that exist only in the draft open their block and seed its hint open'
   // a folded block gains an unset row
   rerender(<SetupTab {...props([goal, { ...b, state: 'open', current: null }, a], { savedOpen: new Set(['m1', 'c1']) })} />);
   expect(card('Core Business Entities')).toHaveAttribute('data-folded', 'false');
+});
+
+test('a Data Mart group shows the mart icon, the default when it has none', () => {
+  const rows = [row({ id: 'class:orders.key', block: 'metrics', group: 'Orders', groupId: 'orders' }), row({ id: 'class:ads.key', block: 'metrics', group: 'Ads', groupId: 'ads' })];
+  const { container } = render(<SetupTab {...props(rows, { martIcons: { orders: 'orders', ads: null } })} />);
+  const [orders, ads] = [...container.querySelectorAll('details.gy-setup-group')];
+  expect(orders!.querySelector('summary .gy-setup-group-icon svg')).toHaveClass('lucide-receipt');
+  expect(ads!.querySelector('summary .gy-setup-group-icon svg')).toHaveClass('lucide-box');
 });

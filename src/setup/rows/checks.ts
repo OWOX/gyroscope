@@ -36,12 +36,12 @@ export function checkRows(ctx: Ctx): Row[] {
     const vars = { Class: node.title };
     const k = pickPrimaryKey(node);
     rows.push(make(ctx, 'check.core.pk', `check.core.pk:${id}`, 'checks', vars, {
-      state: singleKey(node.detail) ? 'done' : 'open', current: singleKey(node.detail) ? OK : null, group: node.title, detail: singleKey(node.detail) ? undefined : `${node.title} has no single-column primary key`,
+      state: singleKey(node.detail) ? 'done' : 'open', current: singleKey(node.detail) ? OK : null, group: node.title, groupId: id, detail: singleKey(node.detail) ? undefined : `${node.title} has no single-column primary key`,
       options: [openOption('open', pkLabel(k), dataMartPage(ctx, id))],
     }));
     const linked = ctx.edges.some((e) => (e.from === goal.martId && e.to === id) || (e.from === id && e.to === goal.martId));
     rows.push(make(ctx, 'check.core.toGoal', `check.core.toGoal:${id}`, 'checks', vars, {
-      state: linked ? 'done' : 'open', current: linked ? OK : null, group: node.title, detail: linked ? undefined : `${node.title} isn't connected to ${martTitle(ctx, goal.martId)}`,
+      state: linked ? 'done' : 'open', current: linked ? OK : null, group: node.title, groupId: id, detail: linked ? undefined : `${node.title} isn't connected to ${martTitle(ctx, goal.martId)}`,
       options: [openOption('open', `Add a calculated field to ${martTitle(ctx, goal.martId)} that references ${node.title}.${k ?? 'its key'}`, dataMartPage(ctx, goal.martId))],
     }));
   }
