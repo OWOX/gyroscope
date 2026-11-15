@@ -155,6 +155,23 @@ export interface CacheDoc {
 export type WeekStart = 'monday' | 'sunday';
 export type Industry = 'ecommerce' | 'saas' | 'marketplace' | 'media' | 'b2b' | 'apps' | 'finance' | 'other';
 export interface CoreClass { martId: string; why: string }
+/** One number: a Data Mart field, how it adds up, and its date. */
+export interface MetricChoice { martId: string; measure: Measure; dateField: string | null; kind: MetricKind; alias: string }
+export interface RatioSetting { id: string; name: string; numerator: string; denominator: string; format: MetricFormat }
+/** Project-wide, admin only: settings collection, doc `project`, `v: 5`. Only values a person chose. */
+export interface ProjectSettingsV5 {
+  v: 5;
+  goal: (MetricChoice & { plan: PlanDef | null }) | null;
+  coreClasses: string[];
+  contexts: Record<string, { metric: MetricChoice | null; plan: PlanDef | null }>;
+  classes: Record<string, { keyMetricId: string | null; shown: MetricChoice[] }>;
+  plans: Record<string, PlanDef>;
+  formats: Record<string, { format: MetricFormat; currency: string | null }>;
+  ratios: RatioSetting[];
+  thresholdPct: number;
+  dismissed: string[];
+  updatedAt: string | null; updatedBy: string | null;
+}
 /** Project-wide, admin only: settings collection, doc `project`. */
 export interface ProjectSettings { thresholdPct: number; industry: Industry | null; coreClasses: CoreClass[] | null }
 /** The member's own: preferences collection, doc `defaults`. null preset: no range, the ontology view. */
