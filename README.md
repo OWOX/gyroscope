@@ -10,12 +10,22 @@ The [shared ontology spec](docs/superpowers/specs/2026-11-11-shared-ontology-des
 ## Requirements in OWOX
 
 1. The project description has a Metrics table with a Critical number row that links to a Data Mart field. That field is the goal.
-2. An AI Credential is mapped when the plugin is installed. Gyroscope uses it to build the model of classes and metrics.
+2. An AI Credential is optional. When one is mapped at install, Gyroscope uses it to recommend answers in Setup. It never saves one for you.
 3. Calculated fields in your Data Marts reference other Data Marts. Gyroscope draws a connection for each reference.
-4. A project with a 0.3 model is migrated on the first admin open, with no AI build, and members see the model right away. Only a project with no model needs an admin to build one; until then, members see "An admin hasn't set up Gyroscope yet".
-5. Describe the business model in the project description: what is sold, to whom, and through which channels. The first build takes the core classes from it. Calculated-field references are still what draws connections.
+4. An admin finishes Setup once. Until the goal is set, members see "An admin hasn't set up Gyroscope yet".
 
-Settings has three tabs. General holds your view and, for admins, the project threshold. Metrics edits the model: classes, metrics, plans and forecasts, with a Data Mart icon before each title. Checkup is the setup page: it sets a project up from scratch or adjusts an existing one. Its sections (critical number, core classes, contexts, connections, metrics, housekeeping) show blockers, warnings and recommendations with tooltips. A check that isn't filled asks a question, suggests an answer, and an admin applies it with one click.
+Settings has two tabs. General holds your view and, for admins, the project threshold. Setup replaces Checkup and Metrics: one list of questions (goal, core classes, contexts, key numbers, plans, formats, ratios, data checks). Each has a recommended answer. An admin picks an option, and Gyroscope stores exactly that. The AI only recommends one of the options the code built.
+
+## Release notes
+
+### 0.5.0
+
+1. Setup replaces Checkup and Metrics. Settings are stored as chosen, not computed.
+2. The AI only recommends. Every question has a recommended option with or without an AI credential, and the AI can only pick from the options Gyroscope built.
+3. Existing projects start from empty settings, with recommendations for every question.
+4. Ratio metrics: divide one metric by another.
+5. A member who can't access the project goal Data Mart sees the canvas centered on the nearest context critical number they can access, or is told to ask for access.
+6. Removed: the AI model build, rebuild proposals and the industry setting.
 
 ## Develop
 
@@ -30,21 +40,21 @@ The plugin platform does not support a local preview. Test Gyroscope as an insta
 
 ## Release
 
-1. Push to `main`. GitHub Pages deploys `dist/` to the folder of the compatibility line: `v4/` for 0.4.x. Installs of 0.2 keep loading the root.
-2. A new compatibility line (0.5) needs `plugin.json` `delivery.url` moved to its folder (`/v5/`); a test fails until it is.
+1. Push to `main`. GitHub Pages deploys `dist/` to the folder of the compatibility line: `v5/` for 0.5.x. Installs of 0.2 keep loading the root.
+2. A new compatibility line (0.6) needs `plugin.json` `delivery.url` moved to its folder (`/v6/`); a test fails until it is.
 3. Check the plugin with `owox-ctl plugins check OWOX/gyroscope --ref main`.
-4. Create a release with `gh release create v0.4.0 --target <full commit SHA> --generate-notes`.
+4. Create a release with `gh release create v0.5.0 --target <full commit SHA> --generate-notes`.
 5. In OWOX, open Plugins, then Publish Plugin, and choose "Only me" for testing.
 
 ## How it works
 
 The [design spec](docs/superpowers/specs/2026-10-24-gyroscope-design.md) has the details. Each step below maps to a section.
 
-1. Build the ontology model: Gyroscope turns Data Marts, references and contexts into classes, connections and metrics, and takes the goal class and core classes, with key metrics (spec section 5).
+1. Derive the ontology model: Gyroscope turns the saved Setup answers, Data Marts, references and contexts into classes, connections and metrics (spec section 5).
 2. Date ranges: presets, the fact window, the forecast window and the comparison window, all in UTC (section 6).
 3. Metrics: one query per metric, a forecast, plan values and statuses (section 7).
 4. Canvas and card: layout by reference distance, context filters, and the metric card (section 8).
 5. States: blocked, failed and loading screens, each with a fix or a retry (section 9).
 6. Cache: the canvas reads cached results, and a refresh runs when the data is stale (section 10).
 
-The [shared ontology spec](docs/superpowers/specs/2026-11-11-shared-ontology-design.md) covers the shared model, core classes, the two views and Checkup.
+The [Setup spec](docs/superpowers/specs/2026-11-14-setup-tab-design.md) covers the Setup tab. The [shared ontology spec](docs/superpowers/specs/2026-11-11-shared-ontology-design.md) covers the shared model, core classes, the two views.
