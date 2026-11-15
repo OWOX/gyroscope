@@ -1,7 +1,7 @@
 import type { Measure, MetricKind } from '../../types';
-import { cands, criticalCandidates, dateCandidates, kindFor, planCandidates, shapeFor } from '../recommend/fields';
+import { cands, criticalCandidates, dateCandidates, kindFor, shapeFor } from '../recommend/fields';
 import type { Row, RowState } from '../types';
-import { descriptionRow, fieldCheck, fieldOption, fieldText, make, martTitle, metricRow, planFor, planRow, setOption, updGoal, withRepick, type Ctx } from './common';
+import { descriptionRow, fieldCheck, fieldOption, fieldText, make, martTitle, metricRow, planChoices, planRow, setOption, updGoal, withRepick, type Ctx } from './common';
 
 type Fn = NonNullable<Measure['fn']> | 'calc';
 const AGG: { fn: Fn; kind: MetricKind; label: string }[] = [
@@ -49,11 +49,11 @@ export function goalRows(ctx: Ctx): Row[] {
     options: aggs.map((a) => setOption(a.id, a.label, updGoal(ctx, (g) => ({ ...g, measure: { field: g.measure.field, fn: a.fn === 'calc' ? null : a.fn }, kind: a.kind })))),
   });
 
-  const plan = planRow(ctx, 'goal.plan', 'goal.plan', 'goal', {}, undefined, ctx.nodes, G?.martId, G?.kind ?? 'flow', goal?.plan ?? null, (x, p) => updGoal(ctx, (g) => ({ ...g, plan: p }))(x), { description: ctx.graph.inputs.projectDescription, source: 'project' });
+  const plan = planRow(ctx, 'goal.plan', 'goal.plan', 'goal', {}, undefined, ctx.nodes, G?.martId, G?.kind ?? 'flow', goal?.plan ?? null, (x, p) => updGoal(ctx, (g) => ({ ...g, plan: p }))(x), { description: ctx.graph.inputs.projectDescription, source: 'project' }, G && { martId: G.martId, field: G.measure.field });
 
   const rows = [metric, date, aggregation, plan];
   // the shape only matters once a plan is set; while no goal is saved the page still shows the question
-  const firstPlan = planCandidates(ctx.nodes, G?.martId).flatMap((c) => planFor(ctx, c, G?.kind ?? 'flow') ?? [])[0] ?? null;
+  const firstPlan = planChoices(ctx, ctx.nodes, G?.martId, G?.kind ?? 'flow', { description: ctx.graph.inputs.projectDescription, source: 'project' }, G && { martId: G.martId, field: G.measure.field })[0]?.p ?? null;
   const shapePlan = goal ? goal.plan : firstPlan;
   if (shapePlan) {
     const rec = shapeFor(null, G?.kind ?? 'flow');

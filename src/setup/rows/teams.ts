@@ -25,7 +25,7 @@ export function teamRows(ctx: Ctx): Row[] {
     rows.push(metricRow(ctx, 'team.metric', `team:${c.id}.metric`, 'teams', vars, c.name, cand, saved.metric && { martId: saved.metric.martId, field: saved.metric.measure.field },
       (x, f) => write((cur) => ({ ...cur, metric: { martId: f.martId, ...kindFor(f), alias: f.label, dateField: dateCandidates(ctx.byId.get(f.martId)!)[0]?.path ?? null } }))(x)));
     const kind = saved.metric?.kind ?? (top ? kindFor(top).kind : 'flow');
-    rows.push(planRow(ctx, 'team.plan', `team:${c.id}.plan`, 'teams', vars, c.name, pool, saved.metric?.martId ?? top?.martId, kind, saved.plan, (x, p) => write((cur) => ({ ...cur, plan: p }))(x), { description: c.description, source: c.id }));
+    rows.push(planRow(ctx, 'team.plan', `team:${c.id}.plan`, 'teams', vars, c.name, pool, saved.metric?.martId ?? top?.martId, kind, saved.plan, (x, p) => write((cur) => ({ ...cur, plan: p }))(x), { description: c.description, source: c.id }, saved.metric ? { martId: saved.metric.martId, field: saved.metric.measure.field } : top && { martId: top.martId, field: top.path }));
     const m = saved.metric ?? (top ? { martId: top.martId, alias: top.label, measure: { field: top.path } } : null);
     rows.push(descriptionRow(ctx, 'team.description', `team:${c.id}.description`, 'teams', vars, c.name, c.id, c.description, { contextId: c.id }, m && { alias: m.alias, martId: m.martId, path: m.measure.field, plan: saved.plan }));
   }

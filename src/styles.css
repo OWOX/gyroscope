@@ -526,7 +526,7 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-link:hover { color: var(--foreground); }
 /* the link icon after an option shows only while its line is hovered or has focus; it keeps its space, so nothing shifts */
 .gy-row-link.gy-row-link-reveal { opacity: 0; pointer-events: none; transition: opacity 120ms; }
-.gy-radio:hover .gy-row-link-reveal, .gy-row-valueline:hover .gy-row-link-reveal, .gy-row-valueline:focus-within .gy-row-link-reveal, .gy-radio:focus-within .gy-row-link-reveal, .gy-row-recline:hover .gy-row-link-reveal, .gy-row-recline:focus-within .gy-row-link-reveal { opacity: 1; pointer-events: auto; }
+.gy-radio:hover .gy-row-link-reveal, .gy-row:hover .gy-row-valueline .gy-row-link-reveal, .gy-row-valueline:focus-within .gy-row-link-reveal, .gy-radio:focus-within .gy-row-link-reveal, .gy-row-recline:hover .gy-row-link-reveal, .gy-row-recline:focus-within .gy-row-link-reveal { opacity: 1; pointer-events: auto; }
 @media (hover: none) { .gy-row-link.gy-row-link-reveal { opacity: 1; pointer-events: auto; } }
 @media (prefers-reduced-motion: reduce) { .gy-row-link.gy-row-link-reveal { transition: none; } }
 .gy-row-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
@@ -547,7 +547,8 @@ button.gy-badge:hover { color: var(--foreground); }
 .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'], :root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'] { color: var(--orange); background: color-mix(in oklab, var(--orange) 15%, transparent); }
 /* radio list in the right column */
 .gy-radios { display: grid; gap: 0.25rem; width: 100%; min-width: 0; }
-.gy-radio { position: relative; min-width: 0; padding-left: 1.5rem; padding-right: 1.75rem; }
+.gy-radio { position: relative; min-width: 0; padding-left: 1.5rem; }
+.gy-radio:has(.gy-row-link) { padding-right: 1.75rem; }
 .gy-radio label { cursor: pointer; overflow-wrap: anywhere; }
 .gy-radio input { position: absolute; left: 0; top: 0.1875rem; margin: 0; accent-color: var(--primary); }
 /* the link icon sits in the right gutter, so a hidden one takes no line of its own */
@@ -565,8 +566,7 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-settings-sticky { position: sticky; top: 0; z-index: 30; background: var(--background); border-bottom: 1px solid var(--border); }
 .gy-settings-sticky .gy-tabs { margin-bottom: 0; border-bottom: 0; }
 .gy-settings-header .gy-save { margin-left: auto; }
-.gy-settings-progress { padding: 0.5rem 3rem 0.75rem; }
-.gy-settings-progress { display: grid; gap: 0.5rem; }
+.gy-settings-progress { display: grid; gap: 0.5rem; padding: 0.5rem 3rem 0.75rem; }
 .gy-settings-progress:empty { display: none; }
 .gy-settings-progress .gy-setup-banner { max-height: 6rem; overflow: auto; }
 @media (max-width: 640px) { .gy-settings-progress { padding: 0.5rem 1.25rem 0.75rem; } }

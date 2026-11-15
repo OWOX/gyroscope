@@ -30,12 +30,17 @@ export function findMetricRows(markdown: string | null | undefined, source: 'pro
         const factLinks = extractLinks(row[fact] ?? '', source, 0);
         // the Plan cell may add "date field: [..](..)"; the links before that text are the plan, the first after it is its date
         const planCell = row[plan] ?? '';
-        const cut = planCell.search(/date field/i);
-        const planDate = cut >= 0 ? extractLinks(planCell.slice(cut), source, 0)[0] ?? null : null;
+        // "date field:" is looked for outside the link labels; links before it are the plan, the first after it is the date, any others after it are the plan too
+        const masked = planCell.replace(/\[(?:\\.|[^\]\\])*\]\([^)\s]*\)/g, (m) => 'x'.repeat(m.length));
+        const hit = /(^|[\s,;(])date field\s*:/i.exec(masked);
+        const cut = hit ? hit.index + hit[1]!.length : -1;
+        const before = extractLinks(cut >= 0 ? planCell.slice(0, cut) : planCell, source, 0);
+        const after = cut >= 0 ? extractLinks(planCell.slice(cut), source, 0) : [];
+        const planDate = after[0] ?? null;
         out.push({
           role: row[role] ?? '',
           metric: (metric >= 0 ? row[metric] : undefined) || factLinks[0]?.text || '',
-          plan: extractLinks(cut >= 0 ? planCell.slice(0, cut) : planCell, source, 0),
+          plan: [...before, ...after.slice(1)],
           planDate,
           fact: factLinks,
         });

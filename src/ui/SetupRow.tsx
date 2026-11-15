@@ -24,6 +24,9 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const [changing, setChanging] = useState(false);
   const [more, setMore] = useState(false);
   useEffect(() => { setChanging(false); }, [saveCount]);
+  const rowRef = useRef<HTMLDivElement>(null);
+  // the edit pencil opens the list with the checked radio focused
+  useEffect(() => { if (changing) rowRef.current?.querySelector<HTMLElement>('input[type="radio"]:checked')?.focus(); }, [changing]);
   const anchor = useRef<HTMLButtonElement>(null);
   const hintId = useId();
   const uid = useId();
@@ -98,7 +101,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   );
 
   return (
-    <div className="gy-row" data-row-id={row.id} data-severity={row.severity} data-state={row.state}>
+    <div className="gy-row" ref={rowRef} data-row-id={row.id} data-severity={row.severity} data-state={row.state}>
       <span className="gy-row-icon" aria-hidden="true">{row.state === 'done' ? <Check size={14} /> : <span className="gy-row-dot" />}</span>
       <div className="gy-row-text">
         <div className="gy-hintbox-line"><strong>{row.title}</strong><HintButton title={row.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></div>
