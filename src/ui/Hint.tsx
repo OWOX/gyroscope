@@ -13,7 +13,7 @@ export function HintButton({ title, id, open, onToggle, anchor }: { title: strin
 /** How far the caret's tip rises above the bubble's border box: the 8px square, rotated 45deg, sits 6px above it (top -5px from the padding edge plus the 1px border), so its centre is 2px above and its corner a half-diagonal further. */
 const CARET_TIP = 2 + 4 * Math.SQRT2;
 
-/** A bordered bubble whose top-edge caret points at the (?) button: `--caret-x` is the button's centre from the bubble's left edge. */
+/** A bordered bubble whose top-edge caret points at the (?) button: `--caret-x` is the icon's centre from the bubble's padding edge. */
 export function HintBubble({ id, open, anchor, className, children }: { id: string; open: boolean; anchor: RefObject<HTMLButtonElement | null>; className?: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -23,7 +23,9 @@ export function HintBubble({ id, open, anchor, className, children }: { id: stri
       // read everything first, then write: one layout per call
       const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect(), icon = a.querySelector('svg')?.getBoundingClientRect();
       const margin = parseFloat(getComputedStyle(b).marginTop) || 0;
-      b.style.setProperty('--caret-x', `${ar.left - br.left + a.offsetWidth / 2}px`);
+      // the caret is positioned from the bubble's padding edge (inside its border), and aims at the svg's centre, not the button's
+      const centre = icon && icon.width > 0 ? icon.left + icon.width / 2 : ar.left + ar.width / 2;
+      b.style.setProperty('--caret-x', `${centre - br.left - b.clientLeft}px`);
       // the caret's tip meets the (?) svg's bottom edge: slide the bubble by the measured gap less the tip's height above the bubble's border box
       // a folded block hides its bubble (zero height); there is nothing to measure then
       if (!icon || icon.height === 0 || br.height === 0) return;

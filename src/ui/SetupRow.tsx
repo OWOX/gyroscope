@@ -40,7 +40,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const keepLabel = was ? `Keep ${was}` : src.state === 'broken' || src.state === 'error' ? 'Keep the saved value' : 'Not set';
   const hasRadios = choices.length > 0;
 
-  const linkBtn = (o: Option) => o.link && onOpen && <button type="button" className="gy-row-link" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={() => onOpen(o.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
+  const linkBtn = (o: Option) => o.link && onOpen && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={() => onOpen(o.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
   const radio = (key: string, label: ReactNode, checked: boolean, onChange: () => void, o?: Option, disabled = false) => (
     <div key={key} className="gy-radio">
       <input id={`${uid}-${key}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />

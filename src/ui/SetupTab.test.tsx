@@ -242,6 +242,11 @@ describe('the link to OWOX', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Orders · revenue in OWOX' }));
     expect(p.onOpen).toHaveBeenCalledWith('/ui/p1/data-marts/orders/data-setup?field=revenue');
   });
+  test('the link icon carries the hover-reveal class', () => {
+    const o: Option[] = [{ ...set('a', 'Remove Orders', true), link: '/x', linkLabel: 'Orders' }];
+    render(<SetupTab {...props([row({ options: o })])} />);
+    expect(screen.getByRole('button', { name: 'Open Orders in OWOX' })).toHaveClass('gy-row-link-reveal');
+  });
   test('the label names the destination, and no onOpen means no button', () => {
     const o: Option[] = [{ ...set('a', 'Remove Orders', true), link: '/x', linkLabel: 'Orders' }];
     const { unmount } = render(<SetupTab {...props([row({ options: o })])} />);
