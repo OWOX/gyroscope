@@ -10,6 +10,7 @@ type Page = keyof typeof PAGES;
 const PAGE_TOKEN = new RegExp(`\\[(${Object.keys(PAGES).join('|')})\\]`);
 
 const STEPS: Record<BlockCode, string[]> = {
+  NO_ACCESSIBLE_GOAL: [],
   NO_GOAL: ['Open Setup and answer "What is the main business goal?"'],
   GOAL_NO_DATE: ['Open Setup and answer "Which date does each value belong to?" for the Business Critical Number.'],
   GOAL_PLACEHOLDER: [],
@@ -27,6 +28,8 @@ const STEPS: Record<BlockCode, string[]> = {
   ],
 };
 STEPS.GOAL_PLACEHOLDER = STEPS.NO_GOAL;
+// the detail already says what to do: nobody can fix this on this page
+STEPS.NO_ACCESSIBLE_GOAL = [];
 
 function stepContent(step: string, projectId: string, onOpen?: (path: string) => void): ReactNode[] {
   return step.split(PAGE_TOKEN).map((part, i) => {
@@ -55,8 +58,8 @@ export function Blocked({ blocked, projectId, onRetry, onOpenSetup, onBack, back
       {blocked.mismatches.length > 0 && (
         <ol>{blocked.mismatches.map((m, i) => <li key={i}>{m}</li>)}</ol>
       )}
-      <h2>How to fix</h2>
-      {isAdmin || blocked.code === 'GOAL_NO_ACCESS'
+      {blocked.code !== 'NO_ACCESSIBLE_GOAL' && <h2>How to fix</h2>}
+      {blocked.code === 'NO_ACCESSIBLE_GOAL' ? null : isAdmin || blocked.code === 'GOAL_NO_ACCESS'
         ? <ol>{STEPS[blocked.code].map((s) => <li key={s}>{stepContent(s, projectId, onOpen)}</li>)}</ol>
         : <p>Ask a project admin to finish Setup.</p>}
       {!isAdmin && blocked.code === 'GOAL_NO_ACCESS' && <p>Ask a project admin to finish Setup.</p>}

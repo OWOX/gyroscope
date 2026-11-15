@@ -1,4 +1,4 @@
-import type { Blocked, ClassNode, Measure, MetricChoice, MetricDef, Model, ProjectSettingsV5 } from '../types';
+import type { Blocked, ClassNode, Measure, MetricChoice, MetricDef, Model, PlanDef, ProjectSettingsV5 } from '../types';
 import { allFieldPaths, DATE_TYPES, flattenFields, type Blendable, type MartDetail } from '../owox/sources';
 import { hashString } from '../lib/hash';
 import { buildEdges, classDepths, hasPrimaryKey } from './graph';
@@ -34,22 +34,59 @@ const schemaFingerprint = (nodes: MartNode[]) => nodes.map((n) => [
 
 const blocked = (code: Blocked['code'], detail: string): Derived => ({ ok: false, blocked: { code, detail, mismatches: [] } });
 
+type Center = MetricChoice & { plan: PlanDef | null; source: string };
+export const NO_ACCESSIBLE_GOAL = "To use Gyroscope, you need access to a Data Mart with a critical number: the project's or a context's. Ask a project admin for access.";
+
+/** The context critical number the viewer can open whose Data Mart has the fewest references to the (hidden) project goal; ties keep the settings order. */
+function nearestContextGoal(s: ProjectSettingsV5, g: Graph, byId: Map<string, MartNode>, visible: ReadonlySet<string>): Center | null {
+  const goalMart = s.goal!.martId;
+  const edges = buildEdges(g.nodes, visible, goalMart);
+  const hops = (from: string): number => {
+    const seen = new Map([[from, 0]]);
+    const queue = [from];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      for (const e of edges) {
+        if (e.from !== cur || seen.has(e.to)) continue;
+        seen.set(e.to, seen.get(cur)! + 1);
+        if (e.to === goalMart) return seen.get(e.to)!;
+        queue.push(e.to);
+      }
+    }
+    return Infinity;
+  };
+  const ok = (c: MetricChoice) => {
+    const n = byId.get(c.martId);
+    return !!n && c.dateField !== null && allFieldPaths(n.detail.fields).has(c.measure.field) && allFieldPaths(n.detail.fields).has(c.dateField) && hasPrimaryKey(n.detail);
+  };
+  const ranked = Object.entries(s.contexts)
+    .flatMap(([id, c]) => (c.metric && ok(c.metric) ? [{ goal: { ...c.metric, plan: c.plan, source: id } as Center, hops: hops(c.metric.martId) }] : []))
+    .sort((a, b) => a.hops - b.hops);
+  return ranked[0]?.goal ?? null;
+}
+
 /** The canvas model the settings describe, over the schemas as they are now. Never calls the AI; equal inputs give an equal model. */
 export function deriveModel(s: ProjectSettingsV5, g: Graph): Derived {
   if (!s.goal) return blocked('NO_GOAL', 'The Business Critical Number is not set.');
   if (!s.goal.dateField) return blocked('GOAL_NO_DATE', 'The Critical Number Date is not set.');
-  const goal = s.goal;
   const byId = new Map(g.nodes.map((n) => [n.id, n]));
-  const goalNode = byId.get(goal.martId);
-  const readFailure = g.failed.get(goal.martId);
-  if (!goalNode && readFailure !== undefined) return blocked('GOAL_NO_ACCESS', `Couldn't check ${g.inputs.marts.find((m) => m.id === goal.martId)?.title ?? 'the goal Data Mart'}: ${readFailure}`);
-  if (!goalNode) return blocked('GOAL_NO_ACCESS', "You can't access the Data Mart that owns the critical number.");
   const has = (d: MartDetail, path: string | null) => path === null || allFieldPaths(d.fields).has(path);
-  if (!has(goalNode.detail, goal.measure.field)) return blocked('GOAL_FIELD_NOT_FOUND', `${goal.measure.field} isn't in ${goalNode.title} any more.`);
-  if (!has(goalNode.detail, goal.dateField)) return blocked('GOAL_NO_DATE', `${goal.dateField} isn't in ${goalNode.title} any more.`);
-  if (!hasPrimaryKey(goalNode.detail)) return blocked('GOAL_NO_PRIMARY_KEY', `${goalNode.title} has no primary key.`);
-
+  const readFailure = g.failed.get(s.goal.martId);
+  if (!byId.has(s.goal.martId) && readFailure !== undefined) return blocked('GOAL_NO_ACCESS', `Couldn't check ${g.inputs.marts.find((m) => m.id === s.goal!.martId)?.title ?? 'the goal Data Mart'}: ${readFailure}`);
   const visible = new Set(g.inputs.marts.map((m) => m.id));
+  let goal: Center;
+  if (byId.has(s.goal.martId)) {
+    goal = { ...s.goal, source: 'project' };
+    const goalNode = byId.get(goal.martId)!;
+    if (!has(goalNode.detail, goal.measure.field)) return blocked('GOAL_FIELD_NOT_FOUND', `${goal.measure.field} isn't in ${goalNode.title} any more.`);
+    if (!has(goalNode.detail, goal.dateField)) return blocked('GOAL_NO_DATE', `${goal.dateField} isn't in ${goalNode.title} any more.`);
+    if (!hasPrimaryKey(goalNode.detail)) return blocked('GOAL_NO_PRIMARY_KEY', `${goalNode.title} has no primary key.`);
+  } else {
+    // the viewer can't open the project's goal: the nearest context critical number they can open is the center
+    const found = nearestContextGoal(s, g, byId, visible);
+    if (!found) return blocked('NO_ACCESSIBLE_GOAL', NO_ACCESSIBLE_GOAL);
+    goal = found;
+  }
   const edges = buildEdges(g.nodes, visible);
   const classable = new Set(g.nodes.filter((n) => hasPrimaryKey(n.detail)).map((n) => n.id));
   const depths = classDepths(goal.martId, edges, classable);
@@ -67,7 +104,7 @@ export function deriveModel(s: ProjectSettingsV5, g: Graph): Derived {
 
   const metrics = new Map<string, MetricDef>();
   const add = (m: MetricDef) => { if (!metrics.has(m.id)) metrics.set(m.id, m); };
-  const goalDef = def(goal, 'critical', 'project', goal.plan);
+  const goalDef = def(goal, 'critical', goal.source, goal.plan);
   add(goalDef);
   for (const [ctxId, c] of Object.entries(s.contexts)) if (c.metric && usable(c.metric) && depths.has(c.metric.martId)) add(def(c.metric, 'critical', ctxId, c.plan));
 

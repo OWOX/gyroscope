@@ -47,3 +47,11 @@ test('a member blocked on access keeps the access step', () => {
   expect(screen.getByText(/ask for access to it in OWOX/)).toBeInTheDocument();
   expect(screen.getByText('Ask a project admin to finish Setup.')).toBeInTheDocument();
 });
+
+test.each([true, false])('NO_ACCESSIBLE_GOAL shows the access copy and Open Setup (admin: %s)', (isAdmin) => {
+  const detail = "To use Gyroscope, you need access to a Data Mart with a critical number: the project's or a context's. Ask a project admin for access.";
+  render(<Blocked {...base} isAdmin={isAdmin} blocked={{ code: 'NO_ACCESSIBLE_GOAL', detail, mismatches: [] }} />);
+  expect(screen.getByText(detail)).toBeInTheDocument();
+  expect(screen.queryByText('How to fix')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Open Setup' })).toBeInTheDocument();
+});

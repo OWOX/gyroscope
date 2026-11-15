@@ -94,7 +94,7 @@ export interface Model {
 
 export type BlockCode =
   | 'NO_GOAL' | 'GOAL_NO_DATE' | 'GOAL_PLACEHOLDER' | 'GOAL_FIELD_NOT_FOUND' | 'GOAL_NO_PRIMARY_KEY'
-  | 'GOAL_NO_ACCESS';
+  | 'GOAL_NO_ACCESS' | 'NO_ACCESSIBLE_GOAL';
 
 export interface Blocked { code: BlockCode; detail: string; mismatches: string[] }
 

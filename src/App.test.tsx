@@ -102,3 +102,11 @@ test('the AI uses the fast tier, or Reasoning when only that is mapped', () => {
   expect(gen({})).toBeNull();
   expect(depsFrom({ owox: {}, userId: 'u1' } as never).generateWith).toBeNull();
 });
+
+test('a viewer who can open no critical number Data Mart sees the access message', async () => {
+  const store = memoryCollections();
+  await saveSetup(store, EMPTY_SETUP, { ...filled, goal: { ...filled.goal!, martId: 'hidden-mart' } }, 'Ann', NOW);
+  render(<App ctx={ctxWith()} deps={deps(store, ['viewer'])} />);
+  expect(await screen.findByText("To use Gyroscope, you need access to a Data Mart with a critical number: the project's or a context's. Ask a project admin for access.")).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Open Setup' })).toBeInTheDocument();
+});

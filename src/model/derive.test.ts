@@ -1,3 +1,4 @@
+import { describe, expect, test } from 'vitest';
 import { deriveModel, metricId, ratioMetricId, type Graph } from './derive';
 import { EMPTY_SETUP } from '../store/settings';
 import type { MartNode } from './graph';
@@ -26,8 +27,8 @@ test('no goal blocks with NO_GOAL; a goal without a date blocks with GOAL_NO_DAT
   expect(deriveModel({ ...filled, goal: { ...goal, dateField: null } }, graph())).toMatchObject({ ok: false, blocked: { code: 'GOAL_NO_DATE' } });
 });
 
-test('a goal Data Mart missing from the list blocks with GOAL_NO_ACCESS; a gone field with GOAL_FIELD_NOT_FOUND', () => {
-  expect(deriveModel(filled, graph([users]))).toMatchObject({ ok: false, blocked: { code: 'GOAL_NO_ACCESS' } });
+test('a goal Data Mart missing from the list with no context number to use blocks with NO_ACCESSIBLE_GOAL; a gone field with GOAL_FIELD_NOT_FOUND', () => {
+  expect(deriveModel(filled, graph([users]))).toMatchObject({ ok: false, blocked: { code: 'NO_ACCESSIBLE_GOAL', detail: "To use Gyroscope, you need access to a Data Mart with a critical number: the project's or a context's. Ask a project admin for access." } });
   expect(deriveModel({ ...filled, goal: { ...goal, measure: { field: 'gone', fn: 'SUM' } } }, graph())).toMatchObject({ ok: false, blocked: { code: 'GOAL_FIELD_NOT_FOUND' } });
 });
 
@@ -112,4 +113,46 @@ test('inputHash changes when a field is added to a drawn Data Mart', () => {
   const h = (g: Graph) => { const r = deriveModel(filled, g); if (!r.ok) throw new Error(); return r.model.inputHash; };
   expect(h(graph([orders, wider]))).not.toBe(h(graph()));
   expect(h(graph())).toBe(h(graph()));
+});
+
+describe('a viewer without the project goal Data Mart', () => {
+  const metricNode = (id: string, refs: string[]) => node(id, [
+    field(`${id}_id`, 'STRING', { isPrimaryKey: true }), field('day', 'DATE'), field('amount', 'NUMERIC'),
+    ...refs.map((r) => field(`ref_${r}`, 'STRING', { calculated: { formula: `{{ref path="${r}" field="x"}}` } })),
+  ], refs.map((r) => ({ aliasPath: r, dataMartId: r })), `${id}_id`);
+  const choice = (martId: string) => ({ martId, measure: { field: 'amount', fn: 'SUM' as const }, dateField: 'day', kind: 'flow' as const, alias: martId });
+  const plan = { martId: 'p', measure: { field: 'amount', fn: 'SUM' as const }, dateField: 'day', shape: 'daily' as const };
+  const near = metricNode('near', ['orders']);
+  const far = metricNode('far', ['near']);
+  const twin = metricNode('twin', ['orders']);
+  const withContexts = (ids: string[]): ProjectSettingsV5 => ({ ...filled, coreClasses: [], contexts: Object.fromEntries(ids.map((id) => [`ctx-${id}`, { metric: choice(id), plan: id === 'near' ? plan : null }])) });
+  const center = (r: ReturnType<typeof deriveModel>) => { if (!r.ok) throw new Error(r.blocked.code); return r.model; };
+
+  test('the project goal is the center when the viewer can open it', () => {
+    const m = center(deriveModel(withContexts(['users']), graph()));
+    expect(m.goal.goalMartId).toBe('orders');
+  });
+
+  test('the nearest context number becomes the goal, with its plan', () => {
+    const m = center(deriveModel(withContexts(['far', 'near']), graph([far, near])));
+    expect(m.goal).toMatchObject({ classId: 'near', goalMartId: 'near', metricId: metricId('near', { field: 'amount', fn: 'SUM' }) });
+    expect(m.metrics.find((x) => x.id === m.goal.metricId)?.plan).toEqual(plan);
+    expect(m.classes.find((c) => c.id === 'far')).toBeUndefined();
+  });
+
+  test('a tie keeps the order of the contexts in the settings', () => {
+    expect(center(deriveModel(withContexts(['twin', 'near']), graph([near, twin]))).goal.goalMartId).toBe('twin');
+    expect(center(deriveModel(withContexts(['near', 'twin']), graph([near, twin]))).goal.goalMartId).toBe('near');
+  });
+
+  test('a number with no path to the goal ranks last', () => {
+    const iso = metricNode('iso', []);
+    expect(center(deriveModel(withContexts(['iso', 'far']), graph([iso, far, near]))).goal.goalMartId).toBe('far');
+  });
+
+  test('with no accessible context number it blocks; a failed goal read still says why', () => {
+    expect(deriveModel(withContexts(['near']), graph([users]))).toMatchObject({ ok: false, blocked: { code: 'NO_ACCESSIBLE_GOAL' } });
+    const g = { ...graph([near]), failed: new Map([['orders', 'boom']]) };
+    expect(deriveModel(withContexts(['near']), g)).toMatchObject({ ok: false, blocked: { code: 'GOAL_NO_ACCESS', detail: expect.stringContaining('boom') } });
+  });
 });
