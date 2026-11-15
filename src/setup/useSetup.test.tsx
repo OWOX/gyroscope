@@ -552,3 +552,77 @@ test('picking the saved threshold is not a change, and a successful Save counts'
   await waitFor(() => expect(result.current.props.dirty).toBe(0));
   expect(result.current.props.saveCount).toBe(before + 1);
 });
+
+describe('Not needed can be changed back', () => {
+  const goal = { martId: 'orders', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'revenue', plan: null };
+  const saved = async (dismissed: string[]) => {
+    const store = memoryCollections();
+    const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: twoMarts() })));
+    await act(() => result.current.reload());
+    const { saveSetup, loadSetup } = await import('../store/settings');
+    const base = (await loadSetup(store)).settings;
+    await saveSetup(store, base, { ...base, goal, dismissed }, 'Ann', new Date('2026-11-14T09:05:00Z'));
+    await act(() => result.current.reload());
+    return { store, result, loadSetup };
+  };
+  const find = (result: Awaited<ReturnType<typeof saved>>['result'], id: string) => result.current.props.rows.find((r) => r.id === id)!;
+
+  test('a saved dismissal is done and flagged; Not set stages an undismiss, the bar moves back and Save writes dismissed without the id', async () => {
+    const { store, result, loadSetup } = await saved(['goal.description']);
+    expect(find(result, 'goal.description')).toMatchObject({ state: 'done', current: 'Not needed', dismissed: true });
+    const done = () => result.current.props.rows.filter((r) => r.state === 'done').length;
+    const before = done();
+    await act(async () => result.current.props.onPick('goal.description', 'undismiss'));
+    expect(result.current.props.dirty).toBe(1);
+    expect(find(result, 'goal.description').state).toBe('open');
+    expect(done()).toBe(before - 1);
+    await act(async () => result.current.props.onSave());
+    await waitFor(() => expect(result.current.props.dirty).toBe(0));
+    expect((await loadSetup(store)).settings.dismissed).not.toContain('goal.description');
+  });
+
+  test('picking a real option on a dismissed plan row removes the id', async () => {
+    const { store, result, loadSetup } = await saved(['goal.plan']);
+    const plan = find(result, 'goal.plan');
+    expect(plan).toMatchObject({ state: 'done', dismissed: true });
+    const opt = plan.options.find((o) => o.id.startsWith('field:'))!;
+    await act(async () => result.current.props.onPick('goal.plan', opt.id));
+    await act(async () => result.current.props.onSave());
+    await waitFor(() => expect(result.current.props.dirty).toBe(0));
+    const s = (await loadSetup(store)).settings;
+    expect(s.dismissed).not.toContain('goal.plan');
+    expect(s.goal!.plan).not.toBeNull();
+  });
+});
+
+test('a skipped ratio staged to Add saves the ratio and loses its dismissal', async () => {
+  const store = memoryCollections();
+  const { saveSetup, loadSetup, EMPTY_SETUP } = await import('../store/settings');
+  const ref = (path: string, field: string) => `{{ref path="${path}" field="${field}"}}`;
+  const source = fakeOwox({
+    projectDescription: 'We sell shoes', contexts: [],
+    marts: [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }, { id: 'customers', title: 'Customers', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }],
+    details: {
+      orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }, { name: 'cust_ltv', type: 'FLOAT', isPrimaryKey: false, calculated: { formula: `AVG(${ref('customers', 'ltv')})`, level: 'metric' } }] as never },
+      customers: { id: 'customers', title: 'Customers', fields: [{ name: 'customer_id', type: 'STRING', isPrimaryKey: true }, { name: 'created_at', type: 'DATE', isPrimaryKey: false }, { name: 'ltv', type: 'NUMERIC', isPrimaryKey: false }] },
+    },
+    blendables: { orders: { availableSources: [{ aliasPath: 'customers', dataMartId: 'customers', title: 'Customers', isAccessibleForReporting: true }], mainUniqueCountKeyFields: ['order_id'] }, customers: { availableSources: [], mainUniqueCountKeyFields: ['customer_id'] } },
+    rows: () => [],
+  });
+  const goal = { martId: 'orders', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'revenue', plan: null };
+  await saveSetup(store, EMPTY_SETUP, { ...EMPTY_SETUP, goal }, 'Ann', new Date());
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
+  await act(() => result.current.reload());
+  const id = result.current.props.rows.find((r) => r.block === 'ratios')!.id;
+  const base = (await loadSetup(store)).settings;
+  await saveSetup(store, base, { ...base, dismissed: [id] }, 'Ann', new Date());
+  await act(() => result.current.reload());
+  const skipped = result.current.props.rows.find((r) => r.id === id)!;
+  expect(skipped).toMatchObject({ state: 'done', current: 'Skipped', dismissed: true });
+  await act(async () => result.current.props.onPick(id, 'ratio:add'));
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  const s = (await loadSetup(store)).settings;
+  expect(s.dismissed).not.toContain(id);
+  expect(s.ratios.map((r) => r.id)).toEqual([id]);
+});

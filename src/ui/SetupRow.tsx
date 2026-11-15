@@ -29,8 +29,12 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const uid = useId();
   const src = optionRow ?? row;
   const was = unset ? src.current : src.current ?? row.current;
-  // an option that equals the saved value is "Keep", not a second way to say it
-  const choices = src.options.filter((o) => o.action.kind !== 'open' && (unset || !was || o.label !== was));
+  // the shape of the radio list comes from the row the pick ran against, not the live draft
+  const dismissed = !unset && src.dismissed === true;
+  // the option that equals the saved value is "Keep", not a second way to say it; only the first match is hidden
+  const dup = unset || !was || dismissed ? undefined : src.options.find((o) => o.action.kind !== 'open' && o.label === was);
+  // a dismissed row's "Not needed" is already its "no", so the options that decline are left out
+  const choices = src.options.filter((o) => o.action.kind !== 'open' && o !== dup && !(dismissed && o.declines));
   const links = src.options.filter((o) => o.action.kind === 'open');
   // an option marked `keep` is the row's default; the rest list the recommended one first, in an order that doesn't move once picked
   const keepOpt = choices.find((o) => o.keep);
@@ -41,9 +45,8 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   // a row another pick filled in: show the option that matches, and no "Not set"
   const implicit = unset && picked === undefined && row.state === 'done' && !!row.current;
   const match = implicit ? ordered.find((o) => o.label === row.current) : undefined;
-  const dismissed = !unset && was === 'Not needed';
-  const keepLabel = dismissed ? 'Not needed' : was ? `Keep ${was}` : src.state === 'broken' || src.state === 'error' ? 'Keep the saved value' : 'Not set';
-  const hasRadios = choices.length > 0;
+  const keepLabel = dismissed ? was ?? 'Not needed' : was ? `Keep ${was}` : src.state === 'broken' || src.state === 'error' ? 'Keep the saved value' : 'Not set';
+  const hasRadios = choices.length > 0 || dismissed;
 
   const linkBtn = (o: Option) => o.link && onOpen && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={() => onOpen(o.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
   const radio = (key: string, label: ReactNode, checked: boolean, onChange: () => void, o?: Option, disabled = false) => (
@@ -55,7 +58,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   );
 
   // a notice can be waved off; a row with its own "no" option already has that answer
-  const offerDismiss = row.dismissable && !implicit && !dismissed && !choices.some((o) => o.declines);
+  const offerDismiss = src.dismissable && !implicit && !dismissed && !choices.some((o) => o.declines);
   // a notice with only links still gets its "Not needed"
   const linkOnly = !hasRadios && unset && !readOnly && offerDismiss;
 
@@ -77,7 +80,8 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
         <div role="radiogroup" aria-label={row.title} className="gy-radios">
           {implicit
             ? (match ? null : radio('implicit', row.current, true, () => {}, undefined, true))
-            : radio('keep', keepOpt ? keepOpt.label : keepLabel, picked === undefined, () => onPick(null), keepOpt)}
+            : radio('keep', keepOpt ? keepOpt.label : keepLabel, picked === undefined, () => onPick(null), keepOpt ?? (dup?.recommended ? dup : undefined))}
+          {dismissed && radio('undismiss', 'Not set', picked === 'undismiss', () => onPick('undismiss'))}
           {list.map((o) => radio(o.id, o.label, picked === o.id || match?.id === o.id, () => onPick(o.id), o))}
           {offerDismiss && radio('dismiss', 'Not needed', picked === 'dismiss', () => onPick('dismiss'))}
         </div>
@@ -89,7 +93,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
 
   const extras = !readOnly && (
     <>
-      {(row.state !== 'done' || linkOnly) && links.map((o) => <button key={o.id} type="button" className="gy-link gy-row-open" onClick={() => o.action.kind === 'open' && onOpen?.(o.action.path)}>{o.label}</button>)}
+      {(row.state !== 'done' || linkOnly || (dismissed && changing)) && links.map((o) => <button key={o.id} type="button" className="gy-link gy-row-open" onClick={() => o.action.kind === 'open' && onOpen?.(o.action.path)}>{o.label}</button>)}
     </>
   );
 

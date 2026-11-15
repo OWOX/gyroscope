@@ -139,7 +139,9 @@ describe('rows over a connected project', () => {
     const saved = rows(next).filter((r) => r.block === 'ratios');
     expect(saved[0]).toMatchObject({ state: 'done', dismissable: false });
     expect(rec(saved[0]!)).toBe('ratio:keep');
-    expect(rows({ ...filled, dismissed: [open[0]!.id] }).filter((r) => r.block === 'ratios')).toHaveLength(0);
+    const skipped = rows({ ...filled, dismissed: [open[0]!.id] }).filter((r) => r.block === 'ratios');
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]).toMatchObject({ state: 'done', current: 'Skipped', dismissed: true });
   });
 
   test('data checks: pass on a healthy goal, and offer the OWOX page when the goal has no key', () => {

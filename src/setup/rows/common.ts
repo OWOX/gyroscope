@@ -28,6 +28,7 @@ export interface Ctx extends RowsInput {
 
 const set = (next: (s: ProjectSettingsV5) => ProjectSettingsV5): Action => ({ kind: 'set', next });
 export const dismiss = (s: ProjectSettingsV5, id: string): ProjectSettingsV5 => (s.dismissed.includes(id) ? s : { ...s, dismissed: [...s.dismissed, id] });
+export const undismiss = (s: ProjectSettingsV5, id: string): ProjectSettingsV5 => (s.dismissed.includes(id) ? { ...s, dismissed: s.dismissed.filter((x) => x !== id) } : s);
 /** The OWOX page of a Data Mart, or of one of its fields. */
 export const martPage = (ctx: Ctx, martId: string, field?: string) => `/ui/${ctx.projectId}/data-marts/${encodeURIComponent(martId)}/data-setup${field === undefined ? '' : `?field=${encodeURIComponent(field)}`}`;
 export const dataMartPage = (ctx: Ctx, id?: string) => (id ? martPage(ctx, id) : `/ui/${ctx.projectId}/data-marts`);

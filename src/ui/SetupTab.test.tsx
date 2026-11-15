@@ -63,7 +63,7 @@ test('a set row shows its value and Change, which opens the radios with Keep <va
   expect(screen.getByText('Orders · revenue')).toBeInTheDocument();
   expect(screen.queryByRole('radio', { hidden: true })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
-  expect(screen.getByRole('radio', { name: 'Keep Orders · revenue', hidden: true })).toBeChecked();
+  expect(screen.getByRole('radio', { name: /^Keep Orders · revenue/, hidden: true })).toBeChecked();
   expect(screen.getByRole('radio', { name: /Orders · profit/, hidden: true })).not.toBeChecked();
 });
 
@@ -421,16 +421,39 @@ test('a set row leaves its saved value out of the Change list, so it is only "Ke
   render(<SetupTab {...props([r], { savedOpen: new Set() })} />);
   fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
   const labels = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true }).map((x) => (x as HTMLInputElement).labels![0]!.textContent);
-  expect(labels).toEqual(['Keep 20%', '10%']);
+  expect(labels).toEqual(['Keep 20%Recommended', '10%']);
+});
+
+test('a link-only notice saved as Not needed shows Change, with Not needed checked and Not set staging an undismiss', () => {
+  const onPick = vi.fn();
+  const open: Option = { id: 'none', label: 'Add a Data Mart', recommended: true, action: { kind: 'open', path: '/x' } };
+  const r = row({ severity: 'notice', dismissable: true, state: 'done', current: 'Not needed', dismissed: true, options: [open] });
+  render(<SetupTab {...props([r], { savedOpen: new Set(), onPick })} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  const radios = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true });
+  expect(radios.map((x) => (x as HTMLInputElement).labels![0]!.textContent)).toEqual(['Not needed', 'Not set']);
+  expect(radios[0]).toBeChecked();
+  expect(screen.getByRole('button', { name: 'Add a Data Mart', hidden: true })).toBeInTheDocument();
+  fireEvent.click(radios[1]!);
+  expect(onPick).toHaveBeenCalledWith('goal.metric', 'undismiss');
+});
+
+test('a dismissed row hides the options that decline, so "No plan yet" does not repeat "Not needed"', () => {
+  const none: Option = { ...set('none', 'No plan yet'), declines: true };
+  const r = row({ state: 'done', current: 'Not needed', dismissed: true, options: [set('a', 'Orders · plan', true), none] });
+  render(<SetupTab {...props([r], { savedOpen: new Set() })} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  const labels = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true }).map((x) => (x as HTMLInputElement).labels![0]!.textContent);
+  expect(labels).toEqual(['Not needed', 'Not set', 'Orders · planRecommended']);
 });
 
 test('a dismissed notice reads Not needed, checked on Change', () => {
-  const r = row({ severity: 'notice', dismissable: true, state: 'done', current: 'Not needed' });
+  const r = row({ severity: 'notice', dismissable: true, state: 'done', current: 'Not needed', dismissed: true });
   render(<SetupTab {...props([r], { savedOpen: new Set() })} />);
   expect(screen.getByText('Not needed')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
   const radios = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true });
-  expect(radios.map((x) => (x as HTMLInputElement).labels![0]!.textContent)).toEqual(['Not needed', 'Orders · revenueRecommended', 'Orders · profit']);
+  expect(radios.map((x) => (x as HTMLInputElement).labels![0]!.textContent)).toEqual(['Not needed', 'Not set', 'Orders · revenueRecommended', 'Orders · profit']);
   expect(radios[0]).toBeChecked();
 });
 
@@ -442,4 +465,59 @@ test('Change closes once a save lands', () => {
   rerender(<SetupTab {...props([r], { savedOpen: new Set(), saveCount: 1 })} />);
   expect(screen.queryByRole('radiogroup', { hidden: true })).toBeNull();
   expect(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true })).toBeInTheDocument();
+});
+
+describe('the radio list follows the row the pick ran against', () => {
+  const labels = () => within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true }).map((x) => (x as HTMLInputElement).labels![0]!.textContent);
+  const checked = () => within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true }).filter((x) => (x as HTMLInputElement).checked).map((x) => (x as HTMLInputElement).labels![0]!.textContent);
+  const change = () => fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  const none: Option = { ...set('none', 'No plan yet'), declines: true };
+
+  test('a saved plan staged to "No plan yet" still offers Keep, the options and the checked "No plan yet"', () => {
+    const was = row({ state: 'done', current: 'Orders · plan', options: [set('a', 'Orders · plan', true), set('b', 'Orders · other'), none] });
+    const live = { ...was, current: 'Not needed', dismissed: true as const };
+    render(<SetupTab {...props([live], { savedOpen: new Set(), optionRows: { [was.id]: was }, picked: { [was.id]: 'none' } })} />);
+    change();
+    expect(labels()).toEqual(['Keep Orders · planRecommended', 'Orders · other', 'No plan yet']);
+    expect(checked()).toEqual(['No plan yet']);
+  });
+
+  test('a saved Not needed staged to a real option keeps "Not needed" as the keep radio and hides "No plan yet"', () => {
+    const was = row({ state: 'done', current: 'Not needed', dismissed: true, options: [set('a', 'Orders · plan', true), set('b', 'Orders · other'), none] });
+    const live = { ...was, current: 'Orders · plan', dismissed: undefined };
+    render(<SetupTab {...props([live], { savedOpen: new Set(), optionRows: { [was.id]: was }, picked: { [was.id]: 'b' } })} />);
+    change();
+    expect(labels()).toEqual(['Not needed', 'Not set', 'Orders · planRecommended', 'Orders · other']);
+    expect(checked()).toEqual(['Orders · other']);
+  });
+
+  test('a skipped ratio staged to Add keeps "Skipped", checks "Add" and has no "Skip this ratio"', () => {
+    const skip: Option = { ...set('ratio:skip', 'Skip this ratio'), declines: true };
+    const was = row({ state: 'done', current: 'Skipped', dismissed: true, options: [set('ratio:add', 'Add A per B', true), skip] });
+    const live = { ...was, current: 'A per B', dismissed: undefined, options: [set('ratio:keep', 'Keep this ratio', true), set('ratio:remove', 'Remove this ratio')] };
+    render(<SetupTab {...props([live], { savedOpen: new Set(), optionRows: { [was.id]: was }, picked: { [was.id]: 'ratio:add' } })} />);
+    change();
+    expect(labels()).toEqual(['Skipped', 'Not set', 'Add A per BRecommended']);
+    expect(checked()).toEqual(['Add A per BRecommended']);
+  });
+
+  test('a link-only notice saved Not needed and staged to Not set keeps its radios, and Not needed undoes it', () => {
+    const open: Option = { id: 'none', label: 'Add a Data Mart', recommended: true, action: { kind: 'open', path: '/x' } };
+    const onPick = vi.fn();
+    const was = row({ severity: 'notice', dismissable: true, state: 'done', current: 'Not needed', dismissed: true, options: [open] });
+    const live = { ...was, state: 'open' as const, current: null, dismissed: undefined };
+    render(<SetupTab {...props([live], { savedOpen: new Set(), optionRows: { [was.id]: was }, picked: { [was.id]: 'undismiss' }, onPick })} />);
+    change();
+    expect(labels()).toEqual(['Not needed', 'Not set']);
+    expect(checked()).toEqual(['Not set']);
+    fireEvent.click(within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true })[0]!);
+    expect(onPick).toHaveBeenCalledWith(was.id, null);
+  });
+
+  test('two options with the saved label: only the first is hidden', () => {
+    const r = row({ state: 'done', current: '20%', options: [set('t:20', '20%', true), set('t:20b', '20%'), set('t:10', '10%')] });
+    render(<SetupTab {...props([r], { savedOpen: new Set() })} />);
+    change();
+    expect(labels()).toEqual(['Keep 20%Recommended', '20%', '10%']);
+  });
 });

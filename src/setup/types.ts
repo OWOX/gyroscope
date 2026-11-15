@@ -34,5 +34,7 @@ export interface Row {
   aiPending: boolean;         // an AI pick may still replace the recommendation
   detail?: string;            // broken or error reason
   dismissable: boolean;
+  /** The saved state is a dismissal ("Not needed", or a skipped ratio): the row is done and can be changed back. */
+  dismissed?: true;
 }
 export interface BlockInfo { id: BlockId; title: string; question: string; why: string; icon: LucideIcon }
