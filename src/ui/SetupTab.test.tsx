@@ -173,5 +173,5 @@ test('each block header shows its icon tile and an open-count badge', () => {
   expect(cards).toHaveLength(2);
   for (const c of cards) expect(c.querySelector('.dm-collapsible-icon svg')).not.toBeNull();
   const counts = screen.getAllByTestId('block-count').map((e) => e.textContent);
-  expect(counts).toEqual(['1', '2 left']);
+  expect(counts).toEqual(['2 left']);
 });

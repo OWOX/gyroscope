@@ -137,7 +137,7 @@ h2 { margin: 0; }
 .dm-collapsible[data-variant='band'] .dm-collapsible-title { font-size: 0.9375rem; line-height: 1; min-width: 0; }
 .dm-collapsible[data-variant='band'] .dm-collapsible-icon { background: color-mix(in oklab, var(--border) 75%, transparent); }
 :root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon { background: color-mix(in oklab, white 8%, transparent); }
-.dm-collapsible[data-variant='band'] .dm-collapsible-toggle { width: auto; height: auto; border-radius: 0; background: none; transition: color 150ms; }
+.dm-collapsible[data-variant='band'] .dm-collapsible-toggle { width: auto; height: auto; padding: 0; border-radius: 0; background: none; transition: color 150ms; }
 .dm-collapsible[data-variant='band'] .dm-collapsible-toggle:hover { background: none; color: var(--foreground); }
 .dm-collapsible[data-variant='band'] .dm-collapsible-content { padding: 0; }
 @media (prefers-reduced-motion: reduce) { .dm-collapsible-grid, .dm-collapsible-toggle svg { transition: none; } }

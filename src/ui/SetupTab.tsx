@@ -57,7 +57,7 @@ export function SetupTab({ rows, loading, readOnly, busyRow, message, onChoose, 
         const left = mine.filter(isOpen).length;
         return (
           <CollapsibleCard key={b.id} variant="band" icon={b.icon} label={b.title} collapsed={!mine.some(isOpen)} attention={target?.block === b.id} status={<SeverityIcon s={worst(mine)} />}
-            title={<span className="gy-setup-title"><span className="gy-setup-name">{b.title}</span><span className="gy-setup-count" data-testid="block-count">{left > 0 ? `${left} left` : mine.length}</span><span className="gy-muted gy-setup-sub">{b.question}</span></span>}>
+            title={<span className="gy-setup-title"><span className="gy-setup-name">{b.title}</span>{left > 0 && <span className="gy-setup-count" data-testid="block-count">{`${left} left`}</span>}<span className="gy-muted gy-setup-sub">{b.question}</span></span>}>
             <p className="gy-muted gy-setup-why">{b.why}</p>
             {loose.map(renderRow)}
             {groups.map((g) => {
