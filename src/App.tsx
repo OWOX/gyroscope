@@ -144,7 +144,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
 
   const setup = useSetup({
     owox, store, generateWith, isAdmin, by: editor ?? userId, projectId: ctx.projectId, now,
-    open: (path) => ctx.ui?.navigate?.(path), onModel,
+    open: ctx.ui?.navigate ? (path) => ctx.ui.navigate(path) : undefined, onModel,
   });
   const thresholdPct = setup.settings?.thresholdPct ?? EMPTY_SETUP.thresholdPct;
 

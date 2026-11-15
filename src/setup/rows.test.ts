@@ -96,6 +96,19 @@ describe('rows over a connected project', () => {
     expect(byId(a, 'class:orders.key').group).toBe('Orders');
   });
 
+  test('the extra-numbers options link: the combined pick to its one field or to the class, and the link names its destination', () => {
+    const r = byId(rows(), 'class:orders.shown');
+    const picks = r.options.filter((o) => o.id.startsWith('shown:') && o.id !== 'shown:none');
+    expect(picks.length).toBeGreaterThan(0);
+    for (const o of picks) expect(o.link, o.id).toMatch(/^\/ui\/p1\/data-marts\/orders\/data-setup/);
+    const only = picks.filter((o) => o.link?.includes('?field='));
+    expect(only.length).toBeGreaterThan(0);
+    for (const o of only) expect(o.linkLabel).toMatch(/\(Orders\)$/);
+    const multi = picks.find((o) => o.id.includes(','));
+    if (multi) { expect(multi.link).toBe('/ui/p1/data-marts/orders/data-setup'); expect(multi.linkLabel).toBe('Orders'); }
+    expect(byId(rows({ ...filled, coreClasses: ['orders'] }), 'core.classes').options.find((o) => o.id === 'core:-orders')!.linkLabel).toBe('Orders');
+  });
+
   test('a saved shown number gets a plan row and a format row recommending percent for a rate', () => {
     const s = { ...filled, classes: { customers: { keyMetricId: null, shown: [{ martId: 'customers', measure: { field: 'conv_rate', fn: 'SUM' as const }, dateField: 'created_at', kind: 'flow' as const, alias: 'conv_rate' }] } } };
     const a = rows(s);

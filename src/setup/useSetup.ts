@@ -18,7 +18,7 @@ import type { Row } from './types';
 
 export interface UseSetupArgs {
   owox: OwoxLike; store: CollectionsLike; generateWith: GenerateWith | null; isAdmin: boolean; by: string; projectId: string;
-  now: () => Date; open: (path: string) => void; onModel: (d: Derived, graph: Graph) => void;
+  now: () => Date; open?: (path: string) => void; onModel: (d: Derived, graph: Graph) => void;
 }
 
 interface Loaded { settings: ProjectSettingsV5; graph: Graph; legacyCore: string[]; derived: Derived; hash: string }
@@ -134,7 +134,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     setBusyRow(rowId);
     setMessage(null);
     try {
-      const r = await runAction(act, { owox, store, settings: l.settings, by, now, open });
+      const r = await runAction(act, { owox, store, settings: l.settings, by, now, open: open ?? (() => {}) });
       if (r.ok) {
         if (act.kind === 'set') {
           const derived = deriveModel(r.settings, l.graph);
@@ -162,7 +162,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     onChoose: (rowId, optionId) => void choose(rowId, optionId),
     onDismiss: (rowId) => void choose(rowId, 'dismiss', (s) => dismiss(s, rowId)),
     onRetry: () => void reload().catch(() => undefined),
-    onOpen: (path) => latest.current.open(path),
+    onOpen: args.open && ((path) => latest.current.open?.(path)),
   };
   return { props, settings: loaded?.settings ?? null, reload };
 }

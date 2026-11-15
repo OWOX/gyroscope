@@ -10,7 +10,7 @@ import { SetupRow } from './SetupRow';
 
 export interface SetupTabProps {
   rows: Row[]; loading: boolean; readOnly: boolean; busyRow: string | null; message: string | null;
-  onChoose: (rowId: string, optionId: string) => void; onDismiss: (rowId: string) => void; onRetry: () => void; onOpen: (path: string) => void;
+  onChoose: (rowId: string, optionId: string) => void; onDismiss: (rowId: string) => void; onRetry: () => void; onOpen?: (path: string) => void;
 }
 
 const ORDER: Severity[] = ['error', 'warning', 'notice'];

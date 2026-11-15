@@ -14,7 +14,9 @@ export type Action =
 /** `keep` marks an option that leaves the saved value as it is, so a finished row has nothing to accept. */
 export interface Option { id: string; label: string; recommended: boolean; action: Action; keep?: boolean;
   /** An OWOX page path for the Data Mart, or the field, this option points at. */
-  link?: string }
+  link?: string;
+  /** The destination's name for the link's label: a field with its Data Mart, or a Data Mart title. */
+  linkLabel?: string }
 export interface Row {
   id: string;                 // e.g. 'goal.metric', 'team:<ctxId>.plan', 'class:<martId>.key', 'metric:<metricId>.format', 'ratio:<id>', 'check.goal.pk'
   block: BlockId;

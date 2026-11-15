@@ -89,8 +89,8 @@ export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Re
   return { id, block, title: fill(c.title, vars), question: fill(c.question, vars), why: fill(c.why, vars), aiPending: ctx.aiPending.has(id), dismissable: severity === 'notice', ...more, severity, ...recommend(ctx, id, options, none) };
 }
 
-export const fieldOption = (ctx: Ctx, c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: `${c.label} (${c.martTitle})`, action: set(next), link: martPage(ctx, c.martId, c.path) });
-export const setOption = (id: string, label: string, next: (s: ProjectSettingsV5) => ProjectSettingsV5, link?: string): Plain => ({ id, label, action: set(next), ...(link ? { link } : {}) });
+export const fieldOption = (ctx: Ctx, c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: `${c.label} (${c.martTitle})`, action: set(next), link: martPage(ctx, c.martId, c.path), linkLabel: `${c.label} (${c.martTitle})` });
+export const setOption = (id: string, label: string, next: (s: ProjectSettingsV5) => ProjectSettingsV5, link?: string, linkLabel?: string): Plain => ({ id, label, action: set(next), ...(link ? { link, linkLabel } : {}) });
 export const openOption = (id: string, label: string, path: string): Plain => ({ id, label, action: { kind: 'open', path } });
 
 /** Candidates with the closest field to a gone saved one put first. */

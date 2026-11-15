@@ -523,7 +523,7 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-value { overflow-wrap: anywhere; }
 .gy-row-chip { display: inline-flex; align-items: center; gap: 0.25rem; min-width: 0; max-width: 100%; }
 .gy-row-suggest { display: flex; align-items: center; gap: 0.25rem; min-width: 0; max-width: 100%; }
-.gy-row-link { flex: none; display: inline-grid; place-items: center; padding: 0.125rem; border: 0; background: none; border-radius: 0.25rem; color: var(--muted-foreground); cursor: pointer; }
+.gy-row-link { flex: none; display: inline-grid; place-items: center; min-width: 1.5rem; min-height: 1.5rem; padding: 0; border: 0; background: none; border-radius: 0.25rem; color: var(--muted-foreground); cursor: pointer; }
 .gy-row-link:hover { color: var(--foreground); }
 .gy-row-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
 .gy-row-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

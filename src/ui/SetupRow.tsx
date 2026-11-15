@@ -4,7 +4,7 @@ import { Select } from './Select';
 
 /** One setup question: what it is now, what is recommended, and the ways to change it. */
 export function SetupRow({ row, readOnly, busy, onChoose, onDismiss, onRetry, onOpen }: {
-  row: Row; readOnly: boolean; busy: boolean; onChoose: (optionId: string) => void; onDismiss: () => void; onRetry: () => void; onOpen: (path: string) => void;
+  row: Row; readOnly: boolean; busy: boolean; onChoose: (optionId: string) => void; onDismiss: () => void; onRetry: () => void; onOpen?: (path: string) => void;
 }) {
   const rec = row.options.find((o) => o.recommended);
   // a finished row offers a change only when it is a settings change, not an append, a page or a no-op keep
@@ -32,7 +32,7 @@ export function SetupRow({ row, readOnly, busy, onChoose, onDismiss, onRetry, on
                   {lead} <span className="gy-row-chip-label">{rec.label}</span> <span className="gy-row-accept">Accept</span>
                 </button>
               )}
-            {rec.link && <button type="button" className="gy-row-link" aria-label={`Open ${rec.label} in OWOX`} title={`Open ${rec.label} in OWOX`} onClick={() => onOpen(rec.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>}
+            {rec.link && onOpen && <button type="button" className="gy-row-link" aria-label={`Open ${rec.linkLabel ?? rec.label} in OWOX`} title={`Open ${rec.linkLabel ?? rec.label} in OWOX`} onClick={() => onOpen(rec.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>}
           </div>
         )}
         {row.state === 'error' && <button type="button" className="gy-link" onClick={onRetry}>Retry</button>}

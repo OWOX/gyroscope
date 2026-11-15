@@ -142,6 +142,14 @@ describe('the link to OWOX and the AI icon', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Revenue (Orders) in OWOX' }));
     expect(p.onOpen).toHaveBeenCalledWith('/ui/p1/data-marts/orders/data-setup?field=revenue');
   });
+  test('the label names the destination, and no onOpen means no button', () => {
+    const o = [{ id: 'a', label: 'Remove Orders', recommended: true, action: { kind: 'open', path: '/' } as never, link: '/x', linkLabel: 'Orders' }];
+    const { unmount } = render(<SetupTab {...props([row({ options: o })])} />);
+    expect(screen.getByRole('button', { name: 'Open Orders in OWOX' })).toHaveAttribute('title', 'Open Orders in OWOX');
+    unmount();
+    render(<SetupTab {...props([row({ options: o })], { onOpen: undefined })} />);
+    expect(screen.queryByRole('button', { name: /in OWOX/ })).toBeNull();
+  });
   test('an option without a link shows no button', () => {
     render(<SetupTab {...props([row({ options: linked() })])} />);
     expect(screen.queryByRole('button', { name: /in OWOX/ })).toBeNull();
