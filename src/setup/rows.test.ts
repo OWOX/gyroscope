@@ -1,0 +1,209 @@
+import { describe } from 'vitest';
+import { buildRows, type RowsInput } from './rows';
+import { EMPTY_SETUP } from '../store/settings';
+import { deriveModel, type Graph } from '../model/derive';
+import type { MartNode } from '../model/graph';
+import type { ProjectSettingsV5 } from '../types';
+
+const f = (name: string, type: string, over: object = {}) => ({ name, type, isPrimaryKey: false, ...over });
+const node = (id: string, fields: object[], key?: string): MartNode => ({ id, title: id[0]!.toUpperCase() + id.slice(1), contexts: [], detail: { id, title: id, fields: fields as never }, blendable: { availableSources: [], mainUniqueCountKeyFields: key ? [key] : [] } });
+const orders = node('orders', [f('order_id', 'STRING', { isPrimaryKey: true }), f('date', 'DATE'), f('revenue', 'NUMERIC'), f('revenue_plan', 'NUMERIC')], 'order_id');
+const graph = (nodes: MartNode[]): Graph => ({ inputs: { projectDescription: null, contexts: [], contextsOk: true, marts: nodes.map((n) => ({ id: n.id, title: n.title, status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' })) }, nodes, failed: new Map() });
+const input = (settings: ProjectSettingsV5, nodes = [orders], over: Partial<RowsInput> = {}): RowsInput => {
+  const g = graph(nodes); const d = deriveModel(settings, g);
+  return { settings, graph: g, model: d.ok ? d.model : null, legacyCore: [], projectId: 'p1', hasAi: false, ai: {}, aiPending: new Set(), ...over };
+};
+const goal = { martId: 'orders', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'revenue', plan: null };
+
+test('every row has options and exactly one recommended, for a new and a filled project, with and without AI', () => {
+  for (const s of [EMPTY_SETUP, { ...EMPTY_SETUP, goal, updatedAt: 't' }])
+    for (const hasAi of [false, true])
+      for (const r of buildRows(input(s, [orders], { hasAi }))) {
+        expect(r.options.length, r.id).toBeGreaterThan(0);
+        expect(r.options.filter((o) => o.recommended), r.id).toHaveLength(1);
+      }
+});
+
+test('a project with no Data Marts still recommends something on every row', () => {
+  for (const r of buildRows(input(EMPTY_SETUP, []))) expect(r.options.filter((o) => o.recommended), r.id).toHaveLength(1);
+});
+
+test('a new project: the goal rows are open errors recommending revenue and date', () => {
+  const rows = buildRows(input(EMPTY_SETUP));
+  const metric = rows.find((r) => r.id === 'goal.metric')!;
+  expect(metric).toMatchObject({ severity: 'error', state: 'open', current: null, title: 'Business Critical Number', question: 'What is the main business goal?' });
+  expect(metric.options.find((o) => o.recommended)!.id).toBe('field:orders:revenue');
+  expect(rows.find((r) => r.id === 'goal.date')!.options.find((o) => o.recommended)!.id).toBe('field:orders:date');
+});
+
+test('accepting the recommended critical number sets the goal', () => {
+  const rows = buildRows(input(EMPTY_SETUP));
+  const opt = rows.find((r) => r.id === 'goal.metric')!.options.find((o) => o.recommended)!;
+  if (opt.action.kind !== 'set') throw new Error();
+  expect(opt.action.next(EMPTY_SETUP).goal).toMatchObject({ martId: 'orders', measure: { field: 'revenue', fn: 'SUM' }, kind: 'flow' });
+});
+
+test('an AI pick that names a real option becomes the recommendation; an unknown one is ignored', () => {
+  const two = node('orders', [...orders.detail.fields, f('profit', 'NUMERIC')], 'order_id');
+  expect(buildRows(input(EMPTY_SETUP, [two], { ai: { 'goal.metric': 'field:orders:profit' } })).find((r) => r.id === 'goal.metric')!.options.find((o) => o.recommended)!.id).toBe('field:orders:profit');
+  expect(buildRows(input(EMPTY_SETUP, [two], { ai: { 'goal.metric': 'field:orders:nope' } })).find((r) => r.id === 'goal.metric')!.options.find((o) => o.recommended)!.id).toBe('field:orders:revenue');
+});
+
+test('a saved goal field that is gone is broken, recommending the closest field', () => {
+  const s = { ...EMPTY_SETUP, goal: { ...goal, measure: { field: 'revenue_old', fn: 'SUM' as const } }, updatedAt: 't' };
+  const r = buildRows(input(s)).find((x) => x.id === 'goal.metric')!;
+  expect(r.state).toBe('broken');
+  expect(r.detail).toBe("revenue_old isn't in Orders any more");
+  expect(r.options.find((o) => o.recommended)!.id).toBe('field:orders:revenue');
+});
+
+test('a Data Mart whose schema failed to load marks its rows as errors with the reason', () => {
+  const g = graph([orders]); g.failed.set('orders', 'HTTP 500');
+  const s = { ...EMPTY_SETUP, goal, updatedAt: 't' };
+  const r = buildRows({ ...input(s), graph: { ...g, nodes: [] } }).find((x) => x.id === 'goal.metric')!;
+  expect(r).toMatchObject({ state: 'error', detail: "Couldn't check: HTTP 500" });
+});
+
+test('a dismissed notice is done', () => {
+  const s = { ...EMPTY_SETUP, goal, dismissed: ['goal.description'], updatedAt: 't' };
+  expect(buildRows(input(s)).find((x) => x.id === 'goal.description')!.state).toBe('done');
+});
+
+// a second Data Mart the first one references, so core, class, ratio and check rows have something to show
+const ref = (path: string, field: string) => `{{ref path="${path}" field="${field}"}}`;
+const customers = node('customers', [f('customer_id', 'STRING', { isPrimaryKey: true }), f('created_at', 'DATE'), f('ltv', 'NUMERIC'), f('conv_rate', 'NUMERIC')], 'customer_id');
+const linked = (): MartNode => ({ ...orders, blendable: { availableSources: [{ aliasPath: 'customers', dataMartId: 'customers', title: 'Customers', isAccessibleForReporting: true }], mainUniqueCountKeyFields: ['order_id'] }, detail: { ...orders.detail, fields: [...orders.detail.fields, { name: 'cust_ltv', type: 'FLOAT', isPrimaryKey: false, calculated: { formula: `AVG(${ref('customers', 'ltv')})`, level: 'metric' as const } }] as never } });
+const filled: ProjectSettingsV5 = { ...EMPTY_SETUP, goal, updatedAt: 't' };
+const rec = (r: { options: { id: string; recommended: boolean }[] }) => r.options.find((o) => o.recommended)!.id;
+const byId = (rows: ReturnType<typeof buildRows>, id: string) => rows.find((r) => r.id === id)!;
+
+describe('rows over a connected project', () => {
+  const rows = (s = filled, over: Partial<RowsInput> = {}) => buildRows(input(s, [linked(), customers], over));
+
+  test('core: the recommended set is a candidate, and choosing every candidate completes the row', () => {
+    const r = byId(rows(), 'core.classes');
+    expect(r).toMatchObject({ state: 'open', current: null });
+    expect(rec(r)).toBe('core:customers');
+    expect(byId(rows({ ...filled, coreClasses: ['customers'] }), 'core.classes').state).toBe('done');
+  });
+
+  test('class rows exist only with a model; the goal and core classes are warnings, others notices', () => {
+    expect(buildRows(input(EMPTY_SETUP, [linked(), customers])).some((r) => r.id.startsWith('class:'))).toBe(false);
+    const a = rows();
+    expect(byId(a, 'class:orders.key').severity).toBe('warning');
+    expect(byId(a, 'class:customers.key').severity).toBe('notice');
+    expect(byId(rows({ ...filled, coreClasses: ['customers'] }), 'class:customers.key').severity).toBe('warning');
+    expect(byId(a, 'class:orders.key').group).toBe('Orders');
+  });
+
+  test('a saved shown number gets a plan row and a format row recommending percent for a rate', () => {
+    const s = { ...filled, classes: { customers: { keyMetricId: null, shown: [{ martId: 'customers', measure: { field: 'conv_rate', fn: 'SUM' as const }, dateField: 'created_at', kind: 'flow' as const, alias: 'conv_rate' }] } } };
+    const a = rows(s);
+    const fmt = a.find((r) => r.id.endsWith('.format'))!;
+    expect(rec(fmt)).toBe('format:percent');
+    expect(fmt.title).toBe('conv_rate Format');
+    expect(a.some((r) => r.id.endsWith('.plan') && r.id.startsWith('metric:'))).toBe(true);
+  });
+
+  test('a ratio between connected classes is offered, added through settings, and skipping hides it', () => {
+    const open = rows().filter((r) => r.block === 'ratios');
+    expect(open).toHaveLength(1);
+    expect(rec(open[0]!)).toBe('ratio:add');
+    const add = open[0]!.options.find((o) => o.id === 'ratio:add')!;
+    if (add.action.kind !== 'set') throw new Error();
+    const next = add.action.next(filled);
+    expect(next.ratios).toHaveLength(1);
+    const saved = rows(next).filter((r) => r.block === 'ratios');
+    expect(saved[0]).toMatchObject({ state: 'done', dismissable: false });
+    expect(rec(saved[0]!)).toBe('ratio:keep');
+    expect(rows({ ...filled, dismissed: [open[0]!.id] }).filter((r) => r.block === 'ratios')).toHaveLength(0);
+  });
+
+  test('data checks: pass on a healthy goal, and offer the OWOX page when the goal has no key', () => {
+    const a = rows();
+    expect(byId(a, 'check.goal.pk').state).toBe('done');
+    expect(byId(a, 'check.goal.access').state).toBe('done');
+    const noKey = { ...orders, detail: { ...orders.detail, fields: orders.detail.fields.map((x) => ({ ...x, isPrimaryKey: false })) as never } };
+    const b = buildRows(input(filled, [noKey]));
+    const pk = byId(b, 'check.goal.pk');
+    expect(pk).toMatchObject({ state: 'open', severity: 'error' });
+    expect(pk.options[0]).toMatchObject({ label: 'Set order_id as the primary key', action: { kind: 'open', path: '/ui/p1/data-marts/orders/data-setup' } });
+  });
+
+  test('a core class that does not connect to the goal offers a calculated field on the goal', () => {
+    const lone = node('stores', [f('store_id', 'STRING', { isPrimaryKey: true })], 'store_id');
+    const r = byId(buildRows(input({ ...filled, coreClasses: ['stores'] }, [orders, lone])), 'check.core.toGoal:stores');
+    expect(r.state).toBe('open');
+    expect(r.options[0]!.label).toBe('Add a calculated field to Orders that references Stores.store_id');
+  });
+
+  test('an unpublished Data Mart the settings use fails the access check', () => {
+    const g = graph([linked(), customers]);
+    g.inputs.marts[1]!.status = 'DRAFT';
+    const s = { ...filled, coreClasses: ['customers'] };
+    const d = deriveModel(s, g);
+    const r = byId(buildRows({ ...input(s), graph: g, model: d.ok ? d.model : null }), 'check.access');
+    expect(r).toMatchObject({ state: 'open', severity: 'warning', detail: "You can't access Customers" });
+  });
+});
+
+describe('rows by block', () => {
+  test('goal description is done once the project description links the goal field, and appends the one-row table otherwise', () => {
+    const open = byId(buildRows(input(filled)), 'goal.description');
+    expect(open.state).toBe('open');
+    const opt = open.options[0]!;
+    expect(opt.action).toMatchObject({ kind: 'append', scope: 'project', text: '| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| Critical number | revenue |  | [revenue](/ui/p1/data-marts/orders/data-setup?field=revenue) |' });
+    const id = '0f0e0d0c-0b0a-4908-8706-050403020100';
+    const g = graph([{ ...orders, id }]);
+    g.inputs.projectDescription = `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| Critical number | Revenue | | [Revenue](/ui/p1/data-marts/${id}/data-setup?field=revenue) |`;
+    const s = { ...filled, goal: { ...goal, martId: id } };
+    const d = deriveModel(s, g);
+    expect(byId(buildRows({ ...input(s), graph: g, model: d.ok ? d.model : null }), 'goal.description').state).toBe('done');
+  });
+
+  test('the plan row ends with "No plan yet", which saves no plan and dismisses the row; the shape row follows a plan', () => {
+    const withPlan = node('orders', [...orders.detail.fields], 'order_id');
+    const plan = buildRows(input(filled, [withPlan])).find((r) => r.id === 'goal.plan')!;
+    expect(rec(plan)).toBe('field:orders:revenue_plan');
+    const none = plan.options.at(-1)!;
+    expect(none.id).toBe('none');
+    if (none.action.kind !== 'set') throw new Error();
+    const next = none.action.next(filled);
+    expect(next.goal!.plan).toBeNull();
+    expect(next.dismissed).toContain('goal.plan');
+    expect(buildRows(input(filled, [withPlan])).some((r) => r.id === 'goal.shape')).toBe(false);
+    const picked = plan.options[0]!.action;
+    if (picked.kind !== 'set') throw new Error();
+    const s = picked.next(filled);
+    expect(s.goal!.plan).toMatchObject({ martId: 'orders', dateField: 'date', shape: 'daily' });
+    expect(rec(byId(buildRows(input(s, [withPlan])), 'goal.shape'))).toBe('shape:daily');
+  });
+
+  test('teams: contexts become rows per team, with the team name in the title', () => {
+    const g = graph([{ ...orders, contexts: [{ id: 'c1', name: 'Sales' }] }]);
+    g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: null }, { id: 'c2', name: 'Marketing', description: null }];
+    const a = buildRows({ ...input(filled), graph: g });
+    expect(byId(a, 'teams.exist').state).toBe('done');
+    expect(byId(a, 'team:c1.metric')).toMatchObject({ title: 'Sales Critical Number', group: 'Sales', severity: 'warning' });
+    expect(rec(byId(a, 'team:c1.metric'))).toBe('field:orders:revenue');
+    expect(byId(a, 'team:c2.description').options[0]!.action).toMatchObject({ kind: 'append', scope: { contextId: 'c2' } });
+  });
+
+  test('housekeeping: the AI credential and a saved threshold', () => {
+    const a = buildRows(input(EMPTY_SETUP));
+    expect(byId(a, 'ai.credential')).toMatchObject({ state: 'open', severity: 'warning' });
+    expect(byId(a, 'ai.credential').options[0]!.action).toEqual({ kind: 'open', path: '/ui/p1/plugins' });
+    expect(buildRows(input(EMPTY_SETUP, [orders], { hasAi: true })).find((r) => r.id === 'ai.credential')!.state).toBe('done');
+    const t = byId(a, 'threshold');
+    expect(t.options.map((o) => o.id)).toEqual(expect.arrayContaining(['threshold:10', 'threshold:15', 'threshold:20', 'threshold:25', 'threshold:30']));
+    expect(rec(t)).toBe('threshold:20');
+    expect(t.state).toBe('open');
+    expect(byId(buildRows(input(filled)), 'threshold').state).toBe('done');
+  });
+
+  test('the AI pick marks the row pending while it runs, and no Data Marts leaves only the open-the-list option on goal rows', () => {
+    expect(byId(buildRows(input(EMPTY_SETUP, [orders], { aiPending: new Set(['goal.metric']) })), 'goal.metric').aiPending).toBe(true);
+    const none = byId(buildRows(input(EMPTY_SETUP, [])), 'goal.metric').options;
+    expect(none).toEqual([{ id: 'none', label: 'Not available yet: add a Data Mart with a number field', recommended: true, action: { kind: 'open', path: '/ui/p1/data-marts' } }]);
+  });
+});
