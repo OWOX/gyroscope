@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { SetupTab, type SetupTabProps } from './SetupTab';
+import { SetupSaveControls, SetupTab, type SetupTabProps } from './SetupTab';
 import type { Option, Row } from '../setup/types';
 
 const set = (id: string, label: string, recommended = false): Option => ({ id, label, recommended, action: { kind: 'set', next: (s) => s } });
@@ -27,7 +27,8 @@ function Stateful({ rows }: { rows: Row[] }) {
   const [picked, setPicked] = useState<Record<string, string>>({});
   const live = rows.map((r) => (picked[r.id] ? { ...r, state: 'done' as const } : r));
   const onPick = (id: string, o: string | null) => setPicked((p) => { const n = { ...p }; if (o === null) delete n[id]; else n[id] = o; return n; });
-  return <SetupTab {...props(live, { picked, onPick, dirty: Object.keys(picked).length, savedOpen: new Set(rows.map((r) => r.id)) })} />;
+  const p = props(live, { picked, onPick, dirty: Object.keys(picked).length, savedOpen: new Set(rows.map((r) => r.id)) });
+  return <><SetupSaveControls {...p} /><SetupTab {...p} /></>;
 }
 
 test('picking an option checks it, raises the change count and moves the progress bar; Not set undoes it', () => {
@@ -47,13 +48,13 @@ test('picking an option checks it, raises the change count and moves the progres
 
 test('Save and Discard call back; both are inert while a save runs', () => {
   const p = props([row({})], { dirty: 2 });
-  const { rerender } = render(<SetupTab {...p} />);
+  const { rerender } = render(<SetupSaveControls {...p} />);
   expect(screen.getByText('2 changes')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
   expect(p.onSave).toHaveBeenCalledTimes(1);
   expect(p.onDiscard).toHaveBeenCalledTimes(1);
-  rerender(<SetupTab {...props([row({})], { dirty: 2, saving: true })} />);
+  rerender(<SetupSaveControls {...props([row({})], { dirty: 2, saving: true })} />);
   expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
 });
 

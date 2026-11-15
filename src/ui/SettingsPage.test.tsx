@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { SettingsPage } from './SettingsPage';
 import { DEFAULT_SETTINGS } from '../types';
 import type { SetupTabProps } from './SetupTab';
@@ -71,4 +71,43 @@ test('Settings offers None (ontology view) and it is selected when there is no d
   fireEvent.change(select, { target: { value: '' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(onSave).toHaveBeenCalledWith({ ...DEFAULT_SETTINGS, defaultPreset: null });
+});
+
+describe('the page header carries Save on Setup', () => {
+  const page = (over: Partial<SetupTabProps> = {}, tab: 'setup' | 'general' = 'setup') =>
+    render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} setup={{ ...setupProps, dirty: 2, ...over }} tab={tab} />);
+  const header = () => document.querySelector('.gy-settings-header') as HTMLElement;
+
+  test('Save, Discard and the change count sit in the header', () => {
+    const onSave = vi.fn(); const onDiscard = vi.fn();
+    page({ onSave, onDiscard });
+    expect(within(header()).getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(within(header()).getByText('2 changes')).toBeInTheDocument();
+    fireEvent.click(within(header()).getByRole('button', { name: 'Discard' }));
+    fireEvent.click(within(header()).getByRole('button', { name: 'Save' }));
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  test('General has no Setup save in the header, and read-only has none either', () => {
+    const { unmount } = page({}, 'general');
+    expect(within(header()).queryByRole('button', { name: 'Save' })).toBeNull();
+    unmount();
+    page({ readOnly: true });
+    expect(within(header()).queryByRole('button', { name: 'Save' })).toBeNull();
+  });
+
+  test('the header, tabs and progress bar share one sticky wrapper', () => {
+    page();
+    const sticky = document.querySelector('.gy-settings-sticky') as HTMLElement;
+    expect(sticky).toContainElement(header());
+    expect(sticky).toContainElement(screen.getByRole('tablist'));
+    expect(sticky).toContainElement(screen.getByRole('progressbar'));
+  });
+
+  test('the progress bar leaves with the Setup tab', () => {
+    page();
+    fireEvent.click(screen.getByRole('tab', { name: 'General' }));
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
 });

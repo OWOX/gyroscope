@@ -552,8 +552,16 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-note { font-size: 0.75rem; }
 .gy-row-rec { display: inline-block; margin-left: 0.375rem; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.6875rem; line-height: 1.4; color: var(--muted-foreground); white-space: nowrap; vertical-align: middle; }
 .gy-row-more, .gy-row-open { text-align: left; }
-.gy-progress-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
 .gy-save { display: flex; align-items: center; gap: 0.75rem; font-size: 0.8125rem; }
 .gy-btn:disabled { opacity: 0.5; cursor: default; }
 @media (max-width: 40rem) { .gy-row { grid-template-columns: 1.75rem minmax(0, 1fr); } .gy-row-side { grid-column: 2; } }
 .gy-save-notice { margin: 0; font-size: 0.8125rem; }
+
+/* the header, tabs and (on Setup) the progress bar stay put while the blocks scroll under them; the document scrolls, and no ancestor clips it */
+.gy-settings-sticky { position: sticky; top: 0; z-index: 30; background: var(--background); border-bottom: 1px solid var(--border); }
+.gy-settings-sticky .gy-tabs { margin-bottom: 0; border-bottom: 0; }
+.gy-settings-header .gy-save { margin-left: auto; }
+.gy-settings-progress { padding: 0.5rem 3rem 0.75rem; }
+.gy-settings-progress:empty { display: none; }
+@media (max-width: 640px) { .gy-settings-progress { padding: 0.5rem 1.25rem 0.75rem; } }
+.gy-settings-sticky + main { padding-top: 1rem; }
