@@ -42,3 +42,9 @@ test('the facts hash changes with a field, not with the order of Data Marts', ()
   expect(factsHash(g(['a'], ['x', 'y']))).toBe(factsHash(g(['a'], ['y', 'x'])));
   expect(factsHash(g(['a'], ['x']))).not.toBe(factsHash(g(['b'], ['x'])));
 });
+
+test('no options gives null without an AI call', async () => {
+  let called = false;
+  expect(await aiPick(row('goal.metric', []), { projectDescription: null }, async () => { called = true; return { pick: 0 }; })).toBeNull();
+  expect(called).toBe(false);
+});

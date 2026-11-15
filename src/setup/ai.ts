@@ -35,7 +35,7 @@ export const factsHash = (g: Graph): string => hashString(JSON.stringify([
 /** The AI's choice among the row's options, by index; null when it can't answer. Never throws. */
 export async function aiPick(row: Row, facts: { projectDescription: string | null; contextName?: string }, generate: GenerateWith): Promise<string | null> {
   const opts = row.options.slice(0, MAX_OPTIONS);
-  if (opts.length === 1) return opts[0]!.id;
+  if (opts.length <= 1) return opts[0]?.id ?? null;
   const prompt = [
     `A business user is asked: "${row.question}" (${row.title}${facts.contextName ? `, for ${facts.contextName}` : ''}).`,
     'Pick the best answer from the OPTIONS by its index. Use only the facts given below. Answer with the index only, no Markdown.',

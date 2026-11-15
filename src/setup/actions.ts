@@ -60,11 +60,16 @@ export async function runAction(a: Action, { owox, store, settings, by, now, ope
         return { ok: true, settings };
       case 'teams':
         if (!owox.postJson) throw new Unavailable();
+        const existing = await owox.getJson<{ id: string; name: string }[]>('/api/contexts');
         for (const t of a.teams) {
-          await owox.postJson('/api/contexts', { name: t.name, description: '' });
-          const made = (await owox.getJson<{ id: string; name: string }[]>('/api/contexts')).find((c) => c.name === t.name);
-          if (!made) throw new Error(`Couldn't find the team ${t.name} after creating it`);
-          for (const id of t.martIds) await addMartToContext(owox, id, made.id);
+          const same = (c: { name: string }) => c.name.toLowerCase() === t.name.toLowerCase();
+          let id = existing.find(same)?.id;
+          if (!id) {
+            const made = await owox.postJson<{ id?: unknown }>('/api/contexts', { name: t.name, description: '' });
+            id = typeof made?.id === 'string' ? made.id : (await owox.getJson<{ id: string; name: string }[]>('/api/contexts')).find(same)?.id;
+          }
+          if (!id) throw new Error(`Couldn't find the team ${t.name} after creating it`);
+          for (const m of t.martIds) await addMartToContext(owox, m, id);
         }
         return { ok: true, settings };
       case 'open': open(a.path); return { ok: true, settings };
