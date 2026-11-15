@@ -139,9 +139,9 @@ export async function loadCache(ctx: CollectionsLike, key: string): Promise<Cach
 }
 export const saveCache = async (ctx: CollectionsLike, key: string, doc: CacheDoc): Promise<void> => { await ctx.collections<CacheDoc>('cache').put(key, doc); };
 
-/** The model version is builtAt + editedAt: every content change sets one of them; inputHash can move alone and doesn't touch the numbers. */
+/** Stale when the model version (builtAt + editedAt), the schema-and-settings hash, the anchor or the threshold differ from the cached numbers'. */
 export const isStale = (doc: CacheDoc | null, model: Model, anchor: Day, thresholdPct: number): boolean =>
-  !doc || doc.anchor !== anchor || doc.builtAt !== model.builtAt || (doc.editedAt ?? null) !== model.editedAt || doc.thresholdPct !== thresholdPct;
+  !doc || doc.anchor !== anchor || doc.modelHash !== model.inputHash || doc.builtAt !== model.builtAt || (doc.editedAt ?? null) !== model.editedAt || doc.thresholdPct !== thresholdPct;
 
 export function memoryCollections(): CollectionsLike {
   const store = new Map<string, Map<string, unknown>>();

@@ -3,6 +3,7 @@ import { allFieldPaths, DATE_TYPES, flattenFields, type Blendable, type MartDeta
 import { hashString } from '../lib/hash';
 import { buildEdges, classDepths, hasPrimaryKey } from './graph';
 import { inboundCounts } from './core';
+import type { MartNode } from './graph';
 import type { Graph } from './graph-load';
 
 export type { Graph } from './graph-load';
@@ -23,6 +24,13 @@ export function uniqueCountMetric(detail: MartDetail, blendable: Blendable): Met
   const measure: Measure = { field: key, fn: 'COUNT_DISTINCT' };
   return { id: metricId(detail.id, measure), martId: detail.id, alias: detail.title, measure, kind: 'flow', role: 'unique', source: 'schema', isUniqueCount: true, calculated: false, format: 'number', currency: null, plan: null, shown: true, forecast: null, dateField };
 }
+
+/** The drawn Data Marts' shape: field paths, types, keys, formulas and join sources, so a schema change moves the hash. */
+const schemaFingerprint = (nodes: MartNode[]) => nodes.map((n) => [
+  n.id,
+  flattenFields(n.detail.fields).map((x) => [x.path, x.field.type, !!x.field.isPrimaryKey, x.field.calculated?.formula ?? null]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  n.blendable.availableSources.map((x) => [x.aliasPath, x.dataMartId]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
 const blocked = (code: Blocked['code'], detail: string): Derived => ({ ok: false, blocked: { code, detail, mismatches: [] } });
 
@@ -61,7 +69,7 @@ export function deriveModel(s: ProjectSettingsV5, g: Graph): Derived {
   add(goalDef);
   for (const [ctxId, c] of Object.entries(s.contexts)) if (c.metric && usable(c.metric) && depths.has(c.metric.martId)) add(def(c.metric, 'critical', ctxId, c.plan));
 
-  const classes: ClassNode[] = [];
+  const drafts: { n: MartNode; depth: number; own: string[]; uc: MetricDef | null }[] = [];
   for (const n of g.nodes) {
     const depth = depths.get(n.id);
     if (depth === undefined) continue;
@@ -71,25 +79,32 @@ export function deriveModel(s: ProjectSettingsV5, g: Graph): Derived {
     const uc = uniqueCountMetric(n.detail, n.blendable);
     if (uc) { add({ ...uc, ...fmt(uc.id) }); if (!own.includes(uc.id)) own.push(uc.id); }
     for (const c of s.classes[n.id]?.shown ?? []) {
-      if (!usable(c)) continue;
+      if (c.martId !== n.id || !usable(c)) continue;
       const m = def(c, 'leading', 'project', s.plans[metricId(c.martId, c.measure)] ?? null);
       add(m);
       if (!own.includes(m.id)) own.push(m.id);
     }
-    for (const r of s.ratios) {
-      if (metrics.get(r.numerator)?.martId !== n.id) continue;
-      const num = metrics.get(r.numerator);
-      if (!num) continue;
-      add({ ...num, id: r.id, alias: r.name, role: 'leading', source: 'project', isUniqueCount: false, plan: null, forecast: null, format: r.format, currency: r.format === 'currency' ? num.currency : null, calculated: false, description: null, ratio: { numerator: r.numerator, denominator: r.denominator } });
-      own.push(r.id);
-    }
+    drafts.push({ n, depth, own, uc });
+  }
+
+  // ratios join once every plain metric exists; one whose side is missing or is itself a ratio is dropped before keys are chosen
+  const ratioIds = new Set(s.ratios.map((r) => r.id));
+  for (const r of s.ratios) {
+    if (metrics.has(r.id) || ratioIds.has(r.numerator) || ratioIds.has(r.denominator) || !metrics.has(r.denominator)) continue;
+    const num = metrics.get(r.numerator);
+    const d = num && drafts.find((x) => x.n.id === num.martId);
+    if (!num || !d) continue;
+    add({ ...num, id: r.id, alias: r.name, role: 'leading', source: 'project', isUniqueCount: false, plan: null, forecast: null, format: r.format, currency: r.format === 'currency' ? num.currency : null, calculated: false, description: null, ratio: { numerator: r.numerator, denominator: r.denominator } });
+    d.own.push(r.id);
+  }
+
+  const classes: ClassNode[] = [];
+  for (const { n, depth, own, uc } of drafts) {
     const chosen = s.classes[n.id]?.keyMetricId;
     const key = chosen && own.includes(chosen) ? chosen : n.id === goal.martId ? goalDef.id : uc && own.includes(uc.id) ? uc.id : own[0] ?? null;
     const ordered = key ? [key, ...own.filter((id) => id !== key)] : own;
     classes.push({ id: n.id, martId: n.id, title: n.title, contexts: n.contexts, depth, keyMetricId: key, metricIds: ordered, shown: true, core: core.has(n.id), inbound: 0 });
   }
-  // a ratio's denominator must be computable even when its class isn't drawn
-  for (const r of s.ratios) if (!metrics.has(r.denominator)) metrics.delete(r.id);
   const inbound = inboundCounts(edges);
   for (const c of classes) c.inbound = inbound.get(c.id) ?? 0;
   classes.sort((a, b) => a.depth - b.depth || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
@@ -100,12 +115,12 @@ export function deriveModel(s: ProjectSettingsV5, g: Graph): Derived {
     ok: true,
     model: {
       version: 3,
-      inputHash: hashString(JSON.stringify(content)),
+      inputHash: hashString(JSON.stringify([content, schemaFingerprint(g.nodes.filter((n) => depths.has(n.id)))])),
       builtAt: updatedAt ?? 'never',
       builtBy: updatedBy ?? '',
       editedAt: null, editedBy: null,
       goal: { classId: goal.martId, metricId: goalDef.id, goalMartId: goal.martId, viaFallback: false },
-      classes: classes.map((c) => ({ ...c, metricIds: c.metricIds.filter((id) => metrics.has(id)) })),
+      classes,
       edges: edges.filter((e) => depths.has(e.from) && depths.has(e.to)).map((e) => ({ from: e.from, to: e.to, fields: e.fields })),
       metrics: [...metrics.values()].filter((m) => kept.has(m.id)).sort((a, b) => a.id.localeCompare(b.id)),
     },
