@@ -154,6 +154,10 @@ interface ProjectSettingsV5 {
 4. With no goal or no date field it returns `Blocked` with `NO_GOAL` or `GOAL_NO_DATE`. The goal Data Mart's access and primary key keep their existing block codes.
 5. It never calls the AI. The model isn't stored. It's derived on each load and cached in memory.
 6. `cache` documents are keyed on a hash of the settings and the schemas, in place of `builtAt` and `editedAt`.
+7. **What a member sees** (decided 2026-11-15). The model is derived from the Data Marts the viewer can access.
+   1. When the viewer can access the project critical number's Data Mart, it is the center.
+   2. Otherwise the center is the critical number of a context whose Data Mart the viewer can access, choosing the one closest to the project critical number: fewest references from it to the goal Data Mart, then the order of contexts in settings.
+   3. When the viewer can access neither, the canvas shows "To use Gyroscope, you need access to a Data Mart with a critical number: the project's or a context's. Ask a project admin for access."
 
 ### 2.3 Recommendations
 
