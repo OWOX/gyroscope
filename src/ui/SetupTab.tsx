@@ -48,14 +48,16 @@ export function SetupTab({ rows, loading, readOnly, busyRow, message, onChoose, 
         </div>
       )}
       <ProgressBar counts={progress(rows)} onJump={jump} />
+      <div className="gy-setup-blocks">
       {BLOCKS.map((b) => {
         const mine = rows.filter((r) => r.block === b.id);
         if (mine.length === 0) return null;
         const groups = [...new Set(mine.filter((r) => r.group).map((r) => r.group!))];
         const loose = mine.filter((r) => !r.group);
+        const left = mine.filter(isOpen).length;
         return (
-          <CollapsibleCard key={b.id} label={b.title} collapsed={!mine.some(isOpen)} attention={target?.block === b.id} status={<SeverityIcon s={worst(mine)} />}
-            title={<span className="gy-setup-title">{b.title}<span className="gy-muted gy-setup-sub">{b.question}</span></span>}>
+          <CollapsibleCard key={b.id} variant="band" icon={b.icon} label={b.title} collapsed={!mine.some(isOpen)} attention={target?.block === b.id} status={<SeverityIcon s={worst(mine)} />}
+            title={<span className="gy-setup-title"><span className="gy-setup-name">{b.title}</span><span className="gy-setup-count" data-testid="block-count">{left > 0 ? `${left} left` : mine.length}</span><span className="gy-muted gy-setup-sub">{b.question}</span></span>}>
             <p className="gy-muted gy-setup-why">{b.why}</p>
             {loose.map(renderRow)}
             {groups.map((g) => {
@@ -70,6 +72,7 @@ export function SetupTab({ rows, loading, readOnly, busyRow, message, onChoose, 
           </CollapsibleCard>
         );
       })}
+      </div>
     </div>
   );
 }

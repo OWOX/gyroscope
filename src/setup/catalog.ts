@@ -1,13 +1,14 @@
+import { Boxes, Divide, Gauge, Settings2, ShieldCheck, Target, Users } from 'lucide-react';
 import type { BlockInfo, Severity } from './types';
 
 export const BLOCKS: BlockInfo[] = [
-  { id: 'goal', title: 'Goal', question: 'What number does the business live by?', why: 'Every other setting is judged against it.' },
-  { id: 'core', title: 'Core Business Entities', question: 'Who buys, what is bought, and where do they come from?', why: 'These are drawn around the goal and show how the business fits together.' },
-  { id: 'teams', title: 'Teams', question: 'Which teams or areas own a part of the goal?', why: 'To group the canvas by team and judge each on its own number.' },
-  { id: 'metrics', title: 'Metrics', question: 'Which numbers should each card show?', why: 'So every card reads at a glance.' },
-  { id: 'ratios', title: 'Ratio Metrics', question: 'How well does one step turn into the next?', why: 'It shows how well one step turns into the next.' },
-  { id: 'checks', title: 'Data Checks', question: 'Can Gyroscope read what the settings point at?', why: 'A setting that points at missing data shows nothing.' },
-  { id: 'housekeeping', title: 'Housekeeping', question: 'Is Gyroscope itself set up?', why: 'So recommendations and card colors work as you expect.' },
+  { id: 'goal', title: 'Goal', question: 'What number does the business live by?', why: 'Every other setting is judged against it.', icon: Target },
+  { id: 'core', title: 'Core Business Entities', question: 'Who buys, what is bought, and where do they come from?', why: 'These are drawn around the goal and show how the business fits together.', icon: Boxes },
+  { id: 'teams', title: 'Teams', question: 'Which teams or areas own a part of the goal?', why: 'To group the canvas by team and judge each on its own number.', icon: Users },
+  { id: 'metrics', title: 'Metrics', question: 'Which numbers should each card show?', why: 'So every card reads at a glance.', icon: Gauge },
+  { id: 'ratios', title: 'Ratio Metrics', question: 'How well does one step turn into the next?', why: 'It shows how well one step turns into the next.', icon: Divide },
+  { id: 'checks', title: 'Data Checks', question: 'Can Gyroscope read what the settings point at?', why: 'A setting that points at missing data shows nothing.', icon: ShieldCheck },
+  { id: 'housekeeping', title: 'Housekeeping', question: 'Is Gyroscope itself set up?', why: 'So recommendations and card colors work as you expect.', icon: Settings2 },
 ];
 
 interface Copy { title: string; question: string; why: string; severity: Severity }

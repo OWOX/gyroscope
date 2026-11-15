@@ -128,6 +128,18 @@ h2 { margin: 0; }
 .dm-collapsible-clip { overflow: hidden; }
 .dm-collapsible-content { display: grid; gap: 0.75rem; padding: 0.25rem 1rem 1rem; }
 .dm-collapsible[data-variant='block'] .dm-collapsible-content { padding: 0 1rem 0.75rem; }
+/* Data Flow's block chrome: a muted panel with a hairline under it, an icon tile, a bare chevron. */
+.dm-collapsible[data-variant='band'] { border-bottom: 1px solid var(--border); background: color-mix(in oklab, var(--muted) 50%, transparent); padding: 0.75rem 1rem 1rem; }
+.dm-collapsible[data-variant='band'][data-folded='true'] { padding-bottom: 0.75rem; }
+:root.dark .dm-collapsible[data-variant='band'] { background: color-mix(in oklab, white 4%, transparent); border-bottom-color: color-mix(in oklab, white 4%, transparent); }
+.dm-collapsible[data-variant='band'] .dm-collapsible-header { padding: 0; margin-bottom: 0.75rem; }
+.dm-collapsible[data-variant='band'][data-folded='true'] .dm-collapsible-header { margin-bottom: 0; }
+.dm-collapsible[data-variant='band'] .dm-collapsible-title { font-size: 0.9375rem; line-height: 1; min-width: 0; }
+.dm-collapsible[data-variant='band'] .dm-collapsible-icon { background: color-mix(in oklab, var(--border) 75%, transparent); }
+:root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon { background: color-mix(in oklab, white 8%, transparent); }
+.dm-collapsible[data-variant='band'] .dm-collapsible-toggle { width: auto; height: auto; border-radius: 0; background: none; transition: color 150ms; }
+.dm-collapsible[data-variant='band'] .dm-collapsible-toggle:hover { background: none; color: var(--foreground); }
+.dm-collapsible[data-variant='band'] .dm-collapsible-content { padding: 0; }
 @media (prefers-reduced-motion: reduce) { .dm-collapsible-grid, .dm-collapsible-toggle svg { transition: none; } }
 .gy-tag { border: 1px solid var(--green); border-radius: 0.25rem; padding: 0 0.25rem; font-size: 0.6875rem; color: var(--green); }
 .gy-fieldset { display: grid; gap: 1rem; margin: 0; padding: 0; border: 0; }
@@ -475,7 +487,11 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-setup-banner span { white-space: pre-wrap; }
 .gy-setup-banner { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--orange); border-radius: 0.5rem; font-size: 0.8125rem; }
 .gy-setup-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.gy-setup-sub { font-size: 0.75rem; font-weight: 400; }
+.gy-setup-sub { font-size: 0.8125rem; font-weight: 400; line-height: 1.2; }
+.gy-setup-blocks { display: grid; gap: 0.75rem; }
+.gy-setup-name { font-weight: 500; }
+.gy-setup-count { display: inline-block; padding: 0.0625rem 0.4375rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; line-height: 1.25; background: color-mix(in oklab, var(--border) 75%, transparent); }
+:root.dark .gy-setup-count { background: color-mix(in oklab, white 8%, transparent); }
 .gy-setup-why { margin: 0 0 0.5rem; font-size: 0.75rem; }
 .gy-setup-group { margin-top: 0.5rem; }
 .gy-setup-group > summary { cursor: pointer; font-size: 0.8125rem; font-weight: 500; padding: 0.25rem 0; }

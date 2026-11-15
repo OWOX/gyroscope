@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react';
 import type { ProjectSettingsV5 } from '../types';
 
 export type Severity = 'error' | 'warning' | 'notice';
@@ -29,4 +30,4 @@ export interface Row {
   detail?: string;            // broken or error reason
   dismissable: boolean;
 }
-export interface BlockInfo { id: BlockId; title: string; question: string; why: string }
+export interface BlockInfo { id: BlockId; title: string; question: string; why: string; icon: LucideIcon }

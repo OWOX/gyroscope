@@ -155,3 +155,15 @@ describe('the link to OWOX and the AI icon', () => {
     expect(container.querySelector('.gy-row-chip .lucide-sparkles')).not.toBeNull();
   });
 });
+
+test('each block header shows its icon tile and an open-count badge', () => {
+  const done = row({ id: 'a', state: 'done', current: 'Revenue (Orders)' });
+  const open1 = row({ id: 'b', block: 'metrics', severity: 'warning', title: 'Orders Format' });
+  const open2 = row({ id: 'c', block: 'metrics', severity: 'notice', title: 'Orders Plan' });
+  const { container } = render(<SetupTab {...props([done, open1, open2])} />);
+  const cards = [...container.querySelectorAll('.dm-collapsible[data-variant="band"]')];
+  expect(cards).toHaveLength(2);
+  for (const c of cards) expect(c.querySelector('.dm-collapsible-icon svg')).not.toBeNull();
+  const counts = screen.getAllByTestId('block-count').map((e) => e.textContent);
+  expect(counts).toEqual(['1', '2 left']);
+});

@@ -3,13 +3,13 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 
 /**
  * Mirrors OWOX's CollapsibleCard (the plugin can't import it): icon and title left, status and chevron right, content folds.
- * `section` is OWOX's muted card; `block` is its white `dm-card-block`, bordered, for cards inside a section.
+ * `section` is OWOX's muted card; `band` is Data Flow's block chrome (muted panel, icon tile, bare chevron); `block` is its white `dm-card-block`, bordered, for cards inside a section.
  * The whole header toggles, as in OWOX; the chevron is the keyboard's button.
  * `collapsed` seeds the state and re-applies whenever it changes, so results can fold or open a card the user may still toggle;
  * `attention` opens it when it turns true, even if the user folded it.
  */
 export function CollapsibleCard({ title, icon: Icon, status, variant = 'block', collapsed = false, attention = false, label, children }: {
-  title: ReactNode; icon?: LucideIcon; status?: ReactNode; variant?: 'section' | 'block'; collapsed?: boolean; attention?: boolean; label?: string; children: ReactNode;
+  title: ReactNode; icon?: LucideIcon; status?: ReactNode; variant?: 'section' | 'block' | 'band'; collapsed?: boolean; attention?: boolean; label?: string; children: ReactNode;
 }) {
   const [folded, setFolded] = useState(collapsed);
   const bodyId = useId();
@@ -17,7 +17,7 @@ export function CollapsibleCard({ title, icon: Icon, status, variant = 'block', 
   useEffect(() => { if (attention) setFolded(false); }, [attention]);
   const toggle = () => setFolded((f) => !f);
   return (
-    <div className="dm-collapsible" data-variant={variant} role="group" aria-label={label}>
+    <div className="dm-collapsible" data-variant={variant} data-folded={folded} role="group" aria-label={label}>
       <div className="dm-collapsible-header" onClick={toggle}>
         <span className="dm-collapsible-title">
           {Icon && <span className="dm-collapsible-icon" aria-hidden="true"><Icon size={18} /></span>}
