@@ -14,7 +14,7 @@ const RATE = /rate|share|ratio|percent|pct|\bcr\b|ctr|conversion/i;
 const SYMBOLS: Record<string, string> = { $: 'USD', '€': 'EUR', '£': 'GBP', '₴': 'UAH' };
 const CODES = /\b(USD|EUR|GBP|UAH|PLN|CAD|AUD|CHF|JPY|CNY|INR|BRL|SEK|NOK|DKK|CZK|TRY)\b/;
 
-const cands = (n: MartNode, keep: (type: string, text: string) => boolean): FieldCand[] =>
+export const cands = (n: MartNode, keep: (type: string, text: string) => boolean): FieldCand[] =>
   flattenFields(n.detail.fields).flatMap(({ path, field }) => {
     const type = field.calculated?.level === 'metric' ? 'METRIC' : field.type.toUpperCase();
     const text = `${field.name} ${field.alias ?? ''}`;
