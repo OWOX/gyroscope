@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SetupTab } from './SetupTab';
 import type { Row } from '../setup/types';
 
@@ -45,6 +45,7 @@ test('the progress bar counts what is left by severity', () => {
   expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
   expect(screen.getByText('1 blocker')).toBeInTheDocument();
   expect(screen.getByText('1 recommended')).toBeInTheDocument();
+  expect(screen.getByText('left')).toBeInTheDocument();
 });
 
 test('Dismiss on a notice calls onDismiss', () => {
@@ -52,4 +53,44 @@ test('Dismiss on a notice calls onDismiss', () => {
   render(<SetupTab {...p} />);
   fireEvent.click(screen.getByText('Dismiss'));
   expect(p.onDismiss).toHaveBeenCalledWith('goal.description');
+});
+
+test('a stray key on the closed options list does not choose anything', () => {
+  const p = props([row({})]);
+  render(<SetupTab {...p} />);
+  const box = screen.getByRole('combobox');
+  box.focus();
+  fireEvent.keyDown(box, { key: 'p' });
+  fireEvent.keyDown(box, { key: 'End' });
+  expect(p.onChoose).not.toHaveBeenCalled();
+});
+
+test('busy disables the options list and Dismiss', () => {
+  render(<SetupTab {...props([row({ dismissable: true, severity: 'notice' })], { busyRow: 'goal.metric' })} />);
+  expect(screen.getByRole('combobox')).toHaveAttribute('aria-disabled', 'true');
+  expect(screen.getByRole('button', { name: 'Dismiss Business Critical Number' })).toBeDisabled();
+});
+
+test('jumping opens a folded block and a closed group, then focuses the row', async () => {
+  const done = row({ id: 'a', state: 'done', current: 'Revenue (Orders)' });
+  const open = row({ id: 'b', block: 'metrics', group: 'Orders', severity: 'warning', title: 'Orders Format' });
+  render(<SetupTab {...props([done, open])} />);
+  const group = document.querySelector('[data-row-id="b"]')!.closest('details')!;
+  group.open = false;
+  fireEvent.click(screen.getAllByRole('button', { name: /^Metrics$/, hidden: true })[0]!);
+  fireEvent.click(screen.getByRole('button', { name: /recommended left/ }));
+  await waitFor(() => expect(group.open).toBe(true));
+  expect(document.querySelector('[data-row-id="b"]')!.closest('.dm-collapsible-clip')).toHaveAttribute('aria-hidden', 'false');
+});
+
+test('an error row has a Retry that works read-only too', () => {
+  const p = props([row({ state: 'error', detail: "couldn't check" })], { readOnly: true });
+  render(<SetupTab {...p} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(p.onRetry).toHaveBeenCalled();
+});
+
+test('read-only still shows the spinner while the AI is pending', () => {
+  const { container } = render(<SetupTab {...props([row({ aiPending: true })], { readOnly: true })} />);
+  expect(container.querySelector('.gy-row-chip .gy-spin')).not.toBeNull();
 });

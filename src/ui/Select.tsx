@@ -11,13 +11,15 @@ export interface SelectOption { value: string; label: string; disabled?: boolean
  * the next option starting with it; with the list closed, a letter, Home and End change the value as a native select
  * does.
  */
-export function Select({ label, value, options, className = '', invalid, describedBy, title, onChange }: {
+export function Select({ label, value, options, className = '', invalid, describedBy, title, menu, disabled, onChange }: {
   label: string; value: string; options: SelectOption[]; className?: string;
   invalid?: boolean; describedBy?: string; title?: string;
+  /** An action menu: with the list closed, keys only open it and nothing changes until an option is picked in the open list. */
+  menu?: boolean; disabled?: boolean;
   onChange: (v: string) => void;
 }) {
   const id = useId();
-  const locked = useReadOnly();
+  const locked = useReadOnly() || !!disabled;
   const [open, setOpen] = useState(false);
   // the highlighted option by value, so it stays put while the options change under an open list
   const [activeValue, setActiveValue] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function Select({ label, value, options, className = '', invalid, describ
     return -1;
   };
   // with the list closed the keys change the value itself, as a native select's do
-  const move = (i: number) => { if (open) step(i); else if (i >= 0 && i !== selected) onChange(options[i]!.value); };
+  const move = (i: number) => { if (open) step(i); else if (menu) show(); else if (i >= 0 && i !== selected) onChange(options[i]!.value); };
 
   return (
     <>

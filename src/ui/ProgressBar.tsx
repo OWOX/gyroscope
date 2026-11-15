@@ -20,15 +20,19 @@ export function ProgressBar({ counts, onJump }: { counts: ReturnType<typeof prog
       </div>
       <div className="gy-progress-legend">
         {left.length === 0 && <span className="gy-muted">All set</span>}
-        {left.map((l) => {
+        {left.map((l, i) => {
           const n = counts[l.key];
           const word = n === 1 ? l.one : l.many;
           return (
-            <button key={l.sev} type="button" className="gy-progress-btn" data-severity={l.sev} aria-label={`${n} ${word} left, go to the first`} onClick={() => onJump(l.sev)}>
-              {n} {word}
-            </button>
+            <span key={l.sev}>
+              {i > 0 && <span className="gy-muted" aria-hidden="true">·</span>}
+              <button type="button" className="gy-progress-btn" data-severity={l.sev} aria-label={`${n} ${word} left, go to the first`} onClick={() => onJump(l.sev)}>
+                {n} {word}
+              </button>
+            </span>
           );
         })}
+        {left.length > 0 && <span className="gy-muted">left</span>}
       </div>
     </div>
   );
