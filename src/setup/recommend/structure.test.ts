@@ -58,6 +58,24 @@ describe('structure recommenders', () => {
     expect(ratioPairs(model(), nodes)).toEqual([{ numerator: 'orders:revenue:SUM', denominator: 'sessions:sessions:SUM', name: 'Revenue per Sessions' }]);
   });
 
+  test('shown excludes the saved key field, not the recommended one', () => {
+    const n = node('sessions', [{ name: 'sessions', type: 'INT64', isPrimaryKey: false }, { name: 'a', type: 'INT64', isPrimaryKey: false }]);
+    const m = model();
+    (m.classes[1] as { keyMetricId: string }).keyMetricId = 'sessions:a:SUM';
+    (m.metrics as unknown[]).push(metric('sessions:a:SUM', 'sessions'));
+    (m.classes[1] as { metricIds: string[] }).metricIds.push('sessions:a:SUM');
+    expect(keyFor('sessions', m)).toBe('sessions:id:COUNT_DISTINCT');
+    expect(shownFor('sessions', m, n).map((x) => x.path)).toEqual(['sessions']);
+  });
+
+  test('ratio pairs skip ratio metrics and metrics without a date', () => {
+    const nodes = [node('orders', [{ name: 'session_ref', type: 'STRING', isPrimaryKey: false, calculated: { formula: ref('sessions', 'session_id') } }], ['sessions']), node('sessions')];
+    const a = model(); (a.metrics[0] as { ratio: unknown }).ratio = { numerator: 'x', denominator: 'y' };
+    const b = model(); (b.metrics[1] as { dateField: null }).dateField = null;
+    expect(ratioPairs(a, nodes)).toEqual([]);
+    expect(ratioPairs(b, nodes)).toEqual([]);
+  });
+
   test('ratio pairs skip a pair where a calculated field already references the other key field', () => {
     const nodes = [node('orders', [{ name: 'per', type: 'NUMERIC', isPrimaryKey: false, calculated: { formula: ref('sessions', 'sessions') } }], ['sessions']), node('sessions')];
     expect(ratioPairs(model(), nodes)).toEqual([]);

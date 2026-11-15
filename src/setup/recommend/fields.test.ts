@@ -44,4 +44,23 @@ describe('field recommenders', () => {
     expect(formatFor('Price $')).toEqual({ format: 'currency', currency: 'USD' });
     expect(formatFor('Sessions')).toEqual({ format: 'number', currency: null });
   });
+
+  test('ids and primary keys never count as numbers', () => {
+    const n = node('o', [f('order_id', 'INT64'), f('user_id', 'INT64'), f('pk', 'INT64', { isPrimaryKey: true }), f('orderId', 'INT64'), f('paid', 'INT64'), f('revenue', 'NUMERIC')]);
+    expect(numericFields([n]).map((x) => x.path)).toEqual(['paid', 'revenue']);
+    expect(criticalCandidates([n], []).map((x) => x.path)).not.toContain('order_id');
+  });
+
+  test('dates: created and event names rank up', () => {
+    const n = node('o', [f('updated_at', 'TIMESTAMP'), f('created_at', 'TIMESTAMP')]);
+    expect(dateCandidates(n).map((x) => x.path)).toEqual(['created_at', 'updated_at']);
+  });
+
+  test('format: whole-token rates, cost words, codes in names', () => {
+    expect(formatFor('Conversions')).toEqual({ format: 'number', currency: null });
+    expect(formatFor('Generated revenue').format).toBe('currency');
+    expect(formatFor('Ad cost').format).toBe('currency');
+    expect(formatFor('revenue_usd')).toEqual({ format: 'currency', currency: 'USD' });
+    expect(formatFor('bounce_rate')).toEqual({ format: 'percent', currency: null });
+  });
 });

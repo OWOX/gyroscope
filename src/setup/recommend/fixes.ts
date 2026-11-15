@@ -2,14 +2,16 @@ import type { MartNode } from '../../model/graph';
 import { flattenFields } from '../../owox/sources';
 import { cands, type FieldCand } from './fields';
 
-const singular = (s: string) => s.toLowerCase().replace(/ies$/, 'y').replace(/s$/, '');
+const singular = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').replace(/ies$/, 'y').replace(/s$/, '');
 
 /** An `id` or `*_id` field: the one named after the Data Mart first, required before nullable. */
 export function pickPrimaryKey(node: MartNode): string | null {
-  const flat = flattenFields(node.detail.fields).filter(({ field }) => /^id$|_id$|Id$/.test(field.name));
+  const flat = flattenFields(node.detail.fields).filter(({ field }) => /(^|_)id$/i.test(field.name) || /[a-z]Id$/.test(field.name));
+  const own = `${singular(node.title).replace(/_/g, '')}id`;
   const score = ({ field }: (typeof flat)[number]) => {
     const nullable = field.mode === 'NULLABLE';
-    const named = field.name.toLowerCase() === `${singular(node.id)}_id` || (field.name === 'id' && !nullable);
+    const flatName = field.name.toLowerCase().replace(/_/g, '');
+    const named = flatName === own || (flatName === 'id' && !nullable);
     return (named ? 0 : 2) + (nullable ? 1 : 0);
   };
   return flat.map((x, i) => ({ x, i })).sort((a, b) => score(a.x) - score(b.x) || a.i - b.i)[0]?.x.path ?? null;

@@ -26,7 +26,8 @@ export function keyFor(classId: string, model: Model): string | null {
 
 /** Up to 3 numbers for the card besides the key's field: planned fields first, then calculated, then numeric. */
 export function shownFor(classId: string, model: Model, node: MartNode): FieldCand[] {
-  const keyField = model.metrics.find((m) => m.id === keyFor(classId, model))?.measure.field;
+  const keyId = model.classes.find((c) => c.id === classId)?.keyMetricId ?? keyFor(classId, model);
+  const keyField = model.metrics.find((m) => m.id === keyId)?.measure.field;
   const planned = new Set(model.metrics.filter((m) => m.martId === classId && m.plan).map((m) => m.measure.field));
   const calc = new Set(node.detail.fields.filter((f) => f.calculated).map((f) => f.name));
   const rank = (f: FieldCand) => (planned.has(f.path) ? 0 : calc.has(f.path) ? 1 : 2);
@@ -49,7 +50,7 @@ export function ratioPairs(model: Model, nodes: MartNode[]): RatioPair[] {
     const a = cls.get(e.from), b = cls.get(e.to);
     const num = a?.keyMetricId ? byId.get(a.keyMetricId) : undefined;
     const den = b?.keyMetricId ? byId.get(b.keyMetricId) : undefined;
-    if (!num || !den || references(e.from, e.to, den.measure.field) || references(e.to, e.from, num.measure.field)) continue;
+    if (!num || !den || num.ratio || den.ratio || num.dateField === null || den.dateField === null || references(e.from, e.to, den.measure.field) || references(e.to, e.from, num.measure.field)) continue;
     out.push({ numerator: num.id, denominator: den.id, name: `${num.alias} per ${den.alias}` });
   }
   return out;

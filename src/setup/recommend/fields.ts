@@ -1,5 +1,5 @@
 import type { Edge, Measure, MetricFormat, MetricKind, PlanShape } from '../../types';
-import { DATE_TYPES, flattenFields } from '../../owox/sources';
+import { DATE_TYPES, flattenFields, type SchemaField } from '../../owox/sources';
 import type { MartNode } from '../../model/graph';
 import { inboundCounts } from '../../model/core';
 import { normalizeCurrency } from '../../lib/format';
@@ -10,20 +10,23 @@ const PLAN = /plan|target|budget|goal|forecast/i;
 const MONEY = /revenue|sales|profit|gmv|amount|income|margin/i;
 const COUNT = /orders?|deals?|sessions?|users?|signups?|installs?|leads?|qty|quantity|count/i;
 const LEVEL = /balance|stock|active|mrr|arr|headcount|inventory/i;
-const RATE = /rate|share|ratio|percent|pct|\bcr\b|ctr|conversion/i;
+const RATE = new Set(['rate', 'share', 'ratio', 'percent', 'pct', 'cr', 'ctr']);
+const MONEY_FORMAT = /revenue|sales|profit|gmv|amount|income|margin|cost|price|spend/i;
+const DATE_NAME = /(^|[^a-z])(date|day|created|order|event)/i;
 const SYMBOLS: Record<string, string> = { $: 'USD', '€': 'EUR', '£': 'GBP', '₴': 'UAH' };
-const CODES = /\b(USD|EUR|GBP|UAH|PLN|CAD|AUD|CHF|JPY|CNY|INR|BRL|SEK|NOK|DKK|CZK|TRY)\b/;
+const CODES = /(?<![a-z])(USD|EUR|GBP|UAH|PLN|CAD|AUD|CHF|JPY|CNY|INR|BRL|SEK|NOK|DKK|CZK|TRY)(?![a-z])/i;
 
-export const cands = (n: MartNode, keep: (type: string, text: string) => boolean): FieldCand[] =>
+export const cands = (n: MartNode, keep: (type: string, text: string, field: SchemaField) => boolean): FieldCand[] =>
   flattenFields(n.detail.fields).flatMap(({ path, field }) => {
     const type = field.calculated?.level === 'metric' ? 'METRIC' : field.type.toUpperCase();
     const text = `${field.name} ${field.alias ?? ''}`;
-    return keep(type, text) ? [{ martId: n.id, martTitle: n.title, path, label: field.alias || field.name, type }] : [];
+    return keep(type, text, field) ? [{ martId: n.id, martTitle: n.title, path, label: field.alias || field.name, type }] : [];
   });
+const ID_NAME = (name: string) => /(^|_)id$/i.test(name) || /[a-z]Id$/.test(name);
 const isNumber = (type: string) => type === 'METRIC' || (NUMERIC.test(type) && !DATE_TYPES.has(type));
 
 /** Numeric and metric-level fields of the Data Marts, leaving out dates and plan-like names. */
-export const numericFields = (nodes: MartNode[]): FieldCand[] => nodes.flatMap((n) => cands(n, (t, x) => isNumber(t) && !PLAN.test(x)));
+export const numericFields = (nodes: MartNode[]): FieldCand[] => nodes.flatMap((n) => cands(n, (t, x, f) => isNumber(t) && !PLAN.test(x) && !f.isPrimaryKey && !ID_NAME(f.name)));
 
 /** Money names first, then counts, then the rest; ties go to the Data Mart more others reference. */
 export function criticalCandidates(nodes: MartNode[], edges: Edge[]): FieldCand[] {
@@ -34,7 +37,7 @@ export function criticalCandidates(nodes: MartNode[], edges: Edge[]): FieldCand[
 
 /** Date fields of a Data Mart: DATE before timestamps, names with date or day first. */
 export function dateCandidates(node: MartNode): FieldCand[] {
-  const rank = (c: FieldCand) => (c.type === 'DATE' ? 0 : 1) * 2 + (/date|day/i.test(c.label) ? 0 : 1);
+  const rank = (c: FieldCand) => (c.type === 'DATE' ? 0 : 1) * 2 + (DATE_NAME.test(c.label) || /[a-z](Date|Day|Created)/.test(c.label) ? 0 : 1);
   return cands(node, (t) => DATE_TYPES.has(t)).map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map((x) => x.c);
 }
 
@@ -57,8 +60,8 @@ export function shapeFor(planDaily: number[] | null, kind: MetricKind): PlanShap
 
 /** Percent for rates, currency for money names or a currency mark, else number. */
 export function formatFor(label: string): { format: MetricFormat; currency: string | null } {
-  if (RATE.test(label)) return { format: 'percent', currency: null };
-  const mark = label.match(CODES)?.[0] ?? label.match(/[$€£₴]/)?.[0];
-  if (MONEY.test(label) || mark) return { format: 'currency', currency: mark ? normalizeCurrency(SYMBOLS[mark] ?? mark) : null };
+  if (label.toLowerCase().split(/[^a-z0-9]+/).some((t) => RATE.has(t))) return { format: 'percent', currency: null };
+  const mark = label.match(CODES)?.[0].toUpperCase() ?? label.match(/[$€£₴]/)?.[0];
+  if (MONEY_FORMAT.test(label) || mark) return { format: 'currency', currency: mark ? normalizeCurrency(SYMBOLS[mark] ?? mark) : null };
   return { format: 'number', currency: null };
 }
