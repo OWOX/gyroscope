@@ -56,9 +56,10 @@ export function Blocked({ blocked, projectId, onRetry, onOpenSetup, onBack, back
         <ol>{blocked.mismatches.map((m, i) => <li key={i}>{m}</li>)}</ol>
       )}
       <h2>How to fix</h2>
-      {isAdmin
+      {isAdmin || blocked.code === 'GOAL_NO_ACCESS'
         ? <ol>{STEPS[blocked.code].map((s) => <li key={s}>{stepContent(s, projectId, onOpen)}</li>)}</ol>
         : <p>Ask a project admin to finish Setup.</p>}
+      {!isAdmin && blocked.code === 'GOAL_NO_ACCESS' && <p>Ask a project admin to finish Setup.</p>}
       <p><button type="button" className="gy-btn gy-btn-primary" onClick={onOpenSetup}>Open Setup</button>
         {' '}<button type="button" className="gy-btn" onClick={onRetry}>Retry</button>
         {onBack && <>{' '}<button type="button" className="gy-btn" onClick={onBack}>{backLabel}</button></>}

@@ -31,6 +31,13 @@ test('a goal Data Mart missing from the list blocks with GOAL_NO_ACCESS; a gone 
   expect(deriveModel({ ...filled, goal: { ...goal, measure: { field: 'gone', fn: 'SUM' } } }, graph())).toMatchObject({ ok: false, blocked: { code: 'GOAL_FIELD_NOT_FOUND' } });
 });
 
+test('a goal Data Mart whose schema read failed blocks with the reason, not the access message', () => {
+  const g = { ...graph([users]), failed: new Map([['orders', 'boom']]) };
+  g.inputs = { ...g.inputs, marts: [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }] };
+  const r = deriveModel(filled, g);
+  expect(r).toMatchObject({ ok: false, blocked: { code: 'GOAL_NO_ACCESS', detail: "Couldn't check Orders: boom" } });
+});
+
 test('a filled project derives the goal class, the core class, the edge and the unique counts', () => {
   const r = deriveModel(filled, graph());
   if (!r.ok) throw new Error(r.blocked.code);

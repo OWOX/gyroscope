@@ -41,3 +41,9 @@ test('Back shows only when given', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Back to canvas' }));
   expect(onBack).toHaveBeenCalled();
 });
+
+test('a member blocked on access keeps the access step', () => {
+  render(<Blocked {...base} isAdmin={false} blocked={{ code: 'GOAL_NO_ACCESS', detail: 'x', mismatches: [] }} />);
+  expect(screen.getByText(/ask for access to it in OWOX/)).toBeInTheDocument();
+  expect(screen.getByText('Ask a project admin to finish Setup.')).toBeInTheDocument();
+});

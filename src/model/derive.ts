@@ -41,6 +41,8 @@ export function deriveModel(s: ProjectSettingsV5, g: Graph): Derived {
   const goal = s.goal;
   const byId = new Map(g.nodes.map((n) => [n.id, n]));
   const goalNode = byId.get(goal.martId);
+  const readFailure = g.failed.get(goal.martId);
+  if (!goalNode && readFailure !== undefined) return blocked('GOAL_NO_ACCESS', `Couldn't check ${g.inputs.marts.find((m) => m.id === goal.martId)?.title ?? 'the goal Data Mart'}: ${readFailure}`);
   if (!goalNode) return blocked('GOAL_NO_ACCESS', "You can't access the Data Mart that owns the critical number.");
   const has = (d: MartDetail, path: string | null) => path === null || allFieldPaths(d.fields).has(path);
   if (!has(goalNode.detail, goal.measure.field)) return blocked('GOAL_FIELD_NOT_FOUND', `${goal.measure.field} isn't in ${goalNode.title} any more.`);
