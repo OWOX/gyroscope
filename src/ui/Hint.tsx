@@ -4,7 +4,7 @@ import { useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
 /** The (?) button that toggles a hint bubble. */
 export function HintButton({ title, id, open, onToggle, anchor }: { title: string; id: string; open: boolean; onToggle: () => void; anchor: RefObject<HTMLButtonElement | null> }) {
   return (
-    <button ref={anchor} type="button" className="gy-hint-btn" aria-expanded={open} aria-controls={id} aria-label={`About ${title}`} onClick={(e) => { e.stopPropagation(); onToggle(); }}>
+    <button ref={anchor} type="button" className="gy-hintbox-btn" aria-expanded={open} aria-controls={id} aria-label={`About ${title}`} onClick={(e) => { e.stopPropagation(); onToggle(); }}>
       <CircleHelp size={14} aria-hidden="true" />
     </button>
   );
@@ -40,5 +40,5 @@ export function HintBubble({ id, open, anchor, className, children }: { id: stri
     watch?.observe(ref.current!);
     return () => { window.removeEventListener('resize', place); watch?.disconnect(); };
   }, [open, anchor]);
-  return <div ref={ref} id={id} className={`gy-hint${className ? ` ${className}` : ''}`} hidden={!open}>{children}</div>;
+  return <div ref={ref} id={id} className={`gy-hintbox${className ? ` ${className}` : ''}`} hidden={!open}>{children}</div>;
 }

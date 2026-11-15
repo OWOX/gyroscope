@@ -532,3 +532,23 @@ test('a row that only exists in the draft and is already done does not count as 
   for (const r of fresh) expect(result.current.props.savedOpen.has(r.id), r.id).toBe(false);
   for (const r of result.current.props.rows.filter((r) => !before.has(r.id) && r.state !== 'done')) expect(result.current.props.savedOpen.has(r.id), r.id).toBe(true);
 });
+
+test('picking the saved threshold is not a change, and a successful Save counts', async () => {
+  const store = memoryCollections();
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null })));
+  await act(() => result.current.reload());
+  const { saveSetup, loadSetup } = await import('../store/settings');
+  const base = (await loadSetup(store)).settings;
+  await saveSetup(store, base, { ...base, thresholdPct: 20 }, 'Ann', new Date('2026-11-14T09:05:00Z'));
+  await act(() => result.current.reload());
+  const row = result.current.props.rows.find((r) => r.id === 'threshold')!;
+  expect(row).toMatchObject({ state: 'done', current: '20%' });
+  await act(async () => result.current.props.onPick('threshold', 'threshold:20'));
+  expect(result.current.props.dirty).toBe(0);
+  await act(async () => result.current.props.onPick('threshold', 'threshold:10'));
+  expect(result.current.props.dirty).toBe(1);
+  const before = result.current.props.saveCount ?? 0;
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect(result.current.props.saveCount).toBe(before + 1);
+});

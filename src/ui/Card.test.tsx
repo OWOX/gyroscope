@@ -242,6 +242,8 @@ test('the corner icons sit in one group the stylesheet shows on hover and focus,
   const tools = container.querySelector('.gy-card-tools')!;
   expect(tools.querySelector('.gy-hint')).toBeNull();
   expect(tools.querySelector('[aria-label="Open Customers in OWOX"]')).not.toBeNull();
+  // the Setup tab's hint bubble has its own class; the canvas (i) never takes it
+  expect(container.querySelector('.gy-hintbox')).toBeNull();
 });
 
 test("the Data Mart's (i) sits beside its name, sized to the line", () => {

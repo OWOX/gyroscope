@@ -14,7 +14,7 @@ The [shared ontology spec](docs/superpowers/specs/2026-11-11-shared-ontology-des
 3. Calculated fields in your Data Marts reference other Data Marts. Gyroscope draws a connection for each reference.
 4. An admin sets the goal in Setup once. Until then, a member sees the "Goal can't be tracked" screen: the Business Critical Number is not set, and they are told to ask a project admin to finish Setup.
 
-Settings has two tabs. General holds your own view settings. Setup replaces Checkup and Metrics: one list of questions in blocks (goal, core classes, contexts, metrics with their plans and formats, ratios, data checks, housekeeping, which holds the On-Track Margin threshold). Each has a recommended answer. An admin picks an option, and Gyroscope stores exactly that. The AI only recommends one of the options the code built.
+Settings has two tabs. General holds your own view settings. Setup replaces Checkup and Metrics: one list of questions in blocks (goal, core classes, contexts, metrics with their plans and formats, ratios, data checks, housekeeping, which holds the On-Track Margin threshold). Each question has a (?) hint and a radio list of answers, with the recommended one first and tagged. An admin picks an option, and Gyroscope stores exactly that. Choices are staged and written together by Save. Discard drops them. Optional notices have a "Not needed" answer. Members see the values read-only. The AI only recommends one of the options the code built.
 
 ## Release notes
 
@@ -26,6 +26,7 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 4. Ratio metrics: divide one metric by another.
 5. A member who can't access the project goal Data Mart sees the canvas centered on the nearest context critical number they can access, or is told to ask for access.
 6. Removed: the AI model build, rebuild proposals and the industry setting.
+7. Setup choices are radio lists with a (?) hint on each question and block. They are staged and written together by Save. Optional notices can be marked "Not needed".
 
 ## Develop
 

@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { AI_ROWS, aiPick, factsHash } from './ai';
 import type { Row } from './types';
 
-const row = (id: string, ids: string[]): Row => ({ id, block: 'goal', title: 'Business Critical Number', question: 'What is the main business goal?', why: '', severity: 'error', state: 'open', current: null, aiPicked: false, aiPending: false, dismissable: false,
+const row = (id: string, ids: string[]): Row => ({ id, block: 'goal', title: 'Business Critical Number', question: 'What is the main business goal?', why: '', severity: 'error', state: 'open', current: null, aiPending: false, dismissable: false,
   options: ids.map((x, i) => ({ id: x, label: `Label ${x}`, recommended: i === 0, action: { kind: 'open', path: '/' } })) });
 
 test('the AI answers with an index; its option id comes back', async () => {

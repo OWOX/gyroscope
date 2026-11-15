@@ -13,5 +13,5 @@ export function buildRows(input: RowsInput): Row[] {
   const ctx = buildCtx(input);
   const rows = [...goalRows(ctx), ...coreRows(ctx), ...teamRows(ctx), ...metricRows(ctx), ...ratioRows(ctx), ...checkRows(ctx), ...housekeepingRows(ctx)];
   // a dismissed row is done unless the saved value it dismissed is itself gone or unreadable
-  return rows.map((r) => (r.state === 'open' && r.severity !== 'error' && input.settings.dismissed.includes(r.id) ? { ...r, state: 'done' } : r));
+  return rows.map((r) => (r.state === 'open' && r.severity !== 'error' && input.settings.dismissed.includes(r.id) ? { ...r, state: 'done', current: r.current ?? 'Not needed' } : r));
 }

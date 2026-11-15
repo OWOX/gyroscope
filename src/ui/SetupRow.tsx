@@ -1,5 +1,5 @@
 import { Check, Loader2, SquareArrowOutUpRight } from 'lucide-react';
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Option, Row } from '../setup/types';
 import { HintBubble, HintButton } from './Hint';
 
@@ -13,19 +13,24 @@ export interface SetupRowProps {
   unset: boolean;
   /** The row as its staged pick ran against it: options and value stay put while later picks change the draft. */
   optionRow?: Row;
+  /** Counts successful saves: an open "Change" closes when it goes up. */
+  saveCount?: number;
   hintOpen: boolean; onHint: () => void;
   onPick: (optionId: string | null) => void; onRetry: () => void; onOpen?: (path: string) => void;
 }
 
 /** One setup question: the value now, and for an unanswered row (or on "Change") a radio list of the ways to answer it. */
-export function SetupRow({ row, readOnly, saving = false, picked, unset, optionRow, hintOpen, onHint, onPick, onRetry, onOpen }: SetupRowProps) {
+export function SetupRow({ row, readOnly, saving = false, picked, unset, optionRow, saveCount = 0, hintOpen, onHint, onPick, onRetry, onOpen }: SetupRowProps) {
   const [changing, setChanging] = useState(false);
   const [more, setMore] = useState(false);
+  useEffect(() => { setChanging(false); }, [saveCount]);
   const anchor = useRef<HTMLButtonElement>(null);
   const hintId = useId();
   const uid = useId();
   const src = optionRow ?? row;
-  const choices = src.options.filter((o) => o.action.kind !== 'open');
+  const was = unset ? src.current : src.current ?? row.current;
+  // an option that equals the saved value is "Keep", not a second way to say it
+  const choices = src.options.filter((o) => o.action.kind !== 'open' && (unset || !was || o.label !== was));
   const links = src.options.filter((o) => o.action.kind === 'open');
   // an option marked `keep` is the row's default; the rest list the recommended one first, in an order that doesn't move once picked
   const keepOpt = choices.find((o) => o.keep);
@@ -36,8 +41,8 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   // a row another pick filled in: show the option that matches, and no "Not set"
   const implicit = unset && picked === undefined && row.state === 'done' && !!row.current;
   const match = implicit ? ordered.find((o) => o.label === row.current) : undefined;
-  const was = unset ? src.current : src.current ?? row.current;
-  const keepLabel = was ? `Keep ${was}` : src.state === 'broken' || src.state === 'error' ? 'Keep the saved value' : 'Not set';
+  const dismissed = !unset && was === 'Not needed';
+  const keepLabel = dismissed ? 'Not needed' : was ? `Keep ${was}` : src.state === 'broken' || src.state === 'error' ? 'Keep the saved value' : 'Not set';
   const hasRadios = choices.length > 0;
 
   const linkBtn = (o: Option) => o.link && onOpen && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={() => onOpen(o.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
@@ -50,7 +55,16 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   );
 
   // a notice can be waved off; a row with its own "no" option already has that answer
-  const offerDismiss = row.dismissable && !implicit && !choices.some((o) => o.declines);
+  const offerDismiss = row.dismissable && !implicit && !dismissed && !choices.some((o) => o.declines);
+  // a notice with only links still gets its "Not needed"
+  const linkOnly = !hasRadios && unset && !readOnly && offerDismiss;
+
+  const dismissOnly = (
+    <div role="radiogroup" aria-label={row.title} className="gy-radios">
+      {radio('keep', 'Not set', picked === undefined, () => onPick(null))}
+      {radio('dismiss', 'Not needed', picked === 'dismiss', () => onPick('dismiss'))}
+    </div>
+  );
 
   const radios = (() => {
     const shown = more ? ordered : ordered.slice(0, SHOWN);
@@ -75,7 +89,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
 
   const extras = !readOnly && (
     <>
-      {row.state !== 'done' && links.map((o) => <button key={o.id} type="button" className="gy-link gy-row-open" onClick={() => o.action.kind === 'open' && onOpen?.(o.action.path)}>{o.label}</button>)}
+      {(row.state !== 'done' || linkOnly) && links.map((o) => <button key={o.id} type="button" className="gy-link gy-row-open" onClick={() => o.action.kind === 'open' && onOpen?.(o.action.path)}>{o.label}</button>)}
     </>
   );
 
@@ -83,12 +97,12 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     <div className="gy-row" data-row-id={row.id} data-severity={row.severity} data-state={row.state}>
       <span className="gy-row-icon" aria-hidden="true">{row.state === 'done' ? <Check size={14} /> : <span className="gy-row-dot" />}</span>
       <div className="gy-row-text">
-        <div className="gy-hint-line"><strong>{row.title}</strong><HintButton title={row.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></div>
+        <div className="gy-hintbox-line"><strong>{row.title}</strong><HintButton title={row.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></div>
         {row.detail && <span className="gy-row-detail" data-tone={detailTone}>{row.detail}</span>}
         <HintBubble id={hintId} open={hintOpen} anchor={anchor}>{`${row.question} ${row.why}`}</HintBubble>
       </div>
       <div className="gy-row-side">
-        {readOnly || !hasRadios || (!unset && !changing) ? (
+        {linkOnly ? dismissOnly : readOnly || !hasRadios || (!unset && !changing) ? (
           <>
             {row.current ? <span className="gy-row-value">{row.current}</span> : <span className="gy-muted">Not set</span>}
             {readOnly && row.state !== 'done' && rec && <span className="gy-muted gy-row-recline">Recommended: {rec.label}{linkBtn(rec)}</span>}

@@ -66,7 +66,7 @@ test('a Data Mart whose schema failed to load marks its rows as errors with the 
 
 test('a dismissed notice is done', () => {
   const s = { ...EMPTY_SETUP, goal, dismissed: ['goal.description'], updatedAt: 't' };
-  expect(buildRows(input(s)).find((x) => x.id === 'goal.description')!.state).toBe('done');
+  expect(buildRows(input(s)).find((x) => x.id === 'goal.description')!).toMatchObject({ state: 'done', current: 'Not needed' });
 });
 
 // a second Data Mart the first one references, so core, class, ratio and check rows have something to show
@@ -268,14 +268,11 @@ describe('rows by block', () => {
     expect(none).toEqual([{ id: 'none', label: 'Not available yet: add a Data Mart with a number field', recommended: true, action: { kind: 'open', path: '/ui/p1/data-marts' } }]);
   });
 
-  test('a field option links to its field page, a core option to its Data Mart, and only an honoured AI pick sets aiPicked', () => {
+  test('a field option links to its field page, a core option to its Data Mart', () => {
     const rows = buildRows(input(EMPTY_SETUP, [orders]));
     expect(byId(rows, 'goal.metric').options.find((o) => o.id === 'field:orders:revenue')!.link).toBe('/ui/p1/data-marts/orders/data-setup?field=revenue');
     expect(byId(rows, 'goal.date').options[0]!.link).toMatch(/^\/ui\/p1\/data-marts\/orders\/data-setup\?field=/);
     expect(byId(buildRows(input({ ...EMPTY_SETUP, coreClasses: ['orders'] }, [orders, customers])), 'core.classes').options.find((o) => o.id === 'core:-orders')!.link).toBe('/ui/p1/data-marts/orders/data-setup');
-    expect(byId(rows, 'goal.metric').aiPicked).toBe(false);
-    expect(byId(buildRows(input(EMPTY_SETUP, [orders], { ai: { 'goal.metric': 'field:orders:revenue' } })), 'goal.metric').aiPicked).toBe(true);
-    expect(byId(buildRows(input(EMPTY_SETUP, [orders], { ai: { 'goal.metric': 'nope' } })), 'goal.metric').aiPicked).toBe(false);
   });
 });
 

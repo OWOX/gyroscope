@@ -57,6 +57,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveCount, setSaveCount] = useState(0);
   const savingNow = useRef(false);
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -209,7 +210,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
     // the AI's cached pick marks the recommendation on a row as it stood, as it does on a live one
     const withAi = (r: Row): Row => {
       const pick = cached[keyOf(r)];
-      return pick !== undefined && r.options.some((o) => o.id === pick) ? { ...r, aiPicked: true, options: r.options.map((o) => ({ ...o, recommended: o.id === pick })) } : r;
+      return pick !== undefined && r.options.some((o) => o.id === pick) ? { ...r, options: r.options.map((o) => ({ ...o, recommended: o.id === pick })) } : r;
     };
     saved.forEach((r, i) => {
       const was = ranOn.get(r.id);
@@ -262,7 +263,9 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
       const action = actionOf(row, optionId);
       if (!action || action.kind === 'open') return;
       // "Keep" is the row's default, not a change
-      if (!opt?.keep) {
+      // an option that changes nothing against the saved settings is not a change either
+      const noop = action.kind === 'set' && stable(action.next(l.settings)) === stable(l.settings);
+      if (!opt?.keep && !noop) {
         const i = cur.findIndex((p) => p.rowId === rowId);
         // a re-pick keeps the row's place in the order
         next = i >= 0 ? cur.map((p, j) => (j === i ? { rowId, optionId } : p)) : [...cur, { rowId, optionId }];
@@ -318,6 +321,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
       // what reached OWOX is not replayed: a retry would write an appended line twice
       setPicks(picksNow.current.filter((p) => !written.has(p)));
       if (!ok) await reload().catch(() => undefined);
+      else setSaveCount((c) => c + 1);
       savingNow.current = false;
       setSaving(false);
     }
@@ -326,7 +330,7 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   const props: SetupTabProps = {
     rows, loading, readOnly: !args.isAdmin, message, picked: Object.fromEntries((draft?.valid ?? []).map((v) => [v.pick.rowId, v.pick.optionId])),
     onPick, dirty: draft?.valid.length ?? 0, saving, onSave: () => void onSave(), onDiscard: () => { if (!savingNow.current) { pickedNow.current = false; setPicks([]); setNotice(null); } }, notice,
-    savedOpen, optionRows,
+    savedOpen, optionRows, saveCount,
     martIcons: Object.fromEntries((loaded?.graph.inputs.marts ?? []).map((m) => [m.id, m.icon ?? null])),
     onRetry: () => void reload().catch(() => undefined),
     onOpen: args.open && ((path) => latest.current.open?.(path)),

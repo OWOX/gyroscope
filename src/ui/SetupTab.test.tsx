@@ -5,7 +5,7 @@ import { SetupTab, type SetupTabProps } from './SetupTab';
 import type { Option, Row } from '../setup/types';
 
 const set = (id: string, label: string, recommended = false): Option => ({ id, label, recommended, action: { kind: 'set', next: (s) => s } });
-const row = (over: Partial<Row>): Row => ({ id: 'goal.metric', block: 'goal', title: 'Business Critical Number', question: 'What is the main business goal?', why: 'Every card is judged by how it moves this number.', severity: 'error', state: 'open', current: null, aiPicked: false, aiPending: false, dismissable: false,
+const row = (over: Partial<Row>): Row => ({ id: 'goal.metric', block: 'goal', title: 'Business Critical Number', question: 'What is the main business goal?', why: 'Every card is judged by how it moves this number.', severity: 'error', state: 'open', current: null, aiPending: false, dismissable: false,
   options: [set('a', 'Orders · revenue', true), set('b', 'Orders · profit')], ...over });
 const props = (rows: Row[], over: Partial<SetupTabProps> = {}): SetupTabProps => ({ rows, loading: false, readOnly: false, message: null, picked: {}, onPick: vi.fn(), dirty: 0, saving: false, onSave: vi.fn(), onDiscard: vi.fn(), savedOpen: new Set(rows.filter((r) => r.state !== 'done').map((r) => r.id)), onRetry: vi.fn(), onOpen: vi.fn(), ...over });
 const four = [set('a', 'Orders · revenue'), set('b', 'Orders · profit'), set('c', 'Orders · items', true), set('d', 'Orders · tax')];
@@ -124,8 +124,8 @@ test('read-only shows the value or Not set and the recommendation as text, witho
   expect(screen.getByText('Orders')).toBeInTheDocument();
 });
 
-test('no AI icon anywhere, even on an AI pick', () => {
-  const { container } = render(<SetupTab {...props([row({ aiPicked: true })])} />);
+test('no AI icon anywhere', () => {
+  const { container } = render(<SetupTab {...props([row({})])} />);
   expect(container.querySelector('.lucide-sparkles')).toBeNull();
 });
 
@@ -388,4 +388,58 @@ test('a Data Mart group shows the mart icon, the default when it has none', () =
   const [orders, ads] = [...container.querySelectorAll('details.gy-setup-group')];
   expect(orders!.querySelector('summary .gy-setup-group-icon svg')).toHaveClass('lucide-receipt');
   expect(ads!.querySelector('summary .gy-setup-group-icon svg')).toHaveClass('lucide-box');
+});
+
+test('the Setup hint bubble carries gy-hintbox, never the canvas gy-hint', () => {
+  const { container } = render(<SetupTab {...props([row({})])} />);
+  const bubbles = container.querySelectorAll('.gy-hintbox');
+  expect(bubbles.length).toBeGreaterThan(0);
+  expect(container.querySelector('.gy-hint')).toBeNull();
+  expect(container.querySelector('[class*="gy-hint "], [class$="gy-hint"]')).toBeNull();
+});
+
+test('a link-only notice offers Not set and Not needed next to its link, and Not needed stages a dismiss', () => {
+  const onPick = vi.fn();
+  const open: Option = { id: 'none', label: 'Add a Data Mart', recommended: true, action: { kind: 'open', path: '/x' } };
+  const rows = [row({ severity: 'notice', dismissable: true, options: [open] })];
+  const { rerender } = render(<SetupTab {...props(rows, { onPick })} />);
+  const group = screen.getByRole('radiogroup', { name: 'Business Critical Number' });
+  const radios = within(group).getAllByRole('radio');
+  expect(radios.map((r) => (r as HTMLInputElement).labels![0]!.textContent)).toEqual(['Not set', 'Not needed']);
+  expect(radios[0]).toBeChecked();
+  expect(screen.getByRole('button', { name: 'Add a Data Mart' })).toBeInTheDocument();
+  fireEvent.click(radios[1]!);
+  expect(onPick).toHaveBeenCalledWith('goal.metric', 'dismiss');
+  rerender(<SetupTab {...props(rows, { onPick, picked: { 'goal.metric': 'dismiss' } })} />);
+  expect(within(group).getAllByRole('radio')[1]).toBeChecked();
+  fireEvent.click(within(group).getAllByRole('radio')[0]!);
+  expect(onPick).toHaveBeenLastCalledWith('goal.metric', null);
+});
+
+test('a set row leaves its saved value out of the Change list, so it is only "Keep"', () => {
+  const r = row({ state: 'done', current: '20%', options: [set('t:20', '20%', true), set('t:10', '10%')] });
+  render(<SetupTab {...props([r], { savedOpen: new Set() })} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  const labels = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true }).map((x) => (x as HTMLInputElement).labels![0]!.textContent);
+  expect(labels).toEqual(['Keep 20%', '10%']);
+});
+
+test('a dismissed notice reads Not needed, checked on Change', () => {
+  const r = row({ severity: 'notice', dismissable: true, state: 'done', current: 'Not needed' });
+  render(<SetupTab {...props([r], { savedOpen: new Set() })} />);
+  expect(screen.getByText('Not needed')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  const radios = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true });
+  expect(radios.map((x) => (x as HTMLInputElement).labels![0]!.textContent)).toEqual(['Not needed', 'Orders · revenueRecommended', 'Orders · profit']);
+  expect(radios[0]).toBeChecked();
+});
+
+test('Change closes once a save lands', () => {
+  const r = row({ state: 'done', current: 'Orders · revenue' });
+  const { rerender } = render(<SetupTab {...props([r], { savedOpen: new Set(), saveCount: 0 })} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  expect(screen.getByRole('radiogroup', { hidden: true })).toBeInTheDocument();
+  rerender(<SetupTab {...props([r], { savedOpen: new Set(), saveCount: 1 })} />);
+  expect(screen.queryByRole('radiogroup', { hidden: true })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true })).toBeInTheDocument();
 });

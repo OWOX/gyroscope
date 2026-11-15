@@ -71,14 +71,13 @@ export function fieldCheck(ctx: Ctx, martId: string, paths: (string | null)[]): 
 export const noneOption = (ctx: Ctx, label = 'Not available yet: add a Data Mart with a number field'): Option => ({ id: 'none', label, recommended: true, action: { kind: 'open', path: dataMartPage(ctx) } });
 
 /** Marks exactly one option recommended: the AI's pick when it names a real option, else the first. */
-export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string): { options: Option[]; aiPicked: boolean } {
+export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string): { options: Option[] } {
   const seen = new Set<string>();
   const uniq = options.filter((o) => !seen.has(o.id) && !!seen.add(o.id));
-  if (!uniq.length) return { options: [noneOption(ctx, none)], aiPicked: false };
+  if (!uniq.length) return { options: [noneOption(ctx, none)] };
   const want = ctx.ai[id];
-  const aiPicked = uniq.some((o) => o.id === want);
-  const pick = aiPicked ? want : uniq[0]!.id;
-  return { options: uniq.map((o) => ({ ...o, recommended: o.id === pick })), aiPicked };
+  const pick = uniq.some((o) => o.id === want) ? want : uniq[0]!.id;
+  return { options: uniq.map((o) => ({ ...o, recommended: o.id === pick })) };
 }
 
 /** A row from its catalog key; `options` come first-is-recommended and are normalised here. */
