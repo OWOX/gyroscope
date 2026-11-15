@@ -25,7 +25,6 @@ interface Props {
   /** Live schemas: metrics their fields can't aggregate are left off. */
   details?: ReadonlyMap<string, MartDetail>;
   /** Classes whose Data Mart no longer exists. */
-  missingIds?: ReadonlySet<string>;
   /** Live description and definition type per mart id, from the mart list. */
   marts?: ReadonlyMap<string, MartInfo>;
   /** 'vs Last Month' and the like, for the comparison row under each number. */
@@ -150,7 +149,7 @@ export function curve(a: Box, b: Box): string {
   return `M${x1} ${y1} C${right ? x1 + pull : x1 - pull} ${y1} ${right ? x2 - pull : x2 + pull} ${y2} ${x2} ${y2}`;
 }
 
-export function Canvas({ mode, model: full, cache, comparisonOn, refreshing, visibleIds = null, details, missingIds, marts, compareLabel, tools, progress = null, quality, projectId, markdown, onOpen, weekStart, onRetry }: Props) {
+export function Canvas({ mode, model: full, cache, comparisonOn, refreshing, visibleIds = null, details, marts, compareLabel, tools, progress = null, quality, projectId, markdown, onOpen, weekStart, onRetry }: Props) {
   const [picked, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [lines, setLines] = useState<Line[]>([]);
   const [hover, setHover] = useState<string | null>(null);
@@ -224,7 +223,6 @@ export function Canvas({ mode, model: full, cache, comparisonOn, refreshing, vis
         comparisonOn={comparisonOn}
         refreshing={refreshing}
         noAccess={!!visibleIds && !visibleIds.has(cls.id)}
-        missing={!!missingIds?.has(cls.id)}
         compareLabel={compareLabel}
         absolute={absolute}
         onToggleDiff={() => setAbsolute((a) => !a)}
@@ -284,7 +282,7 @@ export function Canvas({ mode, model: full, cache, comparisonOn, refreshing, vis
                 <OntologyCard cls={c} mart={marts?.get(c.id)} goal={false} />
               </li>
             ))}
-            {onto.core.length === 0 && <li className="gy-muted gy-empty gy-orbit-empty">No core classes yet. An admin can set them in Settings, Checkup.</li>}
+            {onto.core.length === 0 && <li className="gy-muted gy-empty gy-orbit-empty">No core classes yet. An admin can set them in Settings, Setup.</li>}
           </ul>
         ) : (
         <div className="gy-bands">

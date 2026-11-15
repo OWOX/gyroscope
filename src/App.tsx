@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AiCredentialHandle, PluginContext } from '@owox/plugin-sdk';
 import type { Blocked as BlockedInfo, CacheDoc, CardCache, CompareChoice, Model, RangeChoice, ViewSettings } from './types';
 import { DEFAULT_SETTINGS } from './types';
+import { EMPTY_SETUP } from './store/settings';
 import { compareLabel, resolveRange } from './lib/dates';
 import { describeError } from './lib/errors';
 import { fetchMember } from './owox/role';
 import { shownModel } from './model/shown';
-import type { Issue } from './model/health';
 import type { Derived, Graph } from './model/derive';
 import { aiGenerateWith, type GenerateWith } from './setup/ai';
 import { useSetup } from './setup/useSetup';
@@ -19,7 +19,6 @@ import {
 import { Blocked } from './ui/Blocked';
 import { Canvas } from './ui/Canvas';
 import { createMarkdownHtml } from './lib/markdown';
-import { metricName } from './model/metricName';
 import { LoadingBar } from './ui/LoadingBar';
 import { Header, RangeControls } from './ui/Header';
 import { SettingsPage, type SettingsTab } from './ui/SettingsPage';
@@ -108,7 +107,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
   const [editor, setEditor] = useState<string | null>(null);
   // what this member can see, read with the Setup graph; the Data Mart schemas it read are kept for the cards
   const [inputs, setInputs] = useState<{ model: Model; data: Inputs | null } | null>(null);
-  const [health, setHealth] = useState<{ model: Model; issues: Issue[]; details: Map<string, MartDetail> } | null>(null);
+  const [schemas, setSchemas] = useState<{ model: Model; details: Map<string, MartDetail> } | null>(null);
   const refreshId = useRef(0);
   const [quality, setQuality] = useState<{ model: Model; data: Map<string, QualitySummary> | null } | null>(null);
   const qualityFor = useRef<Model | null>(null);
@@ -137,7 +136,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     modelNow.current = next;
     setModel(next);
     setInputs({ model: next, data: graph.inputs });
-    setHealth({ model: next, issues: [], details: new Map(graph.nodes.map((n) => [n.id, n.detail])) });
+    setSchemas({ model: next, details: new Map(graph.nodes.map((n) => [n.id, n.detail])) });
     const tab = startTab.current;
     startTab.current = null;
     setView((v) => (v.name === 'settings' ? v : tab ? { name: 'settings', ...tab } : { name: 'ready' }));
@@ -147,7 +146,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     owox, store, generateWith, isAdmin, by: editor ?? userId, projectId: ctx.projectId, now,
     open: (path) => ctx.ui?.navigate?.(path), onModel,
   });
-  const thresholdPct = setup.settings?.thresholdPct ?? DEFAULT_SETTINGS.thresholdPct;
+  const thresholdPct = setup.settings?.thresholdPct ?? EMPTY_SETUP.thresholdPct;
 
   const load = useCallback(async () => {
     setView({ name: 'loading' });
@@ -193,10 +192,8 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     [inputs],
   );
 
-  const issuesNow = useMemo<Issue[]>(() => (health && health.model === model ? health.issues : []), [health, model]);
   const markdown = useMemo(() => createMarkdownHtml(owox.markdown ? (r) => owox.markdown!.parseToHtml(r) : undefined), [owox]);
-  const detailsNow = useMemo(() => (health && health.model === model ? health.details : undefined), [health, model]);
-  const missingIds = useMemo(() => new Set(issuesNow.filter((i) => i.kind === 'mart_missing' && i.metricId === null).map((i) => i.classId)), [issuesNow]);
+  const detailsNow = useMemo(() => (schemas && schemas.model === model ? schemas.details : undefined), [schemas, model]);
 
   const refresh = useCallback(async (force: boolean): Promise<boolean> => {
     if (!model || !range) return false;
@@ -219,7 +216,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
       setProgress(null);
       setRefreshing(true);
       const doc = await refreshCanvas({
-        owox, model, spec, key, thresholdPct: thresholdPct, visibleIds: visible, issues: issuesNow, details: detailsNow,
+        owox, model, spec, key, thresholdPct: thresholdPct, visibleIds: visible, details: detailsNow,
         onProgress: (done, total) => { if (current()) setProgress({ done, total }); },
         onPartial: (cards) => { if (current()) setCache(mergePartial(shown, cards, shownModel(model, detailsNow), spec.anchor, thresholdPct, key, spec.comparison !== null)); },
       });
@@ -239,7 +236,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
       if (current()) { setRefreshing(false); setLoading(false); setProgress(null); }
     }
     return current();
-  }, [model, range, compare, owox, store, now, thresholdPct, settings.weekStart, visible, issuesNow, detailsNow]);
+  }, [model, range, compare, owox, store, now, thresholdPct, settings.weekStart, visible, detailsNow]);
 
   const inReady = view.name === 'ready';
   const inSettings = view.name === 'settings';
@@ -328,23 +325,14 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     case 'ready': {
       if (!model) return null;
       const status = range && (loading || refreshing) ? (progress ? `Loading metrics ${progress.done} of ${progress.total}` : inputsReady ? 'Loading metrics…' : 'Reading Data Marts…') : null;
-      const notices = issuesNow.length > 0 ? {
-        issues: issuesNow.map((i) => ({
-          classTitle: model.classes.find((c) => c.id === i.classId)?.title ?? i.classId,
-          metricName: i.metricId ? (() => { const m = model.metrics.find((x) => x.id === i.metricId); return m ? metricName(m, detailsNow?.get(m.martId)) : null; })() : null,
-          text: i.text,
-        })),
-        outdated: false,
-        onReview: () => openSettings('setup'),
-      } : undefined;
       return (
         <main className="gy-main">
-          <Header cache={cache} now={now()} period={periodShown} status={status} notices={notices} noRange={!range} />
+          <Header cache={cache} now={now()} period={periodShown} status={status} noRange={!range} />
           {saveNote && <p className="gy-muted">{saveNote}</p>}
           <Canvas
             mode={range ? 'flow' : 'ontology'}
             tools={<RangeControls range={range} compare={range === null && compare.kind === 'off' ? compareOf(settings) : compare} now={now()} weekStart={settings.weekStart} refreshing={refreshing} onChange={changeRange} onRefresh={() => void refresh(true)} onSettings={() => openSettings()} />}
-            model={model} cache={cache} visibleIds={visible} details={detailsNow} missingIds={missingIds} marts={marts}
+            model={model} cache={cache} visibleIds={visible} details={detailsNow} marts={marts}
             compareLabel={range ? compareLabel(range, compare, now(), settings.weekStart) ?? undefined : undefined}
             progress={progress}
             quality={quality?.model === model ? quality.data : null}

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from './test-host';
+import { cleanup, fireEvent, render, screen, waitFor, within } from './test-host';
 import { App, type AppDeps } from './App';
 import { loadGraph } from './model/graph-load';
 import { deriveModel } from './model/derive';
@@ -504,13 +504,6 @@ test('a custom range already on screen is not blanked by Settings and Back', asy
 
 
 
-
-test('no issues icon while the model matches its schemas', async () => {
-  const { deps } = await setup();
-  render(<App ctx={ctxWith().ctx} deps={deps} />);
-  await screen.findByRole('button', { name: 'Date range' });
-  expect(screen.queryByRole('button', { name: /issue/ })).toBeNull();
-});
 
 describe('data quality icons', () => {
   const summary = { state: 'PASSED', enabledChecks: 4, passedChecks: 4, failedChecks: 0, errorChecks: 0, warningFindings: 0, errorFindings: 0, highestSeverity: null, lastRunAt: null };

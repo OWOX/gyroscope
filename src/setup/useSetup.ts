@@ -76,8 +76,11 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
           saveChain.current = saveChain.current.then(() => saveSuggestion(store, l.hash, key, pick, now())).catch(() => undefined);
         }
       } finally {
-        inflight.current.delete(key);
-        setPending((p) => { const n = new Set(p); n.delete(row.id); return n; });
+        // a reload replaced the set: the newer run owns these keys now
+        if (id === runId.current) {
+          inflight.current.delete(key);
+          setPending((p) => { const n = new Set(p); n.delete(row.id); return n; });
+        }
       }
     }), 4);
   }, []);

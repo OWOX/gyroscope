@@ -10,6 +10,7 @@ type Page = keyof typeof PAGES;
 const PAGE_TOKEN = new RegExp(`\\[(${Object.keys(PAGES).join('|')})\\]`);
 
 const STEPS: Record<BlockCode, string[]> = {
+  // the detail already says what to do: nobody can fix this on this page
   NO_ACCESSIBLE_GOAL: [],
   NO_GOAL: ['Open Setup and answer "What is the main business goal?"'],
   GOAL_NO_DATE: ['Open Setup and answer "Which date does each value belong to?" for the Business Critical Number.'],
@@ -23,13 +24,11 @@ const STEPS: Record<BlockCode, string[]> = {
     'Open Setup and check that "Goal Data Mart Primary Key" is clear, then Retry.',
   ],
   GOAL_NO_ACCESS: [
-    'Ask a project admin with access to the goal Data Mart to finish Setup,',
-    'or ask for access to it in OWOX, then Retry.',
+    "The goal Data Mart couldn't be read, so Setup can't check it.",
+    'Click Retry. If it keeps failing, ask a project admin to check the Data Mart in OWOX.',
   ],
 };
 STEPS.GOAL_PLACEHOLDER = STEPS.NO_GOAL;
-// the detail already says what to do: nobody can fix this on this page
-STEPS.NO_ACCESSIBLE_GOAL = [];
 
 function stepContent(step: string, projectId: string, onOpen?: (path: string) => void): ReactNode[] {
   return step.split(PAGE_TOKEN).map((part, i) => {
@@ -62,7 +61,6 @@ export function Blocked({ blocked, projectId, onRetry, onOpenSetup, onBack, back
       {blocked.code === 'NO_ACCESSIBLE_GOAL' ? null : isAdmin || blocked.code === 'GOAL_NO_ACCESS'
         ? <ol>{STEPS[blocked.code].map((s) => <li key={s}>{stepContent(s, projectId, onOpen)}</li>)}</ol>
         : <p>Ask a project admin to finish Setup.</p>}
-      {!isAdmin && blocked.code === 'GOAL_NO_ACCESS' && <p>Ask a project admin to finish Setup.</p>}
       <p><button type="button" className="gy-btn gy-btn-primary" onClick={onOpenSetup}>Open Setup</button>
         {' '}<button type="button" className="gy-btn" onClick={onRetry}>Retry</button>
         {onBack && <>{' '}<button type="button" className="gy-btn" onClick={onBack}>{backLabel}</button></>}

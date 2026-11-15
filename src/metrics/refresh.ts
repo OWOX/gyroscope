@@ -3,7 +3,6 @@ import { runPool } from '../lib/pool';
 import type { MartDetail, OwoxLike } from '../owox/sources';
 import { rangeKey, compareKey } from '../lib/dates';
 import { shownModel } from '../model/shown';
-import { BLOCKING, type Issue } from '../model/health';
 import { describeError } from '../lib/errors';
 import { computeMetric } from './compute';
 import { computeRatio } from './ratio';
@@ -38,13 +37,13 @@ export const persistable = (range: RangeChoice, compare: CompareChoice): boolean
 
 export async function refreshCanvas(args: {
   owox: OwoxLike; model: Model; spec: RangeSpec; key: string; thresholdPct: number;
-  visibleIds?: ReadonlySet<string> | null; issues?: Issue[];
+  visibleIds?: ReadonlySet<string> | null;
   /** Live schemas: a metric whose field refuses its aggregation is not queried. */
   details?: ReadonlyMap<string, MartDetail>; onProgress?: (done: number, total: number) => void;
   /** Called after each metric with the cards built so far. */
   onPartial?: (cards: Record<string, CardCache>) => void;
 }): Promise<CacheDoc> {
-  const { owox, model: full, spec, key, thresholdPct, visibleIds, issues = [], details, onProgress, onPartial } = args;
+  const { owox, model: full, spec, key, thresholdPct, visibleIds, details, onProgress, onPartial } = args;
   const model = shownModel(full, details);
   const classes = model.classes.filter((c) => !visibleIds || visibleIds.has(c.id));
   const byId = new Map(model.metrics.map((m) => [m.id, m]));
@@ -70,36 +69,24 @@ export async function refreshCanvas(args: {
     return cards;
   };
 
-  // a class whose Data Mart is gone stops every metric of that Data Mart; a metric's own issues come with its id
-  const goneMarts = new Set(issues.filter((i) => i.kind === 'mart_missing' && i.metricId === null).map((i) => i.martId));
   const seen = (martId: string) => !visibleIds || visibleIds.has(martId);
-  const mine = (id: string) => issues.filter((i) => i.metricId === id);
 
   onProgress?.(0, ids.size);
   await runPool([...ids].map((id) => async () => {
     const metric = byId.get(id)!;
-    const own = mine(id);
-    const block = own.find((i) => BLOCKING.has(i.kind)) ?? (goneMarts.has(metric.martId) ? { text: 'Data Mart not found or not accessible' } : undefined);
-    const soft = own.filter((i) => !BLOCKING.has(i.kind));
     try {
-      if (block) {
-        results.set(id, { ...EMPTY, warning: block.text });
-        sparks.set(id, null);
-      } else {
-        // a broken plan is dropped, a broken forecast source falls back to extrapolating the fact series
-        const usable: MetricDef = {
-          ...metric,
-          // a source on a Data Mart the viewer can't access is dropped the same way, without an issue
-          plan: soft.some((i) => i.kind.startsWith('plan_')) || (metric.plan && seen(metric.plan.martId)) === false ? null : metric.plan,
-          forecast: soft.some((i) => i.kind.startsWith('forecast_')) || (metric.forecast && seen(metric.forecast.martId)) === false ? null : metric.forecast,
-        };
-        const out = metric.ratio
-          ? await computeRatio({ owox, metric, byId, spec, thresholdPct })
-          : await computeMetric({ owox, metric: usable, spec, thresholdPct, withSpark: true });
-        const warning = [...soft.map((i) => i.text), ...(out.result.warning ? [out.result.warning] : []), ...(out.result.error ? [out.result.error] : [])].join('; ') || null;
-        results.set(id, warning ? { ...out.result, warning } : out.result);
-        sparks.set(id, out.spark);
-      }
+      // a source on a Data Mart the viewer can't access is dropped
+      const usable: MetricDef = {
+        ...metric,
+        plan: (metric.plan && seen(metric.plan.martId)) === false ? null : metric.plan,
+        forecast: (metric.forecast && seen(metric.forecast.martId)) === false ? null : metric.forecast,
+      };
+      const out = metric.ratio
+        ? await computeRatio({ owox, metric, byId, spec, thresholdPct })
+        : await computeMetric({ owox, metric: usable, spec, thresholdPct, withSpark: true });
+      const warning = [out.result.warning, out.result.error].filter(Boolean).join('; ') || null;
+      results.set(id, warning ? { ...out.result, warning } : out.result);
+      sparks.set(id, out.spark);
     } catch (e) {
       // never leave the metric absent: the card would read as still loading
       results.set(id, { ...EMPTY, warning: describeError(e) });

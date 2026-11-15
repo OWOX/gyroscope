@@ -98,9 +98,6 @@ export type BlockCode =
 
 export interface Blocked { code: BlockCode; detail: string; mismatches: string[] }
 
-/** `visible` are the Data Mart ids the builder could read; a rebuild proposal removes nothing outside them. */
-export type BuildResult = { ok: true; model: Model; visible: string[]; core: { classes: CoreClass[]; fromDescription: boolean } } | { ok: false; blocked: Blocked };
-
 export type Status = 'neutral' | 'above' | 'near' | 'below';
 export type Trend = 'up' | 'down' | 'flat';
 
@@ -155,8 +152,6 @@ export interface CacheDoc {
 }
 
 export type WeekStart = 'monday' | 'sunday';
-export type Industry = 'ecommerce' | 'saas' | 'marketplace' | 'media' | 'b2b' | 'apps' | 'finance' | 'other';
-export interface CoreClass { martId: string; why: string }
 /** One number: a Data Mart field, how it adds up, and its date. */
 export interface MetricChoice { martId: string; measure: Measure; dateField: string | null; kind: MetricKind; alias: string }
 export interface RatioSetting { id: string; name: string; numerator: string; denominator: string; format: MetricFormat }
@@ -174,13 +169,9 @@ export interface ProjectSettingsV5 {
   dismissed: string[];
   updatedAt: string | null; updatedBy: string | null;
 }
-/** Project-wide, admin only: settings collection, doc `project`. */
-export interface ProjectSettings { thresholdPct: number; industry: Industry | null; coreClasses: CoreClass[] | null }
 /** The member's own: preferences collection, doc `defaults`. null preset: no range, the ontology view. */
 export interface ViewSettings { defaultPreset: Preset | null; comparisonDefault: boolean; weekStart: WeekStart }
-export type Settings = ProjectSettings & ViewSettings;
-
-export const DEFAULT_SETTINGS: Settings = { thresholdPct: 20, industry: null, coreClasses: null, defaultPreset: null, comparisonDefault: true, weekStart: 'monday' };
+export const DEFAULT_SETTINGS: ViewSettings = { defaultPreset: null, comparisonDefault: true, weekStart: 'monday' };
 
 export const PRESET_LABELS: Record<Preset, string> = {
   last_year: 'Last year', last_quarter: 'Last quarter', last_month: 'Last month', last_week: 'Last week',

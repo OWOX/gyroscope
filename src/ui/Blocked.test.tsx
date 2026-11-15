@@ -42,10 +42,11 @@ test('Back shows only when given', () => {
   expect(onBack).toHaveBeenCalled();
 });
 
-test('a member blocked on access keeps the access step', () => {
+test('a failed goal read says it was a read failure and to Retry, for a member too', () => {
   render(<Blocked {...base} isAdmin={false} blocked={{ code: 'GOAL_NO_ACCESS', detail: 'x', mismatches: [] }} />);
-  expect(screen.getByText(/ask for access to it in OWOX/)).toBeInTheDocument();
-  expect(screen.getByText('Ask a project admin to finish Setup.')).toBeInTheDocument();
+  expect(screen.getByText(/couldn't be read/)).toBeInTheDocument();
+  expect(screen.getByText(/Click Retry/)).toBeInTheDocument();
+  expect(screen.queryByText(/ask for access/i)).toBeNull();
 });
 
 test.each([true, false])('NO_ACCESSIBLE_GOAL shows the access copy and Open Setup (admin: %s)', (isAdmin) => {
