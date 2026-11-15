@@ -54,6 +54,8 @@ export interface MetricDef {
   format: MetricFormat;
   currency: string | null;   // ISO 4217 code; only for 'currency'
   forecast: ForecastDef | null; // null: extrapolate from the fact series
+  /** A ratio of two other metrics of the model, by id: value and series are numerator ÷ denominator. Its own measure is unused. */
+  ratio?: { numerator: string; denominator: string };
   /** The measure is a calculated field of the mart: only such a metric can colour a line. Absent on models built before it. */
   calculated?: boolean;
   description?: string | null; // the measure field's schema description; absent on models built before it

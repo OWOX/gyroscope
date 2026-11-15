@@ -291,3 +291,22 @@ test('a server that ignores uniqueCount gives that metric an error while the oth
   expect(doc.cards.a!.metrics['a:qty']!.error).toBeNull();
   expect(doc.cards.a!.metrics['a:qty']!.fact).toBe(5);
 });
+
+test('a ratio metric divides two metrics, one of them on no card', async () => {
+  const owox = fakeOwox({ projectDescription: null, contexts: [], marts: [], details: {}, blendables: {}, rows: () => [{ 'Unique Count': 10, 'revenue | SUM': 4, date: '2026-10-20' }] });
+  const base = { martId: 'a', kind: 'flow' as const, dateField: 'date', role: 'unique' as const, source: 'schema', isUniqueCount: false, format: 'number' as const, currency: null, plan: null, shown: true, forecast: null };
+  const a = { ...base, id: 'a', alias: 'A', measure: { field: 'id', fn: 'COUNT_DISTINCT' as const }, isUniqueCount: true };
+  const b = { ...base, id: 'b', alias: 'B', measure: { field: 'revenue', fn: 'SUM' as const }, shown: false };
+  const r = { ...a, id: 'r', alias: 'R', isUniqueCount: false, ratio: { numerator: 'a', denominator: 'b' } };
+  const model: Model = {
+    version: 3, inputHash: 'h1', builtAt: '', builtBy: 'u', editedAt: null, editedBy: null,
+    goal: { classId: 'a', metricId: null, goalMartId: 'a', viaFallback: false },
+    classes: [{ id: 'a', martId: 'a', title: 'A', contexts: [], depth: 0, keyMetricId: 'a', metricIds: ['a', 'r'], shown: true, core: false, inbound: 0 }],
+    edges: [], metrics: [a, b, r],
+  };
+  const doc = await refreshCanvas({ owox, model, spec: rangeFor('last_7d', new Date('2026-10-24T10:00:00Z')), key: 'k', thresholdPct: 20 });
+  const m = doc.cards.a!.metrics;
+  expect(m.a!.fact).toBe(10);
+  expect(m.r!.fact).toBe(m.a!.fact! / 4);
+  expect(m.b).toBeUndefined();
+});

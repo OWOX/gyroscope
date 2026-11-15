@@ -6,6 +6,7 @@ import { shownModel } from '../model/shown';
 import { BLOCKING, type Issue } from '../model/health';
 import { describeError } from '../lib/errors';
 import { computeMetric } from './compute';
+import { computeRatio } from './ratio';
 
 const sig4 = (n: number): number => Number(n.toPrecision(4));
 const round = (s: SeriesPack): SeriesPack => ({ ...s, values: s.values.map((v) => (v === null ? v : sig4(v))), forecast: s.forecast.map(sig4) });
@@ -92,7 +93,9 @@ export async function refreshCanvas(args: {
           plan: soft.some((i) => i.kind.startsWith('plan_')) || (metric.plan && seen(metric.plan.martId)) === false ? null : metric.plan,
           forecast: soft.some((i) => i.kind.startsWith('forecast_')) || (metric.forecast && seen(metric.forecast.martId)) === false ? null : metric.forecast,
         };
-        const out = await computeMetric({ owox, metric: usable, spec, thresholdPct, withSpark: true });
+        const out = metric.ratio
+          ? await computeRatio({ owox, metric, byId, spec, thresholdPct })
+          : await computeMetric({ owox, metric: usable, spec, thresholdPct, withSpark: true });
         const warning = [...soft.map((i) => i.text), ...(out.result.warning ? [out.result.warning] : []), ...(out.result.error ? [out.result.error] : [])].join('; ') || null;
         results.set(id, warning ? { ...out.result, warning } : out.result);
         sparks.set(id, out.spark);
