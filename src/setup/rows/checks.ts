@@ -62,15 +62,17 @@ export function checkRows(ctx: Ctx): Row[] {
 /** The AI credential and the on-track margin. */
 export function housekeepingRows(ctx: Ctx): Row[] {
   const { s } = ctx;
+  // a custom value kept from before the first save still counts as set; the saved value leads so it is the recommended one
+  const done = s.updatedAt !== null || s.thresholdPct !== 20;
+  const levels = done ? [s.thresholdPct, ...[20, 10, 15, 25, 30].filter((n) => n !== s.thresholdPct)] : [20, 10, 15, 25, 30];
   return [
     make(ctx, 'ai.credential', 'ai.credential', 'housekeeping', {}, {
       state: ctx.hasAi ? 'done' : 'open', current: ctx.hasAi ? 'Connected' : null,
       options: [openOption('open', 'Map an AI credential', `/ui/${ctx.projectId}/plugins`)],
     }),
-    make(ctx, 'threshold', 'threshold', 'housekeeping', {}, {
-      // a custom value kept from before the first save still counts as set
-      state: s.updatedAt !== null || s.thresholdPct !== 20 ? 'done' : 'open', current: s.updatedAt !== null || s.thresholdPct !== 20 ? `${s.thresholdPct}%` : null,
-      options: [20, 10, 15, 25, 30].map((n) => setOption(`threshold:${n}`, `${n}%`, (x) => ({ ...x, thresholdPct: n }))),
+    make(done ? { ...ctx, ai: { ...ctx.ai, threshold: '' } } : ctx, 'threshold', 'threshold', 'housekeeping', {}, {
+      state: done ? 'done' : 'open', current: done ? `${s.thresholdPct}%` : null,
+      options: levels.map((n) => setOption(`threshold:${n}`, `${n}%`, (x) => ({ ...x, thresholdPct: n }))),
     }),
   ];
 }

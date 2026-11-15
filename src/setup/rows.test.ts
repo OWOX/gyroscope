@@ -189,6 +189,16 @@ describe('rows by block', () => {
     expect(byId(a, 'team:c2.description').options[0]!.action).toMatchObject({ kind: 'append', scope: { contextId: 'c2' } });
   });
 
+  test('a saved threshold recommends itself, a custom one becomes an option', () => {
+    const at = (n: number) => byId(buildRows(input({ ...EMPTY_SETUP, thresholdPct: n })), 'threshold');
+    expect(rec(at(25))).toBe('threshold:25');
+    expect(at(25).options.filter((o) => o.id === 'threshold:25')).toHaveLength(1);
+    expect(at(12).options.map((o) => o.id)[0]).toBe('threshold:12');
+    expect(at(12).options[0]!.label).toBe('12%');
+    expect(rec(at(12))).toBe('threshold:12');
+    expect(rec(byId(buildRows(input(EMPTY_SETUP)), 'threshold'))).toBe('threshold:20');
+  });
+
   test('housekeeping: the AI credential and a saved threshold', () => {
     const a = buildRows(input(EMPTY_SETUP));
     expect(byId(a, 'ai.credential')).toMatchObject({ state: 'open', severity: 'warning' });

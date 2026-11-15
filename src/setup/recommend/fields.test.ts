@@ -73,6 +73,11 @@ describe('level and plan names are whole tokens', () => {
   test('words that merely contain a level word stay flows', () => {
     for (const l of ['arrivals', 'carrier', 'warranty', 'inactive_users', 'revenue']) expect(k(l), l).toBe('flow');
   });
+  test('planned and budgeted columns are plans, not facts', () => {
+    const n = node('p', [f('planned_revenue', 'NUMERIC'), f('budgetedSales', 'NUMERIC'), f('revenue', 'NUMERIC')]);
+    expect(planCandidates([n]).map((x) => x.path)).toEqual(['planned_revenue', 'budgetedSales']);
+    expect(numericFields([n]).map((x) => x.path)).toEqual(['revenue']);
+  });
   test('goal is not a plan name: goal_completions is a number, not a plan', () => {
     const n = node('g', [f('goal_completions', 'INT64'), f('revenue_plan', 'NUMERIC'), f('sales_target', 'NUMERIC'), f('budget', 'NUMERIC'), f('forecastRevenue', 'NUMERIC')]);
     expect(numericFields([n]).map((x) => x.path)).toEqual(['goal_completions']);
