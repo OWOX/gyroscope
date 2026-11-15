@@ -547,10 +547,11 @@ button.gy-badge:hover { color: var(--foreground); }
 .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'], :root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'] { color: var(--orange); background: color-mix(in oklab, var(--orange) 15%, transparent); }
 /* radio list in the right column */
 .gy-radios { display: grid; gap: 0.25rem; width: 100%; min-width: 0; }
-.gy-radio { position: relative; min-width: 0; padding-left: 1.5rem; }
+.gy-radio { position: relative; min-width: 0; padding-left: 1.5rem; padding-right: 1.75rem; }
 .gy-radio label { cursor: pointer; overflow-wrap: anywhere; }
 .gy-radio input { position: absolute; left: 0; top: 0.1875rem; margin: 0; accent-color: var(--primary); }
-.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; margin-left: 0.125rem; }
+/* the link icon sits in the right gutter, so a hidden one takes no line of its own */
+.gy-radio .gy-row-link { position: absolute; right: 0; top: 0; }
 .gy-row-recline .gy-row-link { display: inline-grid; vertical-align: middle; }
 .gy-row-note { font-size: 0.75rem; }
 .gy-row-rec { display: inline-block; margin-left: 0.375rem; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.6875rem; line-height: 1.4; color: var(--muted-foreground); white-space: nowrap; vertical-align: middle; }
