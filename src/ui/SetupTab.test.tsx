@@ -58,12 +58,12 @@ test('Save and Discard call back; both are inert while a save runs', () => {
   expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
 });
 
-test('a set row shows its value and Change, which opens the radios with Keep <value> checked', () => {
+test('a set row shows its value and an Edit pencil, which opens the radios with Keep <value> checked', () => {
   const done = row({ state: 'done', current: 'Orders · revenue' });
   render(<SetupTab {...props([done])} />);
   expect(screen.getByText('Orders · revenue')).toBeInTheDocument();
   expect(screen.queryByRole('radio', { hidden: true })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Business Critical Number', hidden: true }));
   expect(screen.getByRole('radio', { name: /^Keep Orders · revenue/, hidden: true })).toBeChecked();
   expect(screen.getByRole('radio', { name: /Orders · profit/, hidden: true })).not.toBeChecked();
 });
@@ -118,7 +118,7 @@ test('the block tile carries the worst open severity, with an accessible name', 
 test('read-only shows the value or Not set and the recommendation as text, without radios, Change or Save', () => {
   render(<SetupTab {...props([row({}), row({ id: 'b', block: 'core', title: 'Entities', state: 'done', current: 'Orders' })], { readOnly: true })} />);
   expect(screen.queryByRole('radio', { hidden: true })).toBeNull();
-  expect(screen.queryByRole('button', { name: /Change/, hidden: true })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Edit/, hidden: true })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   expect(screen.getByText('Not set')).toBeInTheDocument();
   expect(screen.getByText('Recommended: Orders · revenue')).toBeInTheDocument();
@@ -313,7 +313,7 @@ test('a row that appears because of a pick is unset: radios and an open hint', (
   expect(screen.getByRole('button', { name: 'About Fresh Row' })).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('a link-only row shows no radios and no Change, just the value and the links', () => {
+test('a link-only row shows no radios and no Edit pencil, just the value and the links', () => {
   const open = { id: 'o', label: 'Ask an admin for access', recommended: true, action: { kind: 'open', path: '/x' } as never };
   render(<SetupTab {...props([row({ options: [open] })])} />);
   expect(screen.queryByRole('radio')).toBeNull();
@@ -321,7 +321,7 @@ test('a link-only row shows no radios and no Change, just the value and the link
   expect(screen.getByText('Not set')).toBeInTheDocument();
   const done = row({ id: 'z', block: 'core', title: 'Done link row', state: 'done', current: 'OK', options: [open] });
   render(<SetupTab {...props([done])} />);
-  expect(screen.queryByRole('button', { name: /Change/, hidden: true })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Edit/, hidden: true })).toBeNull();
 });
 
 test('a staged ratio add stays checked from the saved options, and Not set undoes it', () => {
@@ -417,20 +417,20 @@ test('a link-only notice offers Not set and Not needed next to its link, and Not
   expect(onPick).toHaveBeenLastCalledWith('goal.metric', null);
 });
 
-test('a set row leaves its saved value out of the Change list, so it is only "Keep"', () => {
+test('a set row leaves its saved value out of the Edit list, so it is only "Keep"', () => {
   const r = row({ state: 'done', current: '20%', options: [set('t:20', '20%', true), set('t:10', '10%')] });
   render(<SetupTab {...props([r], { savedOpen: new Set() })} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Business Critical Number', hidden: true }));
   const labels = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true }).map((x) => (x as HTMLInputElement).labels![0]!.textContent);
   expect(labels).toEqual(['Keep 20%Recommended', '10%']);
 });
 
-test('a link-only notice saved as Not needed shows Change, with Not needed checked and Not set staging an undismiss', () => {
+test('a link-only notice saved as Not needed shows the pencil, with Not needed checked and Not set staging an undismiss', () => {
   const onPick = vi.fn();
   const open: Option = { id: 'none', label: 'Add a Data Mart', recommended: true, action: { kind: 'open', path: '/x' } };
   const r = row({ severity: 'notice', dismissable: true, state: 'done', current: 'Not needed', dismissed: true, options: [open] });
   render(<SetupTab {...props([r], { savedOpen: new Set(), onPick })} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Business Critical Number', hidden: true }));
   const radios = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true });
   expect(radios.map((x) => (x as HTMLInputElement).labels![0]!.textContent)).toEqual(['Not needed', 'Not set']);
   expect(radios[0]).toBeChecked();
@@ -443,35 +443,35 @@ test('a dismissed row hides the options that decline, so "No plan yet" does not 
   const none: Option = { ...set('none', 'No plan yet'), declines: true };
   const r = row({ state: 'done', current: 'Not needed', dismissed: true, options: [set('a', 'Orders · plan', true), none] });
   render(<SetupTab {...props([r], { savedOpen: new Set() })} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Business Critical Number', hidden: true }));
   const labels = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true }).map((x) => (x as HTMLInputElement).labels![0]!.textContent);
   expect(labels).toEqual(['Not needed', 'Not set', 'Orders · planRecommended']);
 });
 
-test('a dismissed notice reads Not needed, checked on Change', () => {
+test('a dismissed notice reads Not needed, checked on Edit', () => {
   const r = row({ severity: 'notice', dismissable: true, state: 'done', current: 'Not needed', dismissed: true });
   render(<SetupTab {...props([r], { savedOpen: new Set() })} />);
   expect(screen.getByText('Not needed')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Business Critical Number', hidden: true }));
   const radios = within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true });
   expect(radios.map((x) => (x as HTMLInputElement).labels![0]!.textContent)).toEqual(['Not needed', 'Not set', 'Orders · revenueRecommended', 'Orders · profit']);
   expect(radios[0]).toBeChecked();
 });
 
-test('Change closes once a save lands', () => {
+test('Edit closes once a save lands', () => {
   const r = row({ state: 'done', current: 'Orders · revenue' });
   const { rerender } = render(<SetupTab {...props([r], { savedOpen: new Set(), saveCount: 0 })} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Business Critical Number', hidden: true }));
   expect(screen.getByRole('radiogroup', { hidden: true })).toBeInTheDocument();
   rerender(<SetupTab {...props([r], { savedOpen: new Set(), saveCount: 1 })} />);
   expect(screen.queryByRole('radiogroup', { hidden: true })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Edit Business Critical Number', hidden: true })).toBeInTheDocument();
 });
 
 describe('the radio list follows the row the pick ran against', () => {
   const labels = () => within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true }).map((x) => (x as HTMLInputElement).labels![0]!.textContent);
   const checked = () => within(screen.getByRole('radiogroup', { hidden: true })).getAllByRole('radio', { hidden: true }).filter((x) => (x as HTMLInputElement).checked).map((x) => (x as HTMLInputElement).labels![0]!.textContent);
-  const change = () => fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
+  const change = () => fireEvent.click(screen.getByRole('button', { name: 'Edit Business Critical Number', hidden: true }));
   const none: Option = { ...set('none', 'No plan yet'), declines: true };
 
   test('a saved plan staged to "No plan yet" still offers Keep, the options and the checked "No plan yet"', () => {
@@ -521,4 +521,13 @@ describe('the radio list follows the row the pick ran against', () => {
     change();
     expect(labels()).toEqual(['Keep 20%Recommended', '20%', '10%']);
   });
+});
+
+test('with a progress slot, the save message and the notice go into the slot beside the bar', () => {
+  const slot = document.createElement('div');
+  document.body.appendChild(slot);
+  render(<SetupTab {...props([row({ state: 'done', current: 'x' })], { message: 'Save failed', notice: 'A later pick replaced one', progressSlot: slot })} />);
+  expect(within(slot).getByText('Save failed')).toBeInTheDocument();
+  expect(within(slot).getByText('A later pick replaced one')).toBeInTheDocument();
+  slot.remove();
 });

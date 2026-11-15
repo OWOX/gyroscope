@@ -1,4 +1,4 @@
-import { Check, Loader2, SquareArrowOutUpRight } from 'lucide-react';
+import { Check, Loader2, Pencil, SquareArrowOutUpRight } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Option, Row } from '../setup/types';
 import { HintBubble, HintButton } from './Hint';
@@ -13,13 +13,13 @@ export interface SetupRowProps {
   unset: boolean;
   /** The row as its staged pick ran against it: options and value stay put while later picks change the draft. */
   optionRow?: Row;
-  /** Counts successful saves: an open "Change" closes when it goes up. */
+  /** Counts successful saves: an open edit closes when it goes up. */
   saveCount?: number;
   hintOpen: boolean; onHint: () => void;
   onPick: (optionId: string | null) => void; onRetry: () => void; onOpen?: (path: string) => void;
 }
 
-/** One setup question: the value now, and for an unanswered row (or on "Change") a radio list of the ways to answer it. */
+/** One setup question: the value now, and for an unanswered row (or on edit) a radio list of the ways to answer it. */
 export function SetupRow({ row, readOnly, saving = false, picked, unset, optionRow, saveCount = 0, hintOpen, onHint, onPick, onRetry, onOpen }: SetupRowProps) {
   const [changing, setChanging] = useState(false);
   const [more, setMore] = useState(false);
@@ -108,9 +108,11 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
       <div className="gy-row-side">
         {linkOnly ? dismissOnly : readOnly || !hasRadios || (!unset && !changing) ? (
           <>
-            {row.current ? <span className="gy-row-value">{row.current}</span> : <span className="gy-muted">Not set</span>}
+            <span className="gy-row-valueline">
+              {row.current ? <span className="gy-row-value">{row.current}</span> : <span className="gy-muted">Not set</span>}
+              {!readOnly && hasRadios && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Edit ${row.title}`} title="Edit" onClick={() => setChanging(true)}><Pencil size={14} aria-hidden="true" /></button>}
+            </span>
             {readOnly && row.state !== 'done' && rec && <span className="gy-muted gy-row-recline">Recommended: {rec.label}{linkBtn(rec)}</span>}
-            {!readOnly && hasRadios && <button type="button" className="gy-link" aria-label={`Change ${row.title}`} onClick={() => setChanging(true)}>Change</button>}
           </>
         ) : radios}
         {row.state === 'error' && <button type="button" className="gy-link" onClick={onRetry}>Retry</button>}

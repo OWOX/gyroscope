@@ -63,7 +63,7 @@ function Block({ info, rows, folded, hintOpen, onHint, attention, children }: { 
   );
 }
 
-export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, savedOpen, optionRows, notice, saveCount, martIcons, onRetry, onOpen, progressSlot }: SetupTabProps) {
+export function SetupTab({ rows, loading, readOnly, message, picked, onPick, saving, savedOpen, optionRows, notice, saveCount, martIcons, onRetry, onOpen, progressSlot }: SetupTabProps) {
   // a staged append or team write is done as far as the bar goes: it changes no setting, so the rows can't show it
   const eff = rows.map((r) => {
     const k = r.options.find((o) => o.id === picked[r.id])?.action.kind;
@@ -95,18 +95,23 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
       hintOpen={hintOpen(r.id, savedOpen.has(r.id))} onHint={() => toggle(r.id, savedOpen.has(r.id))}
       onPick={(o) => onPick(r.id, o)} onRetry={onRetry} onOpen={onOpen} />
   );
-  const bar = <ProgressBar counts={progress(eff)} onJump={jump} />;
-  return (
-    <div className="gy-setup">
-      {loading && <LoadingBar />}
+  // the progress bar, a save error and the notice travel together: with Save in the sticky header, a message has to stay in view too
+  const top = (
+    <>
+      <ProgressBar counts={progress(eff)} onJump={jump} />
       {message && (
         <div className="gy-setup-banner" role="status">
           <span>{message}</span>
           <button type="button" className="gy-btn" onClick={onRetry}>Retry</button>
         </div>
       )}
-      {progressSlot === undefined ? bar : progressSlot && createPortal(bar, progressSlot)}
       {notice && <p className="gy-muted gy-save-notice" role="status">{notice}</p>}
+    </>
+  );
+  return (
+    <div className="gy-setup">
+      {loading && <LoadingBar />}
+      {progressSlot === undefined ? top : progressSlot && createPortal(top, progressSlot)}
       <div className="gy-setup-blocks">
       {BLOCKS.map((b) => {
         const mine = eff.filter((r) => r.block === b.id);
