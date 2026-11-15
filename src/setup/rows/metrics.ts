@@ -92,15 +92,18 @@ export function ratioRows(ctx: Ctx): Row[] {
   }
   for (const p of ratioPairs(model, ctx.nodes)) {
     const id = ratioMetricId(p.numerator, p.denominator);
-    if (s.ratios.some((r) => r.id === id) || s.dismissed.includes(id)) continue;
+    if (s.ratios.some((r) => r.id === id)) continue;
+    const skipped = s.dismissed.includes(id);
     const numMart = model.metrics.find((m) => m.id === p.numerator)?.martId;
-    rows.push(make(ctx, 'ratio', id, 'ratios', { A: alias(p.numerator), B: alias(p.denominator) }, {
-      state: 'open', current: null,
+    const row = make(ctx, 'ratio', id, 'ratios', { A: alias(p.numerator), B: alias(p.denominator) }, {
+      state: skipped ? 'done' : 'open', current: skipped ? 'Skipped' : null,
       options: [
         setOption('ratio:add', `Add ${p.name}`, (x) => ({ ...x, ratios: [...x.ratios.filter((y) => y.id !== id), { id, name: p.name, numerator: p.numerator, denominator: p.denominator, format: 'number' }] }), numMart && martPage(ctx, numMart), numMart && martTitle(ctx, numMart)),
         { ...setOption('ratio:skip', 'Skip this ratio', (x) => dismiss(x, id)), declines: true },
       ],
-    }));
+    });
+    // a skipped pair stays listed so it can be changed back
+    rows.push(skipped ? { ...row, dismissable: false, dismissed: true } : row);
   }
   return rows;
 }

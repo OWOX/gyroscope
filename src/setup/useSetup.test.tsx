@@ -552,3 +552,45 @@ test('picking the saved threshold is not a change, and a successful Save counts'
   await waitFor(() => expect(result.current.props.dirty).toBe(0));
   expect(result.current.props.saveCount).toBe(before + 1);
 });
+
+describe('Not needed can be changed back', () => {
+  const goal = { martId: 'orders', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'revenue', plan: null };
+  const saved = async (dismissed: string[]) => {
+    const store = memoryCollections();
+    const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: twoMarts() })));
+    await act(() => result.current.reload());
+    const { saveSetup, loadSetup } = await import('../store/settings');
+    const base = (await loadSetup(store)).settings;
+    await saveSetup(store, base, { ...base, goal, dismissed }, 'Ann', new Date('2026-11-14T09:05:00Z'));
+    await act(() => result.current.reload());
+    return { store, result, loadSetup };
+  };
+  const find = (result: Awaited<ReturnType<typeof saved>>['result'], id: string) => result.current.props.rows.find((r) => r.id === id)!;
+
+  test('a saved dismissal is done and flagged; Not set stages an undismiss, the bar moves back and Save writes dismissed without the id', async () => {
+    const { store, result, loadSetup } = await saved(['goal.description']);
+    expect(find(result, 'goal.description')).toMatchObject({ state: 'done', current: 'Not needed', dismissed: true });
+    const done = () => result.current.props.rows.filter((r) => r.state === 'done').length;
+    const before = done();
+    await act(async () => result.current.props.onPick('goal.description', 'undismiss'));
+    expect(result.current.props.dirty).toBe(1);
+    expect(find(result, 'goal.description').state).toBe('open');
+    expect(done()).toBe(before - 1);
+    await act(async () => result.current.props.onSave());
+    await waitFor(() => expect(result.current.props.dirty).toBe(0));
+    expect((await loadSetup(store)).settings.dismissed).not.toContain('goal.description');
+  });
+
+  test('picking a real option on a dismissed plan row removes the id', async () => {
+    const { store, result, loadSetup } = await saved(['goal.plan']);
+    const plan = find(result, 'goal.plan');
+    expect(plan).toMatchObject({ state: 'done', dismissed: true });
+    const opt = plan.options.find((o) => o.id.startsWith('field:'))!;
+    await act(async () => result.current.props.onPick('goal.plan', opt.id));
+    await act(async () => result.current.props.onSave());
+    await waitFor(() => expect(result.current.props.dirty).toBe(0));
+    const s = (await loadSetup(store)).settings;
+    expect(s.dismissed).not.toContain('goal.plan');
+    expect(s.goal!.plan).not.toBeNull();
+  });
+});
