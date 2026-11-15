@@ -21,8 +21,8 @@ export interface UseSetupArgs {
   now: () => Date; open?: (path: string) => void; onModel: (d: Derived, graph: Graph) => void;
 }
 
-/** A staged choice: the option picked on a row and what it will do on Save. */
-interface Pick { rowId: string; optionId: string; action: Action }
+/** A staged choice: the option picked on a row. What it does is looked up in the draft rows each time. */
+interface Pick { rowId: string; optionId: string }
 
 interface Loaded { settings: ProjectSettingsV5; graph: Graph; legacyCore: string[]; derived: Derived; hash: string }
 
@@ -35,7 +35,8 @@ const clock = (at: string | null): string => {
   return t && !Number.isNaN(t.getTime()) ? `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` : '';
 };
 
-const applyPicks = (settings: ProjectSettingsV5, picks: Pick[]): ProjectSettingsV5 => picks.reduce((s, p) => (p.action.kind === 'set' ? p.action.next(s) : s), settings);
+const actionOf = (row: Row | undefined, optionId: string): Action | undefined =>
+  optionId === 'dismiss' ? (row?.dismissable ? { kind: 'set', next: (s) => dismiss(s, row.id) } : undefined) : row?.options.find((o) => o.id === optionId)?.action;
 
 /** Loads the settings and every schema, derives the canvas model, runs cached AI picks for admins and stages choices in a draft that one Save writes. */
 export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: ProjectSettingsV5 | null; reload: () => Promise<void> } {
@@ -115,72 +116,109 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
       hold(l);
       onModel(derived, graph);
       setLoading(false);
-      void runAi(l, applyPicks(settings, picksNow.current));
+      void runAi(l, replay(l, picksNow.current).settings);
     } catch (e) {
       if (id === runId.current) { setMessage(`Couldn't load setup: ${describeError(e)}`); setLoading(false); setPending(new Set()); }
       throw e;
     }
   }, [runAi]);
 
+  /** Replays the picks over the saved settings: each runs against the rows the earlier ones produced, and a stale one (its row or option is gone) is skipped. */
+  const replay = (l: Loaded, staged: Pick[]) => {
+    let settings = l.settings;
+    let derived = l.derived;
+    const valid: { pick: Pick; kind: Action['kind'] }[] = [];
+    for (const pick of staged) {
+      const action = actionOf(rowsFor(l, settings, derived, {}, new Set()).find((r) => r.id === pick.rowId), pick.optionId);
+      if (!action || action.kind === 'open') continue;
+      valid.push({ pick, kind: action.kind });
+      if (action.kind === 'set') { settings = action.next(settings); derived = deriveModel(settings, l.graph); }
+    }
+    return { settings, derived, valid };
+  };
+
   // the draft: the saved settings with every staged `set` applied in pick order; the rows and the model follow it
   const draft = useMemo(() => {
     if (!loaded) return null;
-    if (picks.length === 0) return { settings: loaded.settings, derived: loaded.derived };
-    const settings = applyPicks(loaded.settings, picks);
-    return { settings, derived: deriveModel(settings, loaded.graph) };
+    if (picks.length === 0) return { settings: loaded.settings, derived: loaded.derived, valid: [] as { pick: Pick; kind: Action['kind'] }[] };
+    return replay(loaded, picks);
   }, [loaded, picks]);
 
-  const { rows, savedOpen, savedCurrent } = useMemo(() => {
-    if (!loaded || !draft) return { rows: [] as Row[], savedOpen: new Set<string>(), savedCurrent: {} as Record<string, string | null> };
-    // a stored pick counts only while it is one of the row's current options
-    const ai: Record<string, string> = {};
-    for (const r of rowsFor(loaded, draft.settings, draft.derived, {}, new Set())) {
-      const pick = cached[keyOf(r)];
-      if (pick !== undefined && r.options.some((o) => o.id === pick)) ai[r.id] = pick;
-    }
-    const rows = rowsFor(loaded, draft.settings, draft.derived, ai, pending);
-    const saved = new Map((picks.length ? rowsFor(loaded, loaded.settings, loaded.derived, {}, new Set()) : rows).map((r) => [r.id, r]));
+  const { rows, savedOpen, savedRows } = useMemo(() => {
+    if (!loaded || !draft) return { rows: [] as Row[], savedOpen: new Set<string>(), savedRows: {} as Record<string, Row> };
+    const build = (settings: ProjectSettingsV5, derived: Derived) => {
+      // a stored pick counts only while it is one of the row's current options
+      const ai: Record<string, string> = {};
+      for (const r of rowsFor(loaded, settings, derived, {}, new Set())) {
+        const pick = cached[keyOf(r)];
+        if (pick !== undefined && r.options.some((o) => o.id === pick)) ai[r.id] = pick;
+      }
+      return rowsFor(loaded, settings, derived, ai, pending);
+    };
+    const live = build(draft.settings, draft.derived);
+    const saved = picks.length ? build(loaded.settings, loaded.derived) : live;
+    // a picked row the draft no longer builds (a skipped ratio pair) stays, as done, until Save
+    const rows = [...live];
+    const have = new Set(rows.map((r) => r.id));
+    saved.forEach((r, i) => {
+      if (have.has(r.id) || !draft.valid.some((v) => v.pick.rowId === r.id)) return;
+      const prev = saved.slice(0, i).reverse().find((x) => have.has(x.id));
+      rows.splice(prev ? rows.findIndex((x) => x.id === prev.id) + 1 : 0, 0, { ...r, state: 'done' });
+      have.add(r.id);
+    });
+    const byId = new Map(saved.map((r) => [r.id, r]));
     return {
       rows,
       // rows the saved settings leave unanswered, a row that only exists in the draft included
-      savedOpen: new Set(rows.filter((r) => saved.get(r.id)?.state !== 'done').map((r) => r.id)),
-      savedCurrent: Object.fromEntries([...saved].map(([id, r]) => [id, r.current])),
+      savedOpen: new Set(rows.filter((r) => byId.get(r.id)?.state !== 'done').map((r) => r.id)),
+      savedRows: Object.fromEntries(saved.map((r) => [r.id, r])),
     };
   }, [loaded, draft, picks, cached, pending, args.projectId, args.generateWith]);
   const rowsNow = useRef(rows);
   rowsNow.current = rows;
+  const savedNow = useRef(savedRows);
+  savedNow.current = savedRows;
 
   const onPick = useCallback((rowId: string, optionId: string | null) => {
     const l = loadedNow.current;
     if (!l || !latest.current.isAdmin || savingNow.current) return;
-    let next = picksNow.current.filter((p) => p.rowId !== rowId);
+    const cur = picksNow.current;
+    let next = cur.filter((p) => p.rowId !== rowId);
     if (optionId !== null) {
       const row = rowsNow.current.find((r) => r.id === rowId);
-      const action: Action | undefined = optionId === 'dismiss' && row?.dismissable ? { kind: 'set', next: (s) => dismiss(s, rowId) } : row?.options.find((o) => o.id === optionId)?.action;
+      const opt = [...(savedNow.current[rowId]?.options ?? []), ...(row?.options ?? [])].find((o) => o.id === optionId);
+      const action = actionOf(row ?? savedNow.current[rowId], optionId);
       if (!action || action.kind === 'open') return;
-      next = [...next, { rowId, optionId, action }];
+      // "Keep" is the row's default, not a change
+      if (!opt?.keep) {
+        const i = cur.findIndex((p) => p.rowId === rowId);
+        // a re-pick keeps the row's place in the order
+        next = i >= 0 ? cur.map((p, j) => (j === i ? { rowId, optionId } : p)) : [...cur, { rowId, optionId }];
+      }
     }
     setPicks(next);
     // the draft can bring new rows that want an AI pick
-    void runAi(l, applyPicks(l.settings, next));
+    void runAi(l, replay(l, next).settings);
   }, [runAi]);
 
   const onSave = useCallback(async () => {
     const l = loadedNow.current;
     const { owox, store, by, now, open, isAdmin } = latest.current;
+    if (!l || !isAdmin || picksNow.current.length === 0 || savingNow.current) return;
     const staged = picksNow.current;
-    if (!l || !isAdmin || staged.length === 0 || savingNow.current) return;
+    const { settings: next, valid } = replay(l, staged);
+    // a stale pick has nothing to write; it goes with the rest
+    const written = new Set<Pick>(staged.filter((p) => !valid.some((v) => v.pick === p)));
+    if (valid.length === 0) { setPicks(picksNow.current.filter((p) => !written.has(p))); return; }
     savingNow.current = true;
     setSaving(true);
     setMessage(null);
-    const written = new Set<Pick>();
     const deps = { owox, store, by, now, open: open ?? (() => {}) };
     let ok = true;
     try {
       let settings = l.settings;
-      const sets = staged.filter((p) => p.action.kind === 'set');
+      const sets = valid.filter((v) => v.kind === 'set');
       if (sets.length) {
-        const next = applyPicks(l.settings, staged);
         const r = await runAction({ kind: 'set', next: () => next }, { ...deps, settings });
         if (!r.ok) {
           ok = false;
@@ -189,13 +227,17 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
           return;
         }
         settings = r.settings;
-        for (const p of sets) written.add(p);
+        for (const v of sets) written.add(v.pick);
         hold({ ...l, settings, derived: deriveModel(settings, l.graph) });
       }
-      for (const p of staged.filter((x) => x.action.kind !== 'set')) {
-        const r = await runAction(p.action, { ...deps, settings });
+      // appends and team writes take their text from the final draft rows, not from when they were picked
+      const finalRows = rowsFor(l, settings, deriveModel(settings, l.graph), {}, new Set());
+      for (const v of valid.filter((x) => x.kind !== 'set')) {
+        const action = actionOf(finalRows.find((r) => r.id === v.pick.rowId), v.pick.optionId);
+        if (!action || action.kind === 'set' || action.kind === 'open') { written.add(v.pick); continue; }
+        const r = await runAction(action, { ...deps, settings });
         if (!r.ok) { ok = false; setMessage('conflict' in r ? 'Setup changed while saving. Reloaded.' : r.snippet ? `${r.error}\n${r.snippet}` : r.error); return; }
-        written.add(p);
+        written.add(v.pick);
       }
       await reload().catch(() => undefined);
     } finally {
@@ -208,9 +250,9 @@ export function useSetup(args: UseSetupArgs): { props: SetupTabProps; settings: 
   }, [reload]);
 
   const props: SetupTabProps = {
-    rows, loading, readOnly: !args.isAdmin, message, picked: Object.fromEntries(picks.map((p) => [p.rowId, p.optionId])),
-    onPick, dirty: picks.length, saving, onSave: () => void onSave(), onDiscard: () => { if (!savingNow.current) setPicks([]); },
-    savedOpen, savedCurrent,
+    rows, loading, readOnly: !args.isAdmin, message, picked: Object.fromEntries((draft?.valid ?? []).map((v) => [v.pick.rowId, v.pick.optionId])),
+    onPick, dirty: draft?.valid.length ?? 0, saving, onSave: () => void onSave(), onDiscard: () => { if (!savingNow.current) setPicks([]); },
+    savedOpen, savedRows,
     onRetry: () => void reload().catch(() => undefined),
     onOpen: args.open && ((path) => latest.current.open?.(path)),
   };

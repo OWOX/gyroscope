@@ -15,15 +15,15 @@ export interface SetupTabProps {
   dirty: number; saving: boolean; onSave: () => void; onDiscard: () => void;
   /** The rows not done in the saved settings: they show the radio list and seed their hint open. */
   savedOpen: ReadonlySet<string>;
-  /** What each row showed in the saved settings, for its "Keep ..." radio. */
-  savedCurrent?: Record<string, string | null>;
+  /** The rows as the saved settings build them: radio lists and their order come from here, so staging a choice moves nothing. */
+  savedRows?: Record<string, Row>;
   onRetry: () => void; onOpen?: (path: string) => void;
 }
 
 const ORDER: Severity[] = ['error', 'warning', 'notice'];
 const WORD: Record<Severity, [string, string]> = { error: ['blocker', 'blockers'], warning: ['recommended', 'recommended'], notice: ['notice', 'notices'] };
 
-function Block({ info, rows, hintOpen, onHint, attention, children }: { info: BlockInfo; rows: Row[]; hintOpen: boolean; onHint: () => void; attention: boolean; children: React.ReactNode }) {
+function Block({ info, rows, folded, hintOpen, onHint, attention, children }: { info: BlockInfo; rows: Row[]; folded: boolean; hintOpen: boolean; onHint: () => void; attention: boolean; children: React.ReactNode }) {
   const anchor = useRef<HTMLButtonElement>(null);
   const hintId = useId();
   const open = rows.filter(isOpen);
@@ -33,7 +33,7 @@ function Block({ info, rows, hintOpen, onHint, attention, children }: { info: Bl
   const tint = worst === 'notice' ? null : worst ?? null;
   const label = worst ? `${n} ${WORD[worst][n === 1 ? 0 : 1]} left` : 'All set';
   return (
-    <CollapsibleCard variant="band" icon={info.icon} iconSeverity={tint} iconLabel={label} label={info.title} collapsed={open.length === 0} attention={attention}
+    <CollapsibleCard variant="band" icon={info.icon} iconSeverity={tint} iconLabel={label} label={info.title} collapsed={folded} attention={attention}
       title={<span className="gy-setup-title"><span className="gy-setup-name">{info.title}</span>{open.length > 0 && <span className="gy-setup-count" data-testid="block-count">{`${open.length} left`}</span>}<HintButton title={info.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></span>}
       hint={<HintBubble id={hintId} open={hintOpen} anchor={anchor}>{`${info.question} ${info.why}`}</HintBubble>}>
       {children}
@@ -41,7 +41,7 @@ function Block({ info, rows, hintOpen, onHint, attention, children }: { info: Bl
   );
 }
 
-export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, onSave, onDiscard, savedOpen, savedCurrent, onRetry, onOpen }: SetupTabProps) {
+export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, onSave, onDiscard, savedOpen, savedRows, onRetry, onOpen }: SetupTabProps) {
   // a staged append or team write is done as far as the bar goes: it changes no setting, so the rows can't show it
   const eff = rows.map((r) => {
     const k = r.options.find((o) => o.id === picked[r.id])?.action.kind;
@@ -69,7 +69,7 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
     }, 0);
   }, [target]);
   const renderRow = (r: Row) => (
-    <SetupRow key={r.id} row={r} readOnly={readOnly} picked={picked[r.id]} unset={savedOpen.has(r.id)} savedCurrent={savedCurrent?.[r.id]}
+    <SetupRow key={r.id} row={r} readOnly={readOnly} picked={picked[r.id]} unset={savedOpen.has(r.id)} savedRow={savedRows?.[r.id]} saving={saving}
       hintOpen={hintOpen(r.id, savedOpen.has(r.id))} onHint={() => toggle(r.id, savedOpen.has(r.id))}
       onPick={(o) => onPick(r.id, o)} onRetry={onRetry} onOpen={onOpen} />
   );
@@ -98,12 +98,12 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
         const initial = mine.some((r) => savedOpen.has(r.id));
         const id = `block:${b.id}`;
         return (
-          <Block key={b.id} info={b} rows={mine} hintOpen={hintOpen(id, initial)} onHint={() => toggle(id, initial)} attention={target?.block === b.id}>
+          <Block key={b.id} info={b} rows={mine} folded={!initial} hintOpen={hintOpen(id, initial)} onHint={() => toggle(id, initial)} attention={target?.block === b.id}>
             {loose.map(renderRow)}
             {groups.map((g) => {
               const inGroup = mine.filter((r) => r.group === g);
               return (
-                <details key={g} className="gy-setup-group" open={inGroup.some(isOpen)}>
+                <details key={g} className="gy-setup-group" open={inGroup.some((r) => savedOpen.has(r.id))}>
                   <summary>{g}</summary>
                   {inGroup.map(renderRow)}
                 </details>

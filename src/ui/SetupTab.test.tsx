@@ -14,7 +14,7 @@ test('an unset row is a radio group: Not set checked, the recommended option fir
   render(<SetupTab {...props([row({ options: four })])} />);
   const group = screen.getByRole('radiogroup', { name: 'Business Critical Number' });
   const radios = within(group).getAllByRole('radio');
-  expect(radios.map((r) => r.closest('label')!.textContent)).toEqual(['Not set', 'Orders · itemsRecommended', 'Orders · revenue', 'Orders · profit']);
+  expect(radios.map((r) => (r as HTMLInputElement).labels![0]!.textContent)).toEqual(['Not set', 'Orders · itemsRecommended', 'Orders · revenue', 'Orders · profit']);
   expect(radios[0]).toBeChecked();
   expect(within(group).getByText('Recommended')).toBeInTheDocument();
   expect(within(group).queryByRole('radio', { name: /tax/ })).toBeNull();
@@ -59,7 +59,7 @@ test('Save and Discard call back; both are inert while a save runs', () => {
 
 test('a set row shows its value and Change, which opens the radios with Keep <value> checked', () => {
   const done = row({ state: 'done', current: 'Orders · revenue' });
-  render(<SetupTab {...props([done], { savedCurrent: { 'goal.metric': 'Orders · revenue' } })} />);
+  render(<SetupTab {...props([done])} />);
   expect(screen.getByText('Orders · revenue')).toBeInTheDocument();
   expect(screen.queryByRole('radio', { hidden: true })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Change Business Critical Number', hidden: true }));
@@ -68,7 +68,7 @@ test('a set row shows its value and Change, which opens the radios with Keep <va
 });
 
 test('a broken row keeps its saved value as the first radio and explains itself in the detail', () => {
-  render(<SetupTab {...props([row({ state: 'broken', current: 'Orders · revenue_old', detail: "revenue_old isn't in Orders any more" })], { savedCurrent: { 'goal.metric': 'Orders · revenue_old' } })} />);
+  render(<SetupTab {...props([row({ state: 'broken', current: 'Orders · revenue_old', detail: "revenue_old isn't in Orders any more" })])} />);
   expect(screen.getByText("revenue_old isn't in Orders any more")).toBeInTheDocument();
   expect(screen.getByRole('radio', { name: 'Keep Orders · revenue_old' })).toBeChecked();
 });
@@ -169,7 +169,7 @@ test('options that only open a page are link buttons, not radios', () => {
   const open = { id: 'o', label: 'Ask an admin for access', recommended: true, action: { kind: 'open', path: '/x' } as never };
   const p = props([row({ options: [open] })]);
   render(<SetupTab {...p} />);
-  expect(screen.getAllByRole('radio')).toHaveLength(1);
+  expect(screen.queryByRole('radio')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Ask an admin for access' }));
   expect(p.onOpen).toHaveBeenCalledWith('/x');
 });
@@ -241,4 +241,90 @@ test('each block header shows its icon tile and an open-count badge', () => {
   expect(cards).toHaveLength(2);
   for (const c of cards) expect(c.querySelector('.dm-collapsible-icon svg')).not.toBeNull();
   expect(screen.getAllByTestId('block-count').map((e) => e.textContent)).toEqual(['2 left']);
+});
+
+test('a broken row with no current offers Keep the saved value and shows its detail', () => {
+  render(<SetupTab {...props([row({ state: 'broken', current: null, detail: "revenue_old isn't in Orders any more" })])} />);
+  expect(screen.getByText("revenue_old isn't in Orders any more")).toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: 'Keep the saved value' })).toBeChecked();
+});
+
+test('a row another pick filled in shows the matching option checked, no Not set and a note', () => {
+  const r = row({ id: 'goal.aggregation', state: 'done', current: 'Sum, a total', options: [set('s', 'Sum, a total', true), set('m', 'Maximum')] });
+  render(<SetupTab {...props([r], { savedOpen: new Set(['goal.aggregation']), savedRows: { 'goal.aggregation': { ...r, state: 'open', current: null } } })} />);
+  expect(screen.getByRole('radio', { name: /Sum, a total/ })).toBeChecked();
+  expect(screen.queryByRole('radio', { name: 'Not set' })).toBeNull();
+  expect(screen.getByText('Set by your choice above')).toBeInTheDocument();
+});
+
+test('a derived value with no matching option shows a disabled checked radio', () => {
+  const r = row({ state: 'done', current: 'Custom thing' });
+  render(<SetupTab {...props([r], { savedOpen: new Set(['goal.metric']) })} />);
+  const radio = screen.getByRole('radio', { name: 'Custom thing' });
+  expect(radio).toBeChecked();
+  expect(radio).toBeDisabled();
+});
+
+test('picking the last open row of a group keeps the group open and the block unfolded', () => {
+  const open = row({ id: 'b', block: 'metrics', group: 'Orders', severity: 'warning', title: 'Orders Format' });
+  const { rerender } = render(<SetupTab {...props([open])} />);
+  const group = document.querySelector('[data-row-id="b"]')!.closest('details')!;
+  expect(group.open).toBe(true);
+  rerender(<SetupTab {...props([{ ...open, state: 'done', current: 'Orders · revenue' }], { savedOpen: new Set(['b']), picked: { b: 'a' } })} />);
+  expect(document.querySelector('[data-row-id="b"]')!.closest('details')!.open).toBe(true);
+  expect(document.querySelector('[data-row-id="b"]')!.closest('.dm-collapsible')).toHaveAttribute('data-folded', 'false');
+});
+
+test('a row that appears because of a pick is unset: radios and an open hint', () => {
+  const { rerender } = render(<SetupTab {...props([row({ state: 'done', current: 'x' })], { savedOpen: new Set() })} />);
+  const fresh = row({ id: 'new', block: 'metrics', title: 'Fresh Row' });
+  rerender(<SetupTab {...props([row({ state: 'done', current: 'x' }), fresh], { savedOpen: new Set(['new']) })} />);
+  expect(screen.getByRole('radiogroup', { name: 'Fresh Row' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'About Fresh Row' })).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('a link-only row shows no radios and no Change, just the value and the links', () => {
+  const open = { id: 'o', label: 'Ask an admin for access', recommended: true, action: { kind: 'open', path: '/x' } as never };
+  render(<SetupTab {...props([row({ options: [open] })])} />);
+  expect(screen.queryByRole('radio')).toBeNull();
+  expect(screen.queryByRole('radiogroup')).toBeNull();
+  expect(screen.getByText('Not set')).toBeInTheDocument();
+  const done = row({ id: 'z', block: 'core', title: 'Done link row', state: 'done', current: 'OK', options: [open] });
+  render(<SetupTab {...props([done])} />);
+  expect(screen.queryByRole('button', { name: /Change/, hidden: true })).toBeNull();
+});
+
+test('a staged ratio add stays checked from the saved options, and Not set undoes it', () => {
+  const saved = row({ id: 'ratio:x', block: 'ratios', title: 'a per b', severity: 'notice', options: [set('ratio:add', 'Add a per b', true), set('ratio:skip', 'Skip this ratio')] });
+  const draft = row({ id: 'ratio:x', block: 'ratios', title: 'a per b', severity: 'notice', state: 'done', current: 'a per b', options: [{ ...set('ratio:keep', 'Keep this ratio'), keep: true }, set('ratio:remove', 'Remove this ratio')] });
+  const p = props([draft], { picked: { 'ratio:x': 'ratio:add' }, savedRows: { 'ratio:x': saved }, savedOpen: new Set(['ratio:x']) });
+  render(<SetupTab {...p} />);
+  expect(screen.getByRole('radio', { name: /Add a per b/ })).toBeChecked();
+  fireEvent.click(screen.getByRole('radio', { name: 'Not set' }));
+  expect(p.onPick).toHaveBeenCalledWith('ratio:x', null);
+});
+
+test('a keep option is the default radio instead of a generic Keep', () => {
+  const keep = { ...set('ratio:keep', 'Keep this ratio'), keep: true };
+  const r = row({ state: 'broken', current: 'a per b', options: [set('ratio:remove', 'Remove this ratio', true), keep] });
+  render(<SetupTab {...props([r])} />);
+  expect(screen.getByRole('radio', { name: 'Keep this ratio' })).toBeChecked();
+  expect(screen.queryByRole('radio', { name: /^Keep a per b/ })).toBeNull();
+});
+
+test('the checked option shows even behind Show more, Show more sits outside the group, and saving disables the radios', () => {
+  const opts = [set('a', 'A1', true), set('b', 'B1'), set('c', 'C1'), set('d', 'D1')];
+  render(<SetupTab {...props([row({ options: opts })], { picked: { 'goal.metric': 'd' }, saving: true })} />);
+  const group = screen.getByRole('radiogroup');
+  expect(within(group).getByRole('radio', { name: 'D1' })).toBeChecked();
+  expect(within(group).queryByRole('button')).toBeNull();
+  for (const r of within(group).getAllByRole('radio')) expect(r).toBeDisabled();
+});
+
+test('read-only keeps the external link next to the recommendation', () => {
+  const o: Option = { ...set('a', 'Orders · revenue', true), link: '/x', linkLabel: 'Orders · revenue' };
+  const p = props([row({ options: [o] })], { readOnly: true });
+  render(<SetupTab {...p} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Orders · revenue in OWOX' }));
+  expect(p.onOpen).toHaveBeenCalledWith('/x');
 });

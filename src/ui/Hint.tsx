@@ -21,7 +21,10 @@ export function HintBubble({ id, open, anchor, className, children }: { id: stri
     if (!open) return;
     place();
     window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
+    // the bubble gains its size when its block unfolds or its text rewraps
+    const watch = typeof ResizeObserver === 'undefined' || !ref.current ? null : new ResizeObserver(place);
+    watch?.observe(ref.current!);
+    return () => { window.removeEventListener('resize', place); watch?.disconnect(); };
   }, [open, anchor]);
   return <div ref={ref} id={id} className={`gy-hint${className ? ` ${className}` : ''}`} hidden={!open}>{children}</div>;
 }

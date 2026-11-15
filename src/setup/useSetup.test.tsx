@@ -184,7 +184,7 @@ test('an older AI run settling after a reload does not clear the newer run\'s pe
   await waitFor(() => expect(result.current.props.rows.every((r) => !r.aiPending)).toBe(true));
 });
 
-test('picks stage in order, a newer pick for a row replaces the older, and null removes it; Discard clears', async () => {
+test('picks stage in order, a re-pick keeps its place, and null removes it; Discard clears', async () => {
   const store = memoryCollections();
   const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null })));
   await act(() => result.current.reload());
@@ -193,7 +193,7 @@ test('picks stage in order, a newer pick for a row replaces the older, and null 
   await act(async () => result.current.props.onPick('goal.date', recOf(result, 'goal.date')));
   expect(Object.keys(result.current.props.picked)).toEqual(['goal.metric', 'goal.date']);
   await act(async () => result.current.props.onPick('goal.metric', opts.at(-1)!.id));
-  expect(Object.keys(result.current.props.picked)).toEqual(['goal.date', 'goal.metric']);
+  expect(Object.keys(result.current.props.picked)).toEqual(['goal.metric', 'goal.date']);
   expect(result.current.props.dirty).toBe(2);
   await act(async () => result.current.props.onPick('goal.date', null));
   expect(result.current.props.dirty).toBe(1);
@@ -238,5 +238,78 @@ test('Save runs a staged append after the settings write, and Save with nothing 
   await waitFor(() => expect(result.current.props.dirty).toBe(0));
   expect(updateDescription).toHaveBeenCalledTimes(1);
   expect(String((updateDescription.mock.calls[0] as unknown[])[0])).toContain('Orders · revenue');
+  expect((await loadSetup(store)).settings.goal?.measure.field).toBe('revenue');
+});
+
+const twoMartsPlan = () => twoMarts();
+
+test('an append picked before the metric changes is written with the final metric', async () => {
+  const store = memoryCollections();
+  const source = twoMarts();
+  const updateDescription = vi.fn(async (_: string) => {});
+  source.project.updateDescription = updateDescription;
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
+  await act(() => result.current.reload());
+  const metric = result.current.props.rows.find((r) => r.id === 'goal.metric')!;
+  const [first, second] = metric.options.filter((o) => o.id.startsWith('field:')).map((o) => o.id);
+  await act(async () => result.current.props.onPick('goal.metric', first!));
+  const desc = () => result.current.props.rows.find((r) => r.id === 'goal.description')!;
+  await act(async () => result.current.props.onPick('goal.description', desc().options[0]!.id));
+  await act(async () => result.current.props.onPick('goal.metric', second!));
+  expect(Object.keys(result.current.props.picked)).toEqual(['goal.metric', 'goal.description']);
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(updateDescription).toHaveBeenCalled());
+  const field = second!.split(':')[2]!;
+  expect(updateDescription.mock.calls[0]![0]).toContain(`field=${field}`);
+  expect(updateDescription.mock.calls[0]![0]).not.toContain(`field=${first!.split(':')[2]}`);
+});
+
+test('re-picking the metric keeps a plan picked after it', async () => {
+  const store = memoryCollections();
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: twoMartsPlan() })));
+  await act(() => result.current.reload());
+  const metric = result.current.props.rows.find((r) => r.id === 'goal.metric')!;
+  const orders = metric.options.filter((o) => o.id.startsWith('field:orders:')).map((o) => o.id);
+  await act(async () => result.current.props.onPick('goal.metric', orders[0]!));
+  const plan = result.current.props.rows.find((r) => r.id === 'goal.plan')!.options.find((o) => o.id === 'field:orders:revenue_plan')!;
+  await act(async () => result.current.props.onPick('goal.plan', plan.id));
+  await act(async () => result.current.props.onPick('goal.metric', orders.at(-1)!));
+  expect(result.current.props.picked['goal.plan']).toBe(plan.id);
+  expect(result.current.props.rows.find((r) => r.id === 'goal.plan')!.state).toBe('done');
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect(result.current.settings!.goal!.plan?.measure.field).toBe('revenue_plan');
+});
+
+test('a stale pick is dropped from the visible picks and the save', async () => {
+  const store = memoryCollections();
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: twoMarts() })));
+  await act(() => result.current.reload());
+  const metric = result.current.props.rows.find((r) => r.id === 'goal.metric')!;
+  const orders = metric.options.filter((o) => o.id.startsWith('field:orders:')).map((o) => o.id);
+  await act(async () => result.current.props.onPick('goal.metric', orders[0]!));
+  const plan = result.current.props.rows.find((r) => r.id === 'goal.plan')!.options.find((o) => o.id === 'field:orders:revenue_plan')!;
+  await act(async () => result.current.props.onPick('goal.plan', plan.id));
+  // the goal moves to another Data Mart: the plan option for Orders is no longer on offer there only if it vanished
+  const ads = metric.options.find((o) => o.id.startsWith('field:ads:'))!;
+  await act(async () => result.current.props.onPick('goal.metric', ads.id));
+  const stale = !result.current.props.rows.find((r) => r.id === 'goal.plan')!.options.some((o) => o.id === plan.id);
+  expect(Object.keys(result.current.props.picked).includes('goal.plan')).toBe(!stale);
+  expect(result.current.props.dirty).toBe(Object.keys(result.current.props.picked).length);
+});
+
+test('a partial failure keeps the append staged and drops the written settings pick', async () => {
+  const store = memoryCollections();
+  const source = owox();
+  source.project.updateDescription = vi.fn(async () => { throw new Error('boom'); });
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
+  await act(() => result.current.reload());
+  await act(async () => result.current.props.onPick('goal.metric', recOf(result, 'goal.metric')));
+  const desc = result.current.props.rows.find((r) => r.id === 'goal.description')!;
+  await act(async () => result.current.props.onPick('goal.description', desc.options[0]!.id));
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.message).toMatch(/boom/));
+  await waitFor(() => expect(result.current.props.saving).toBe(false));
+  expect(Object.keys(result.current.props.picked)).toEqual(['goal.description']);
   expect((await loadSetup(store)).settings.goal?.measure.field).toBe('revenue');
 });

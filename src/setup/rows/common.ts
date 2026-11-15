@@ -132,7 +132,7 @@ export function planRow(ctx: Ctx, key: string, id: string, block: BlockId, vars:
 const esc = (s: string) => s.replace(/[\\|[\]()]/g, '\\$&').replace(/\s*[\r\n]+\s*/g, ' ');
 export function metricsTable(ctx: Ctx, role: string, alias: string, martId: string, path: string, plan: PlanDef | null): string {
   const link = (text: string, m: string, f: string) => `[${esc(text)}](${martPage(ctx, m, f)})`;
-  const planCell = plan ? link(fieldLabel(martTitle(ctx, plan.martId), plan.measure.field), plan.martId, plan.measure.field) : '';
+  const planCell = plan ? link(fieldText(ctx, plan.martId, plan.measure.field), plan.martId, plan.measure.field) : '';
   return `| Role | Metric | Plan | Fact |\n|---|---|---|---|\n| ${esc(role)} | ${esc(alias)} | ${planCell} | ${link(fieldLabel(martTitle(ctx, martId), alias), martId, path)} |`;
 }
 

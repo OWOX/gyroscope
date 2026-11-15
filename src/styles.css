@@ -538,10 +538,12 @@ button.gy-badge:hover { color: var(--foreground); }
 .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'], :root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'] { color: var(--orange); background: color-mix(in oklab, var(--orange) 15%, transparent); }
 /* radio list in the right column */
 .gy-radios { display: grid; gap: 0.25rem; width: 100%; min-width: 0; }
-.gy-radio { display: flex; align-items: flex-start; gap: 0.25rem; min-width: 0; }
-.gy-radio label { display: flex; align-items: flex-start; gap: 0.375rem; min-width: 0; flex: 0 1 auto; cursor: pointer; }
-.gy-radio input { flex: none; margin: 0.1875rem 0 0; accent-color: var(--primary); }
-.gy-radio-text { min-width: 0; overflow-wrap: anywhere; }
+.gy-radio { position: relative; min-width: 0; padding-left: 1.5rem; }
+.gy-radio label { cursor: pointer; overflow-wrap: anywhere; }
+.gy-radio input { position: absolute; left: 0; top: 0.1875rem; margin: 0; accent-color: var(--primary); }
+.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; margin-left: 0.125rem; }
+.gy-row-recline .gy-row-link { display: inline-grid; vertical-align: middle; }
+.gy-row-note { font-size: 0.75rem; }
 .gy-row-rec { margin-left: 0.375rem; font-size: 0.6875rem; }
 .gy-row-more, .gy-row-open { text-align: left; }
 .gy-progress-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
