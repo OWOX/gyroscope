@@ -19,6 +19,7 @@ const LEVEL = { test: (text: string) => tokens(text).some((t) => LEVEL_TOKENS.ha
 const RATE = new Set(['rate', 'share', 'ratio', 'percent', 'pct', 'cr', 'ctr']);
 const MONEY_FORMAT = /revenue|sales|profit|gmv|amount|income|margin|cost|price|spend/i;
 const DATE_NAME = /(^|[^a-z])(date|day|created|order|event)/i;
+const DATE_PERIOD = /(month|period|week)/i;
 const SYMBOLS: Record<string, string> = { $: 'USD', '€': 'EUR', '£': 'GBP', '₴': 'UAH' };
 const CODES = /(?<![a-z])(USD|EUR|GBP|UAH|PLN|CAD|AUD|CHF|JPY|CNY|INR|BRL|SEK|NOK|DKK|CZK|TRY)(?![a-z])/i;
 
@@ -29,10 +30,13 @@ export const cands = (n: MartNode, keep: (type: string, text: string, field: Sch
     return keep(type, text, field) ? [{ martId: n.id, martTitle: n.title, path, label: field.alias || field.name, type }] : [];
   });
 const ID_NAME = (name: string) => /(^|_)id$/i.test(name) || /[a-z]Id$/.test(name);
-const isNumber = (type: string) => type === 'METRIC' || (NUMERIC.test(type) && !DATE_TYPES.has(type));
+export const isNumber = (type: string) => type === 'METRIC' || (NUMERIC.test(type) && !DATE_TYPES.has(type));
 
-/** Numeric and metric-level fields of the Data Marts, leaving out dates and plan-like names. */
-export const numericFields = (nodes: MartNode[]): FieldCand[] => nodes.flatMap((n) => cands(n, (t, x, f) => isNumber(t) && !PLAN.test(x) && !f.isPrimaryKey && !ID_NAME(f.name)));
+/** A Data Mart whose title names a plan and that has no primary key ("Plan Data_Revenue"): all its numbers are plans. A keyed one ("Subscription Plans") is a fact table. */
+export const isPlanMart = (n: MartNode): boolean => PLAN.test(n.title) && !hasPrimaryKey(n.detail);
+const numbersOf = (n: MartNode) => cands(n, (t, x, f) => isNumber(t) && !PLAN.test(x) && !f.isPrimaryKey && !ID_NAME(f.name));
+/** Numeric and metric-level fields of the Data Marts, leaving out dates, plan-like names and the numbers of plan Data Marts. */
+export const numericFields = (nodes: MartNode[]): FieldCand[] => nodes.filter((n) => !isPlanMart(n)).flatMap(numbersOf);
 
 /**
  * The field the description's Metrics table names as its critical number comes first. Then fields whose Data Mart has a primary key
@@ -41,16 +45,19 @@ export const numericFields = (nodes: MartNode[]): FieldCand[] => nodes.flatMap((
 export function criticalCandidates(nodes: MartNode[], edges: Edge[], hint?: { description: string | null | undefined; source: 'project' | string }): FieldCand[] {
   const inbound = inboundCounts(edges);
   const rank = (c: FieldCand) => (MONEY.test(c.label) ? 0 : COUNT.test(c.label) ? 1 : 2);
+  const plans = new Set(nodes.filter(isPlanMart).map((n) => n.id));
   const usable = new Map(nodes.map((n) => [n.id, hasPrimaryKey(n.detail) && dateCandidates(n).length > 0]));
   const link = hint ? criticalRow(findMetricRows(hint.description, hint.source))?.fact.find(isFieldLink) : undefined;
   const named = (c: FieldCand) => !!link && c.martId.toLowerCase() === link.martId && c.path === link.field;
-  return numericFields(nodes).map((c, i) => ({ c, i })).sort((a, b) =>
-    +named(b.c) - +named(a.c) || +!!usable.get(b.c.martId) - +!!usable.get(a.c.martId) || rank(a.c) - rank(b.c) || (inbound.get(b.c.martId) ?? 0) - (inbound.get(a.c.martId) ?? 0) || a.i - b.i).map((x) => x.c);
+  // the number the description names wins; the numbers of a plan Data Mart come last
+  return nodes.flatMap(numbersOf).map((c, i) => ({ c, i })).sort((a, b) =>
+    +named(b.c) - +named(a.c) || +!plans.has(b.c.martId) - +!plans.has(a.c.martId) || +!!usable.get(b.c.martId) - +!!usable.get(a.c.martId) || rank(a.c) - rank(b.c) || (inbound.get(b.c.martId) ?? 0) - (inbound.get(a.c.martId) ?? 0) || a.i - b.i).map((x) => x.c);
 }
 
-/** Date fields of a Data Mart: DATE before timestamps, names with date or day first. */
+/** Date fields of a Data Mart: DATE before timestamps, names with date or day first, then month, period or week. */
 export function dateCandidates(node: MartNode): FieldCand[] {
-  const rank = (c: FieldCand) => (c.type === 'DATE' ? 0 : 1) * 2 + (DATE_NAME.test(c.label) || /[a-z](Date|Day|Created)/.test(c.label) ? 0 : 1);
+  // DATE before timestamps; within a type, date-like names, then month/period/week, then the rest
+  const rank = (c: FieldCand) => (c.type === 'DATE' ? 0 : 1) * 3 + (DATE_NAME.test(c.label) || /[a-z](Date|Day|Created)/.test(c.label) ? 0 : DATE_PERIOD.test(c.label) ? 1 : 2);
   return cands(node, (t) => DATE_TYPES.has(t)).map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map((x) => x.c);
 }
 
@@ -58,9 +65,9 @@ export function dateCandidates(node: MartNode): FieldCand[] {
 export const kindFor = (f: FieldCand): { measure: Measure; kind: MetricKind } =>
   ({ measure: { field: f.path, fn: f.type === 'METRIC' ? null : 'SUM' }, kind: LEVEL.test(f.label) ? 'level' : 'flow' });
 
-/** Plan-like numeric fields; the preferred Data Mart's come first. */
+/** Plan-like numeric fields, and every number of a plan-titled Data Mart; the preferred Data Mart's come first. */
 export function planCandidates(nodes: MartNode[], prefer?: string): FieldCand[] {
-  const all = nodes.flatMap((n) => cands(n, (t, x) => isNumber(t) && PLAN.test(x)));
+  const all = nodes.flatMap((n) => cands(n, (t, x, f) => isNumber(t) && (PLAN.test(x) || (isPlanMart(n) && !f.isPrimaryKey && !ID_NAME(f.name)))));
   return [...all.filter((c) => c.martId === prefer), ...all.filter((c) => c.martId !== prefer)];
 }
 

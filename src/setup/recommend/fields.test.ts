@@ -31,6 +31,21 @@ describe('field recommenders', () => {
     expect(planCandidates([sessions, orders], 'orders').map((x) => x.path)).toEqual(['revenue_plan']);
   });
 
+  test('every number of a plan-titled Data Mart is a plan candidate and none is a critical one; month and period dates rank first', () => {
+    const plans = { ...node('plans', [f('retail_net_sales_month', 'NUMERIC'), f('created_at', 'TIMESTAMP'), f('month', 'DATE')]), title: 'Plan Data_Revenue' };
+    expect(planCandidates([plans]).map((x) => x.path)).toEqual(['retail_net_sales_month']);
+    expect(numericFields([plans, orders]).map((x) => x.martId)).not.toContain('plans');
+    // keyed, the same title is a fact table
+    const keyed = { ...plans, detail: { ...plans.detail, fields: [f('id', 'STRING', { isPrimaryKey: true }), ...(plans.detail.fields as object[])] as never } };
+    expect(numericFields([keyed]).map((x) => x.path)).toEqual(['retail_net_sales_month']);
+    expect(criticalCandidates([plans, sessions], []).at(-1)!.martId).toBe('plans');
+    expect(dateCandidates(plans).map((x) => x.path)).toEqual(['month', 'created_at']);
+  });
+
+  test('dates: order_date comes before cohort_month', () => {
+    expect(dateCandidates(node('c', [f('cohort_month', 'DATE'), f('order_date', 'DATE')])).map((x) => x.path)).toEqual(['order_date', 'cohort_month']);
+  });
+
   test('shape: values that only grow within the month are cumulative', () => {
     expect(shapeFor([10, 20, 30, 40], 'flow')).toBe('cumulative');
     expect(shapeFor([10, 12, 9, 11], 'flow')).toBe('daily');

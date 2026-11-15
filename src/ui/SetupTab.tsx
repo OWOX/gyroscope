@@ -1,5 +1,6 @@
 import { ChevronDown, Tags } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BLOCKS } from '../setup/catalog';
 import { isOpen, progress } from '../setup/progress';
 import type { BlockInfo, Row, Severity } from '../setup/types';
@@ -26,6 +27,19 @@ export interface SetupTabProps {
   /** Data Mart id to its icon (a recommended key, `lucide:<name>` or null), for the group headers. */
   martIcons?: Record<string, string | null>;
   onRetry: () => void; onOpen?: (path: string) => void;
+  /** Where the progress bar goes (a slot in the page's sticky top). `undefined` keeps it inline; `null` means the slot isn't there, so no bar. */
+  progressSlot?: HTMLElement | null;
+}
+
+/** The change count, Discard and Save. SettingsPage puts these in the page header. */
+export function SetupSaveControls({ dirty, saving, onSave, onDiscard }: Pick<SetupTabProps, 'dirty' | 'saving' | 'onSave' | 'onDiscard'>) {
+  return (
+    <div className="gy-save">
+      {dirty > 0 && <span className="gy-muted">{dirty === 1 ? '1 change' : `${dirty} changes`}</span>}
+      {dirty > 0 && <button type="button" className="gy-link" disabled={saving} onClick={onDiscard}>Discard</button>}
+      <button type="button" className="gy-btn gy-btn-primary" disabled={dirty === 0 || saving} onClick={onSave}>{saving ? 'Saving…' : 'Save'}</button>
+    </div>
+  );
 }
 
 const ORDER: Severity[] = ['error', 'warning', 'notice'];
@@ -49,7 +63,7 @@ function Block({ info, rows, folded, hintOpen, onHint, attention, children }: { 
   );
 }
 
-export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dirty, saving, onSave, onDiscard, savedOpen, optionRows, notice, saveCount, martIcons, onRetry, onOpen }: SetupTabProps) {
+export function SetupTab({ rows, loading, readOnly, message, picked, onPick, saving, savedOpen, optionRows, notice, saveCount, martIcons, onRetry, onOpen, progressSlot }: SetupTabProps) {
   // a staged append or team write is done as far as the bar goes: it changes no setting, so the rows can't show it
   const eff = rows.map((r) => {
     const k = r.options.find((o) => o.id === picked[r.id])?.action.kind;
@@ -72,7 +86,7 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
     setTarget(null);
     // the card unfolds on the next render, and a folded (inert) row can't take focus yet
     setTimeout(() => {
-      el?.scrollIntoView?.({ block: 'center' });
+      el?.scrollIntoView?.({ block: 'start' });
       (el?.querySelector<HTMLElement>('input[type="radio"]') ?? el?.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true });
     }, 0);
   }, [target]);
@@ -81,23 +95,23 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, dir
       hintOpen={hintOpen(r.id, savedOpen.has(r.id))} onHint={() => toggle(r.id, savedOpen.has(r.id))}
       onPick={(o) => onPick(r.id, o)} onRetry={onRetry} onOpen={onOpen} />
   );
-  return (
-    <div className="gy-setup">
-      {loading && <LoadingBar />}
+  // the progress bar, a save error and the notice travel together: with Save in the sticky header, a message has to stay in view too
+  const top = (
+    <>
+      <ProgressBar counts={progress(eff)} onJump={jump} />
       {message && (
         <div className="gy-setup-banner" role="status">
           <span>{message}</span>
           <button type="button" className="gy-btn" onClick={onRetry}>Retry</button>
         </div>
       )}
-      <ProgressBar counts={progress(eff)} onJump={jump} actions={!readOnly && (
-        <div className="gy-save">
-          {dirty > 0 && <span className="gy-muted">{dirty === 1 ? '1 change' : `${dirty} changes`}</span>}
-          {dirty > 0 && <button type="button" className="gy-link" disabled={saving} onClick={onDiscard}>Discard</button>}
-          <button type="button" className="gy-btn gy-btn-primary" disabled={dirty === 0 || saving} onClick={onSave}>{saving ? 'Saving…' : 'Save'}</button>
-        </div>
-      )} />
       {notice && <p className="gy-muted gy-save-notice" role="status">{notice}</p>}
+    </>
+  );
+  return (
+    <div className="gy-setup">
+      {loading && <LoadingBar />}
+      {progressSlot === undefined ? top : progressSlot && createPortal(top, progressSlot)}
       <div className="gy-setup-blocks">
       {BLOCKS.map((b) => {
         const mine = eff.filter((r) => r.block === b.id);

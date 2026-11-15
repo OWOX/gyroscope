@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import type { progress } from '../setup/progress';
 import type { Severity } from '../setup/types';
 
@@ -9,7 +8,7 @@ const LEFT: { sev: Severity; key: 'errors' | 'warnings' | 'notices'; one: string
 ];
 
 /** One bar filled to done/total in the colour of the worst open severity, with a button per severity that jumps to its first open row. */
-export function ProgressBar({ counts, onJump, actions }: { counts: ReturnType<typeof progress>; onJump: (s: Severity) => void; actions?: ReactNode }) {
+export function ProgressBar({ counts, onJump }: { counts: ReturnType<typeof progress>; onJump: (s: Severity) => void }) {
   const { total, done } = counts;
   const left = LEFT.filter((l) => counts[l.key] > 0);
   const severity = left[0]?.sev ?? 'done';
@@ -18,7 +17,6 @@ export function ProgressBar({ counts, onJump, actions }: { counts: ReturnType<ty
       <div className="gy-progress-track" role="progressbar" aria-label="Setup progress" aria-valuemin={0} aria-valuenow={done} aria-valuemax={total}>
         <span className="gy-progress-fill" data-severity={severity} style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
       </div>
-      <div className="gy-progress-foot">
       <div className="gy-progress-legend">
         {left.length === 0 && <span className="gy-muted">All set</span>}
         {left.map((l, i) => {
@@ -34,8 +32,6 @@ export function ProgressBar({ counts, onJump, actions }: { counts: ReturnType<ty
           );
         })}
         {left.length > 0 && <span className="gy-muted">left</span>}
-      </div>
-      {actions}
       </div>
     </div>
   );

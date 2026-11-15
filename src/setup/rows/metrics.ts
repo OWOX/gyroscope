@@ -55,7 +55,7 @@ export function metricRows(ctx: Ctx): Row[] {
       const mid = metricId(c.martId, c.measure);
       const mvars = { ...vars, Metric: c.alias };
       rows.push({ ...planRow(ctx, 'metric.plan', `metric:${mid}.plan`, 'metrics', mvars, cl.title, ctx.nodes, c.martId, c.kind, s.plans[mid] ?? null,
-        (x, p) => { const plans = { ...x.plans }; if (p) plans[mid] = p; else delete plans[mid]; return { ...x, plans }; }), groupId: cl.id });
+        (x, p) => { const plans = { ...x.plans }; if (p) plans[mid] = p; else delete plans[mid]; return { ...x, plans }; }, undefined, { martId: c.martId, field: c.measure.field }), groupId: cl.id });
       const fr = formatFor(c.alias);
       const fmt = s.formats[mid];
       const order = (Object.keys(FORMATS) as MetricFormat[]).sort((a, b) => +(b === fr.format) - +(a === fr.format));

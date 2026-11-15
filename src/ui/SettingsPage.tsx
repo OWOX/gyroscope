@@ -1,7 +1,7 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { PRESET_GROUPS, PRESET_LABELS, type Preset, type ViewSettings, type WeekStart } from '../types';
-import { SetupTab, type SetupTabProps } from './SetupTab';
+import { SetupSaveControls, SetupTab, type SetupTabProps } from './SetupTab';
 
 export type SettingsTab = 'general' | 'setup';
 const TABS: { id: SettingsTab; label: string }[] = [{ id: 'general', label: 'General' }, { id: 'setup', label: 'Setup' }];
@@ -22,6 +22,20 @@ export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab 
     go(TABS[to]!.id);
     tabRefs.current[TABS[to]!.id]?.focus();
   };
+  const page = useRef<HTMLDivElement>(null);
+  const sticky = useRef<HTMLDivElement>(null);
+  // the sticky top's height, for scroll-margin-top on rows and block headers, so a jump doesn't land under it
+  useEffect(() => {
+    const el = sticky.current; const root = page.current;
+    if (!el || !root) return;
+    const write = () => root.style.setProperty('--gy-sticky-h', `${el.offsetHeight}px`);
+    write();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const [progressSlot, setProgressSlot] = useState<HTMLElement | null>(null);
   const [preset, setPreset] = useState<Preset | null>(settings.defaultPreset);
   const [weekStart, setWeekStart] = useState<WeekStart>(settings.weekStart);
   const [comparison, setComparison] = useState(settings.comparisonDefault);
@@ -29,10 +43,12 @@ export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab 
   const save = () => onSave({ ...settings, defaultPreset: preset, comparisonDefault: comparison, weekStart });
 
   return (
-    <div className="dm-page">
+    <div className="dm-page" ref={page}>
+      <div className="gy-settings-sticky" ref={sticky}>
       <header className="dm-page-header gy-settings-header">
         <button type="button" className="gy-icon-btn" aria-label="Back" title="Back" onClick={onBack}><ArrowLeft size={16} /></button>
         <h1 className="dm-page-header-title">Settings</h1>
+        {tab === 'setup' && setup && !setup.readOnly && <SetupSaveControls dirty={setup.dirty} saving={setup.saving} onSave={setup.onSave} onDiscard={setup.onDiscard} />}
       </header>
       <div className="gy-tabs" role="tablist" aria-label="Settings">
         {TABS.map((t, i) => (
@@ -42,9 +58,11 @@ export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab 
           >{t.label}</button>
         ))}
       </div>
+      {tab === 'setup' && <div className="gy-settings-progress" ref={setProgressSlot} />}
+      </div>
       <main>
         <div className="dm-page-content" role="tabpanel" id="gy-panel-setup" aria-labelledby="gy-tab-setup" hidden={tab !== 'setup'}>
-          {setup && <SetupTab {...setup} />}
+          {setup && <SetupTab {...setup} progressSlot={progressSlot} />}
         </div>
         <div className="dm-page-content" role="tabpanel" id="gy-panel-general" aria-labelledby="gy-tab-general" hidden={tab !== 'general'}>
           <form className="dm-card gy-form" onSubmit={(e) => { e.preventDefault(); save(); }}>

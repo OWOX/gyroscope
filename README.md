@@ -18,6 +18,16 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 
 ## Release notes
 
+### 0.5.2
+
+1. A new plugin description: it says what Gyroscope shows, in plain terms.
+2. Save sits in the Settings header, next to the change count and Discard.
+3. The header, tabs and progress bar stay in view while the blocks scroll. A save error or notice stays in view with them.
+4. The plan named in the description's Metrics table is offered first, with the date field it names, and the line Setup writes names the plan's date too.
+5. Data Marts with a plan in their title and no primary key (such as "Plan Data_Revenue") are read as plans: their numbers are offered as plans, and come last as critical numbers. A keyed one ("Subscription Plans") stays an ordinary fact table.
+6. A set row shows its value, with an edit pencil on hover instead of a Change link.
+7. A hint is only as wide as its text, and the row separator starts at the title.
+
 ### 0.5.1
 
 1. "Not needed" can be changed back, also on a skipped ratio.
@@ -50,7 +60,7 @@ The plugin platform does not support a local preview. Test Gyroscope as an insta
 1. Push to `main`. GitHub Pages deploys `dist/` to the folder of the compatibility line: `v5/` for 0.5.x. Installs of 0.2 keep loading the root.
 2. A new compatibility line (0.6) needs `plugin.json` `delivery.url` moved to its folder (`/v6/`); a test fails until it is.
 3. Check the plugin with `owox-ctl plugins check OWOX/gyroscope --ref main`.
-4. Create a release with `gh release create v0.5.1 --target <full commit SHA> --generate-notes`.
+4. Create a release with `gh release create v0.5.2 --target <full commit SHA> --generate-notes`.
 5. In OWOX, open Plugins, then Publish Plugin, and choose "Only me" for testing.
 
 ## How it works
