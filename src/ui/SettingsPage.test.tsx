@@ -105,6 +105,14 @@ describe('the page header carries Save on Setup', () => {
     expect(sticky).toContainElement(screen.getByRole('progressbar'));
   });
 
+  test('the legend sits outside the sticky wrapper', () => {
+    page({ rows: [{ id: 'a', block: 'goal', title: 'T', question: 'Q', why: 'W', severity: 'error', state: 'open', current: null, aiPending: false, dismissable: false, options: [] }] });
+    const sticky = document.querySelector('.gy-settings-sticky') as HTMLElement;
+    const legend = document.querySelector('.gy-progress-legend') as HTMLElement;
+    expect(legend).not.toBeNull();
+    expect(sticky).not.toContainElement(legend);
+  });
+
   test('the progress bar leaves with the Setup tab', () => {
     page();
     fireEvent.click(screen.getByRole('tab', { name: 'General' }));

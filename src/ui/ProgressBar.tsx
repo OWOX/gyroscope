@@ -7,16 +7,24 @@ const LEFT: { sev: Severity; key: 'errors' | 'warnings' | 'notices'; one: string
   { sev: 'notice', key: 'notices', one: 'notice', many: 'notices' },
 ];
 
-/** One bar filled to done/total in the colour of the worst open severity, with a button per severity that jumps to its first open row. */
-export function ProgressBar({ counts, onJump }: { counts: ReturnType<typeof progress>; onJump: (s: Severity) => void }) {
+/** A thin bar filled to done/total in the colour of the worst open severity. It sits on the bottom edge of the sticky header. */
+export function ProgressBar({ counts }: { counts: ReturnType<typeof progress> }) {
   const { total, done } = counts;
-  const left = LEFT.filter((l) => counts[l.key] > 0);
-  const severity = left[0]?.sev ?? 'done';
+  const severity = LEFT.find((l) => counts[l.key] > 0)?.sev ?? 'done';
   return (
     <div className="gy-progress">
       <div className="gy-progress-track" role="progressbar" aria-label="Setup progress" aria-valuemin={0} aria-valuenow={done} aria-valuemax={total}>
         <span className="gy-progress-fill" data-severity={severity} style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
       </div>
+    </div>
+  );
+}
+
+/** What is left, with a button per severity that jumps to its first open row. It scrolls with the blocks. */
+export function ProgressLegend({ counts, onJump }: { counts: ReturnType<typeof progress>; onJump: (s: Severity) => void }) {
+  const left = LEFT.filter((l) => counts[l.key] > 0);
+  return (
+    <div className="gy-progress">
       <div className="gy-progress-legend">
         {left.length === 0 && <span className="gy-muted">All set</span>}
         {left.map((l, i) => {

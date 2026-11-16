@@ -148,7 +148,7 @@ test('a staged append or teams pick counts as done in the bar and the block badg
   const r = row({ id: 'goal.description', severity: 'notice', options: [append] });
   const { rerender } = render(<SetupTab {...props([r])} />);
   expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
-  expect(screen.getByTestId('block-count')).toHaveTextContent('1 left');
+  expect(screen.queryByTestId('block-count')).toBeNull();
   rerender(<SetupTab {...props([r], { picked: { 'goal.description': 'append' }, dirty: 1 })} />);
   expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
   expect(screen.queryByTestId('block-count')).toBeNull();
@@ -262,7 +262,7 @@ describe('the link to OWOX', () => {
   });
 });
 
-test('each block header shows its icon tile and an open-count badge', () => {
+test('each block header shows its icon tile and no count badge', () => {
   const done = row({ id: 'a', state: 'done', current: 'Orders · revenue' });
   const open1 = row({ id: 'b', block: 'metrics', severity: 'warning', title: 'Orders Format' });
   const open2 = row({ id: 'c', block: 'metrics', severity: 'notice', title: 'Orders Plan' });
@@ -270,7 +270,7 @@ test('each block header shows its icon tile and an open-count badge', () => {
   const cards = [...container.querySelectorAll('.dm-collapsible[data-variant="band"]')];
   expect(cards).toHaveLength(2);
   for (const c of cards) expect(c.querySelector('.dm-collapsible-icon svg')).not.toBeNull();
-  expect(screen.getAllByTestId('block-count').map((e) => e.textContent)).toEqual(['2 left']);
+  expect(screen.queryByTestId('block-count')).toBeNull();
 });
 
 test('a broken row with no current offers Keep the saved value and shows its detail', () => {
@@ -530,4 +530,135 @@ test('with a progress slot, the save message and the notice go into the slot bes
   expect(within(slot).getByText('Save failed')).toBeInTheDocument();
   expect(within(slot).getByText('A later pick replaced one')).toBeInTheDocument();
   slot.remove();
+});
+
+describe('an option that points at a Data Mart', () => {
+  const rec = { ...set('f', 'Orders · revenue', true), martId: 'orders', link: '/ui/p/data-marts/orders/data-setup', linkLabel: 'Orders · revenue' };
+  const plain = set('g', 'Orders · profit');
+  const r = row({ options: [rec, plain] });
+
+  test('shows the mart icon, then the label, the link and the Recommended pill, in that order', () => {
+    render(<SetupTab {...props([r], { martIcons: { orders: 'orders' } })} />);
+    const label = document.querySelector('label[for$="-f"]')!;
+    expect(label.querySelector('svg.lucide-receipt')).not.toBeNull();
+    const order = [...label.querySelectorAll('svg.lucide-receipt, .gy-row-link, .gy-row-rec')];
+    expect(order.map((e) => (e.matches('svg') ? 'icon' : e.matches('.gy-row-link') ? 'link' : 'pill'))).toEqual(['icon', 'link', 'pill']);
+    expect(label.firstElementChild!.matches('svg.lucide-receipt')).toBe(true);
+    expect(label.textContent).toContain('Orders · revenue');
+    const name = screen.getByRole('radio', { name: 'Orders · revenue Recommended' });
+    expect(name.getAttribute('id')).toBe(label.getAttribute('for'));
+    expect(screen.queryByRole('radio', { name: /Open/ })).toBeNull();
+    // an option without a Data Mart has no icon of its own, only the reserved width
+    expect(document.querySelector('label[for$="-g"] svg')).toBeNull();
+    expect(document.querySelector('label[for$="-g"] .gy-opt-gap')).not.toBeNull();
+  });
+
+  test('clicking the link inside a label opens the page and leaves the radio unchecked', () => {
+    const p = props([r], { martIcons: { orders: 'orders' } });
+    render(<SetupTab {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Orders · revenue in OWOX' }));
+    expect(p.onOpen).toHaveBeenCalledWith('/ui/p/data-marts/orders/data-setup');
+    // (happy-dom fires a label's activation for a nested button; real browsers don't, checked in Chromium)
+    expect((screen.getByRole('radio', { name: 'Orders · revenue Recommended' }) as HTMLInputElement).checked).toBe(false);
+  });
+});
+
+describe('a long option list gets a search', () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => set(`o${i}`, i === 7 ? 'Orders · Gross Sales' : `Orders · field ${i}`));
+  const group = () => screen.getByRole('radiogroup', { name: 'Business Critical Number' });
+
+  test('20 options show 3 radios and a search, not Show more', () => {
+    render(<SetupTab {...props([row({ options: many(20) })])} />);
+    expect(within(group()).getAllByRole('radio')).toHaveLength(4);
+    expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'Search 17 more…');
+    expect(screen.queryByRole('button', { name: /Show/ })).toBeNull();
+  });
+
+  test('typing filters by label, Enter stages the pick, the picked option shows checked', () => {
+    const onPick = vi.fn();
+    const { rerender } = render(<SetupTab {...props([row({ options: many(20) })], { onPick })} />);
+    const box = screen.getByRole('combobox');
+    fireEvent.change(box, { target: { value: 'gross' } });
+    expect(within(screen.getByRole('listbox')).getAllByRole('option').map((o) => o.textContent)).toEqual(['Orders · Gross Sales']);
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(onPick).toHaveBeenCalledWith('goal.metric', 'o7');
+    expect(box).toHaveValue('');
+    rerender(<SetupTab {...props([row({ options: many(20) })], { onPick, picked: { 'goal.metric': 'o7' } })} />);
+    expect(within(group()).getByRole('radio', { name: 'Orders · Gross Sales' })).toBeChecked();
+  });
+
+  test('an empty field suggests 8, arrows move the active option, Escape closes', () => {
+    render(<SetupTab {...props([row({ options: many(20) })])} />);
+    const box = screen.getByRole('combobox');
+    fireEvent.focus(box);
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByRole('option')).toHaveLength(8);
+    fireEvent.keyDown(box, { key: 'ArrowDown' });
+    expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('10 options keep Show 7 more', () => {
+    render(<SetupTab {...props([row({ options: many(10) })])} />);
+    expect(screen.getByRole('button', { name: 'Show 7 more' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
+});
+
+describe('the option search dropdown', () => {
+  const many = Array.from({ length: 20 }, (_, i) => set(`o${i}`, `Orders · field ${i}`));
+  const mount = (over: Partial<SetupTabProps> = {}) => render(<SetupTab {...props([row({ options: many })], over)} />);
+
+  test('a mouse pick from the list stages the pick', () => {
+    const onPick = vi.fn();
+    mount({ onPick });
+    fireEvent.focus(screen.getByRole('combobox'));
+    fireEvent.mouseDown(screen.getAllByRole('option')[2]!);
+    expect(onPick).toHaveBeenCalledWith('goal.metric', 'o5');
+  });
+
+  test('blur closes the list', () => {
+    mount();
+    const box = screen.getByRole('combobox');
+    fireEvent.focus(box);
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.blur(box);
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('while saving the input is disabled and the list closed, and an open list closes', () => {
+    const { rerender } = mount();
+    const box = screen.getByRole('combobox');
+    fireEvent.focus(box);
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+    rerender(<SetupTab {...props([row({ options: many })], { saving: true })} />);
+    expect(screen.getByRole('combobox')).toBeDisabled();
+    expect(screen.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('read-only has no combobox (and no option list at all)', () => {
+    mount({ readOnly: true });
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Show .* more/ })).toBeNull();
+  });
+
+  test('a click reopens the list after Escape', () => {
+    mount();
+    const box = screen.getByRole('combobox');
+    fireEvent.focus(box);
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(box);
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('a query that matches nothing shows No matches, not a listbox option', () => {
+    mount();
+    const box = screen.getByRole('combobox');
+    fireEvent.change(box, { target: { value: 'zzz' } });
+    expect(screen.getByText('No matches')).toBeInTheDocument();
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+  });
 });

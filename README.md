@@ -18,6 +18,13 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 
 ## Release notes
 
+### 0.5.3
+
+1. Options sit under the question's title, each with its Data Mart icon, link and Recommended tag.
+2. A long option list (more than eleven options) gets a search field instead of "Show N more". Type to filter by Data Mart or field, pick with the arrow keys and Enter or a click. The pick shows as a checked radio.
+3. The progress bar is the bottom edge of the sticky header. The "N recommended · N notices left" line scrolls with the blocks.
+4. Section titles no longer show a count beside them.
+
 ### 0.5.2
 
 1. A new plugin description: it says what Gyroscope shows, in plain terms.
@@ -60,7 +67,7 @@ The plugin platform does not support a local preview. Test Gyroscope as an insta
 1. Push to `main`. GitHub Pages deploys `dist/` to the folder of the compatibility line: `v5/` for 0.5.x. Installs of 0.2 keep loading the root.
 2. A new compatibility line (0.6) needs `plugin.json` `delivery.url` moved to its folder (`/v6/`); a test fails until it is.
 3. Check the plugin with `owox-ctl plugins check OWOX/gyroscope --ref main`.
-4. Create a release with `gh release create v0.5.2 --target <full commit SHA> --generate-notes`.
+4. Create a release with `gh release create v0.5.3 --target <full commit SHA> --generate-notes`.
 5. In OWOX, open Plugins, then Publish Plugin, and choose "Only me" for testing.
 
 ## How it works

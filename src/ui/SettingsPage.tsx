@@ -44,7 +44,7 @@ export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab 
 
   return (
     <div className="dm-page" ref={page}>
-      <div className="gy-settings-sticky" ref={sticky}>
+      <div className="gy-settings-sticky" data-tab={tab === 'setup' && setup ? 'setup' : undefined} ref={sticky}>
       <header className="dm-page-header gy-settings-header">
         <button type="button" className="gy-icon-btn" aria-label="Back" title="Back" onClick={onBack}><ArrowLeft size={16} /></button>
         <h1 className="dm-page-header-title">Settings</h1>
