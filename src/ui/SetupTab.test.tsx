@@ -757,12 +757,12 @@ describe('Data Mart field icon, checkboxes and descriptions', () => {
     expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:f13');
   });
 
-  test('a field with a description gets a (?) with a tooltip, outside the label so a click does not pick; one without gets none', () => {
+  test('a field with a description gets a (?) with a tooltip, glued to the last word of its label, and a click does not pick; one without gets none', () => {
     const p = props([shownRow(), row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'Net of refunds' }, set('b', 'Orders · profit')] })]);
     render(<SetupTab {...p} />);
     const help = screen.getByRole('button', { name: 'About Orders · items' });
     expect(document.getElementById(help.getAttribute('aria-describedby')!)).toHaveTextContent('Units sold');
-    expect(help.closest('label')).toBeNull();
+    expect(help.closest('.gy-radio-tail, .gy-row-value')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'About Orders · tax' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'About Orders · revenue' }));
     expect(p.onPick).not.toHaveBeenCalled();
@@ -808,6 +808,8 @@ describe('0.5.4 fixes', () => {
     fireEvent.change(box, { target: { value: 'field 5' } });
     const opt = screen.getByRole('option', { name: /field 5/ });
     const help = within(opt).getByRole('button', { name: 'About Orders · field 5' });
+    expect(help).toHaveAttribute('tabindex', '-1');
+    expect(document.getElementById(opt.getAttribute('aria-describedby')!)).toHaveTextContent('Five');
     fireEvent.mouseEnter(help); fireEvent.focus(help);
     fireEvent.mouseDown(help); fireEvent.click(help);
     expect(p.onPick).not.toHaveBeenCalled();

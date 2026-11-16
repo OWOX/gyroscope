@@ -6,8 +6,9 @@ const MARGIN = 8;
 
 /** A (?) after a Data Mart field's label: hover or focus shows the field's schema description in a small tooltip. Nothing renders without one.
  *  The tooltip floats in the plugin root (fixed, above or below the (?), kept inside the viewport), so no collapsing block clips it. */
-export function FieldHelp({ label, description }: { label: string; description?: string }) {
-  const id = useId();
+export function FieldHelp({ label, description, tabStop = true, tipId }: { label: string; description?: string; tabStop?: boolean; tipId?: string }) {
+  const auto = useId();
+  const id = tipId ?? auto;
   const btn = useRef<HTMLButtonElement>(null);
   const tip = useRef<HTMLSpanElement>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -19,6 +20,8 @@ export function FieldHelp({ label, description }: { label: string; description?:
   // a short grace so the pointer can cross the gap onto the tooltip, which stays open while hovered
   const hide = () => { window.clearTimeout(timer.current); timer.current = window.setTimeout(() => setOpen(false), 80); };
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  // the (?) sits inside its option's label: a click on it must not pick the option (native listener, so it runs before the label's own)
+  useEffect(() => { const b = btn.current; const stop = (e: Event) => e.preventDefault(); b?.addEventListener('click', stop); return () => b?.removeEventListener('click', stop); }, [description]);
   const reposition = useCallback(() => {
     const r = btn.current?.getBoundingClientRect();
     const t = tip.current;
@@ -39,7 +42,7 @@ export function FieldHelp({ label, description }: { label: string; description?:
   if (!description) return null;
   return (
     <span className="gy-fieldtip">
-      <button ref={btn} type="button" className="gy-fieldtip-btn" aria-label={`About ${label}`} aria-describedby={id}
+      <button ref={btn} type="button" className="gy-fieldtip-btn" aria-label={`About ${label}`} aria-describedby={id} tabIndex={tabStop ? undefined : -1}
         onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide} onKeyDown={onKey}><CircleHelp size={12} aria-hidden="true" /></button>
       {host && createPortal(
         <span ref={tip} id={id} role="tooltip" className="gy-fieldtip-body" data-open={open} style={place} onMouseEnter={show} onMouseLeave={hide}>{description}</span>,
