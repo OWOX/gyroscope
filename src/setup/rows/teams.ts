@@ -10,7 +10,7 @@ export function teamRows(ctx: Ctx): Row[] {
   const { s } = ctx;
   const all = ctx.graph.inputs.contexts;
   // a context that doesn't move the needle has no rows
-  const contexts = all.filter((c) => countsContext(s, c.id));
+  const contexts = all.filter((c) => countsContext(s, c.id, all));
   const drafts = teamDrafts(ctx.nodes);
   const options: Plain[] = [];
   if (drafts.length) options.push({ id: 'teams', label: `Create ${drafts.map((d) => d.name).join(', ')} and add their Data Marts`, action: { kind: 'teams', teams: drafts } });

@@ -60,14 +60,22 @@ function nearestContextGoal(s: ProjectSettingsV5, g: Graph, byId: Map<string, Ma
     return !!n && c.dateField !== null && allFieldPaths(n.detail.fields).has(c.measure.field) && allFieldPaths(n.detail.fields).has(c.dateField) && hasPrimaryKey(n.detail);
   };
   const ranked = Object.entries(s.contexts)
-    .filter(([id]) => countsContext(s, id))
+    .filter(([id]) => countsContext(s, id, g.inputs.contexts))
     .flatMap(([id, c]) => (c.metric && ok(c.metric) ? [{ goal: { ...c.metric, plan: c.plan, source: id } as Center, hops: hops(c.metric.martId) }] : []))
     .sort((a, b) => a.hops - b.hops);
   return ranked[0]?.goal ?? null;
 }
 
-/** Whether a context moves the needle: every one does until a set is saved. */
-export const countsContext = (s: ProjectSettingsV5, id: string): boolean => !s.needleContexts || s.needleContexts.includes(id);
+/**
+ * Whether a context moves the needle: every one does until a set is saved. A saved set none of whose ids exists any more (every one of them deleted)
+ * is ignored when `live`, the contexts that exist, is given; an empty set stays "none", and so does any set while the list of contexts is empty (not loaded).
+ */
+export const countsContext = (s: ProjectSettingsV5, id: string, live?: readonly { id: string }[]): boolean => {
+  const set = s.needleContexts;
+  if (!set) return true;
+  if (live && live.length > 0 && set.length > 0 && !live.some((c) => set.includes(c.id))) return true;
+  return set.includes(id);
+};
 
 /** The canvas model the settings describe, over the schemas as they are now. Never calls the AI; equal inputs give an equal model. */
 export function deriveModel(s: ProjectSettingsV5, g: Graph): Derived {
@@ -110,7 +118,7 @@ export function deriveModel(s: ProjectSettingsV5, g: Graph): Derived {
   const add = (m: MetricDef) => { if (!metrics.has(m.id)) metrics.set(m.id, m); };
   const goalDef = def(goal, 'critical', goal.source, goal.plan);
   add(goalDef);
-  for (const [ctxId, c] of Object.entries(s.contexts)) if (countsContext(s, ctxId) && c.metric && usable(c.metric) && depths.has(c.metric.martId)) add(def(c.metric, 'critical', ctxId, c.plan));
+  for (const [ctxId, c] of Object.entries(s.contexts)) if (countsContext(s, ctxId, g.inputs.contexts) && c.metric && usable(c.metric) && depths.has(c.metric.martId)) add(def(c.metric, 'critical', ctxId, c.plan));
 
   const drafts: { n: MartNode; depth: number; own: string[]; uc: MetricDef | null }[] = [];
   for (const n of g.nodes) {
@@ -146,7 +154,7 @@ export function deriveModel(s: ProjectSettingsV5, g: Graph): Derived {
     const chosen = s.classes[n.id]?.keyMetricId;
     const key = chosen && own.includes(chosen) ? chosen : n.id === goal.martId ? goalDef.id : uc && own.includes(uc.id) ? uc.id : own[0] ?? null;
     const ordered = key ? [key, ...own.filter((id) => id !== key)] : own;
-    classes.push({ id: n.id, martId: n.id, title: n.title, contexts: n.contexts.filter((x) => countsContext(s, x.id)), depth, keyMetricId: key, metricIds: ordered, shown: true, core: core.has(n.id), inbound: 0 });
+    classes.push({ id: n.id, martId: n.id, title: n.title, contexts: n.contexts.filter((x) => countsContext(s, x.id, g.inputs.contexts)), depth, keyMetricId: key, metricIds: ordered, shown: true, core: core.has(n.id), inbound: 0 });
   }
   const inbound = inboundCounts(edges);
   for (const c of classes) c.inbound = inbound.get(c.id) ?? 0;

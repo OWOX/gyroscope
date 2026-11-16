@@ -84,3 +84,24 @@ test('a huge table is capped and a table of pipes renders quickly', () => {
   expect(d.querySelectorAll('th').length).toBeLessThanOrEqual(20);
   expect(performance.now() - t).toBeLessThan(5000);
 });
+
+test('a heading keeps its text, loses closing hashes, and a long one is still a heading', () => {
+  expect(html('## Title ##  ').querySelector('.gy-md-h')!.textContent).toBe('Title');
+  expect(html('# C# language').querySelector('.gy-md-h')!.textContent).toBe('C# language');
+  expect(html(`# ${'x'.repeat(500)}`).querySelector('.gy-md-h')!.textContent).toHaveLength(500);
+});
+
+// Each line is 20k characters of one run that every pattern could split many ways; linear parsing takes a few ms.
+test.each([
+  ['a heading with a long blank run', `#${' '.repeat(8000)}x${' '.repeat(8000)}#`],
+  ['a heading with a long blank run and a long tail', `#${' '.repeat(8000)}${'x'.repeat(8000)}`],
+  ['a table row of pipes', `${'|'.repeat(8000)}\n${'|-'.repeat(4000)}\n${'|'.repeat(8000)}`],
+  ['backslashes', '\\'.repeat(8000)],
+  ['a list marker and blanks', `-${' '.repeat(8000)}`],
+  ['blank lines', `a${'\n '.repeat(8000)}b`],
+])('%s parses in well under 100 ms', (_n, text) => {
+  html('warm up');
+  const t = performance.now();
+  html(text);
+  expect(performance.now() - t).toBeLessThan(100);
+});

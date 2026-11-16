@@ -1,5 +1,5 @@
 import { CircleHelp } from 'lucide-react';
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { MarkdownText } from './MarkdownText';
 
@@ -44,6 +44,8 @@ export function FieldHelp({ label, description, onMore, tabStop = true }: { labe
     const r = btn.current?.getBoundingClientRect();
     const t = tip.current;
     if (!r || !t) return;
+    // the (?) scrolled out of view: the tooltip goes with it instead of floating over the page
+    if (r.bottom < 0 || r.top > window.innerHeight) { setOpen(false); return; }
     const w = t.offsetWidth, h = t.offsetHeight;
     const above = r.top - h - 4 >= MARGIN || r.top > window.innerHeight - r.bottom;
     const left = Math.max(MARGIN, Math.min(r.left - 8, window.innerWidth - w - MARGIN));
@@ -66,24 +68,40 @@ export function FieldHelp({ label, description, onMore, tabStop = true }: { labe
     document.addEventListener('mousedown', away);
     document.addEventListener('keydown', key, true);
     window.addEventListener('scroll', reposition, true);
-    window.addEventListener('resize', reposition);
-    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key, true); window.removeEventListener('scroll', reposition, true); window.removeEventListener('resize', reposition); };
+    // a resize changes where the lines break: the whole-line cut is measured again
+    const resize = () => { setSnap(null); reposition(); };
+    window.addEventListener('resize', resize);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key, true); window.removeEventListener('scroll', reposition, true); window.removeEventListener('resize', resize); };
   }, [open, close, reposition]);
   // the tooltip sits at the end of the page, so Tab from the (?) steps into it, and Tab inside it leaves it again
   const onBtnKey = (e: KeyboardEvent) => {
     if (e.key !== 'Tab' || e.shiftKey || !open) return;
-    const first = tip.current?.querySelector<HTMLElement>('a, button');
+    const first = tip.current?.querySelector<HTMLElement>('a, button, [tabindex="0"]');
     if (first) { e.preventDefault(); first.focus(); }
   };
-  const onTipKey = (e: KeyboardEvent) => { if (e.key === 'Tab') { btn.current?.focus(); close(); } };
+  // Tab walks the links and "Show more" inside the tooltip; past the last one (or back before the first) focus returns to the (?)
+  const onTipKey = (e: KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    const items = Array.from(tip.current?.querySelectorAll<HTMLElement>('a, button, [tabindex="0"]') ?? []);
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    if (e.shiftKey ? at <= 0 : at === items.length - 1) {
+      e.preventDefault();
+      btn.current?.focus();
+      if (!e.shiftKey) close();
+    }
+  };
+  // focus moving anywhere outside the (?) and its tooltip closes it
+  const onBlur = (e: FocusEvent) => { const to = e.relatedTarget as Node | null; if (to && !btn.current?.contains(to) && !tip.current?.contains(to)) close(); };
   if (!description) return null;
+  // a tooltip with a link or "Show more" holds interactive content, so it is a non-modal dialog; plain text stays a tooltip
+  const interactive = !!onMore || /\]\(|https?:\/\//i.test(description);
   return (
     <span className="gy-fieldtip">
       <button ref={btn} type="button" className="gy-fieldtip-btn" aria-label={`About ${label}`} aria-expanded={open} aria-controls={open ? id : undefined} tabIndex={tabStop ? undefined : -1}
-        onClick={(e) => { e.stopPropagation(); if (!open) setHost(hostOf(btn.current)); setOpen((o) => !o); }} onKeyDown={onBtnKey}><CircleHelp size={12} aria-hidden="true" /></button>
+        onClick={(e) => { e.stopPropagation(); if (!open) setHost(hostOf(btn.current)); setOpen((o) => !o); }} onKeyDown={onBtnKey} onBlur={onBlur}><CircleHelp size={12} aria-hidden="true" /></button>
       {open && host && createPortal(
-        <div ref={tip} id={id} role="tooltip" className="gy-fieldtip-body" style={place} onClick={(e) => e.stopPropagation()} onKeyDown={onTipKey}>
-          <div ref={body} className="gy-tip-content" data-clamp={onMore ? true : undefined} style={snap === null ? undefined : { maxHeight: snap }}><MarkdownText text={description} /></div>
+        <div ref={tip} id={id} role={interactive ? 'dialog' : 'tooltip'} aria-modal={interactive ? false : undefined} aria-label={interactive ? label : undefined} tabIndex={-1} className="gy-fieldtip-body" style={place} onClick={(e) => e.stopPropagation()} onKeyDown={onTipKey} onBlur={onBlur}>
+          <div ref={body} className="gy-tip-content" tabIndex={onMore ? undefined : 0} data-clamp={onMore ? true : undefined} style={snap === null ? undefined : { maxHeight: snap }}><MarkdownText text={description} /></div>
           {onMore && clipped && <button type="button" className="gy-tip-more" onClick={() => { close(); onMore(); }}>Show more</button>}
         </div>,
         host,

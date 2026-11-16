@@ -41,7 +41,8 @@ function inline(text: string, inLink = false): ReactNode[] {
 }
 
 const ITEM = /^\s*(?:[-*+]|(\d{1,9})[.)])\s+/;
-const HEADING = /^ {0,3}(#{1,6})\s+(.{1,300}?)(?:\s+#+)?\s*$/;
+// the groups are disjoint (hashes, blanks, then a non-blank), so the match is linear; the closing `#`s are cut by headingText
+const HEADING = /^ {0,3}(#{1,6})[ \t]+(\S.*)$/;
 const MAX_COLS = 20, MAX_ROWS = 200;
 
 type Align = 'left' | 'center' | 'right' | undefined;
@@ -50,6 +51,19 @@ type Segment =
   | { kind: 'list'; start: number | null; items: string[] }
   | { kind: 'h'; level: number; text: string }
   | { kind: 'table'; head: string[]; align: Align[]; rows: string[][] };
+
+/** A heading's text without its trailing blanks and optional closing hashes ("## Title ##"); a line of hashes alone stays as it is. */
+function headingText(raw: string): string {
+  let end = raw.length;
+  while (end > 0 && /\s/.test(raw[end - 1]!)) end--;
+  let cut = end;
+  while (cut > 0 && raw[cut - 1] === '#') cut--;
+  if (cut < end && cut > 0 && /\s/.test(raw[cut - 1]!)) {
+    end = cut;
+    while (end > 0 && /\s/.test(raw[end - 1]!)) end--;
+  }
+  return raw.slice(0, end);
+}
 
 /** A pipe-table line's cells: one leading and one trailing pipe are optional, `\|` stays in the cell. */
 function cells(line: string): string[] {
@@ -77,7 +91,7 @@ function segments(lines: string[]): Segment[] {
     const line = lines[i]!;
     const cur = out[out.length - 1];
     const h = HEADING.exec(line);
-    if (h) { out.push({ kind: 'h', level: h[1]!.length, text: h[2]! }); continue; }
+    if (h) { out.push({ kind: 'h', level: h[1]!.length, text: headingText(h[2]!) }); continue; }
     const next = lines[i + 1];
     if (next !== undefined && line.includes('|') && next.includes('-')) {
       const head = cells(line), delim = cells(next);

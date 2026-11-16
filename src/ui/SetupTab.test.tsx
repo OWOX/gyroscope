@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, test, vi } from 'vitest';
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -808,7 +809,7 @@ describe('Data Mart field icon, checkboxes and descriptions', () => {
     const help = screen.getByRole('button', { name: 'About Orders · items' });
     fireEvent.click(help);
     expect(document.getElementById(help.getAttribute('aria-controls')!)).toHaveTextContent('Units sold');
-    expect(help.closest('.gy-radio-tail, .gy-row-value')).not.toBeNull();
+    expect(help.closest('.gy-radio-tools, .gy-row-value')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'About Orders · tax' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'About Orders · revenue' }));
     expect(p.onPick).not.toHaveBeenCalled();
@@ -954,7 +955,7 @@ describe('the Contexts block', () => {
     render(<SetupTab {...props(rows, { onOpen })} />);
     const tip = screen.getByRole('button', { name: 'About Marketing' });
     fireEvent.click(tip);
-    expect(screen.getByRole('tooltip').querySelector('strong')?.textContent).toBe('in');
+    expect(screen.getByRole('dialog').querySelector('strong')?.textContent).toBe('in');
     fireEvent.click(screen.getByRole('button', { name: 'Open Marketing in OWOX' }));
     expect(onOpen).toHaveBeenCalledWith('/ui/p/project-settings/contexts?context=m');
   });
@@ -1031,5 +1032,121 @@ describe('0.5.5 checkbox rows', () => {
     render(<SetupTab {...props([row({ id: 'core.classes', title: 'Core Classes', options: [{ id: 'none', label: 'Not available yet: add Data Marts', recommended: true, action: { kind: 'open', path: '/m' } }] })])} />);
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.getByRole('button', { name: 'Not available yet: add Data Marts' })).toBeInTheDocument();
+  });
+});
+
+describe('0.5.5 fix round', () => {
+  const css = readFileSync(`${__dirname}/../styles.css`, 'utf8');
+  const rules = css.split('}').map((r) => r.replace(/\/\*[\s\S]*?\*\//g, '').trim());
+  const ctxRow = (checked: string[], over: Partial<Row> = {}) => row({
+    id: 'teams.exist', block: 'teams', title: 'Contexts That Move the Needle', state: 'open', current: 'Sales', currentList: ['Sales'],
+    options: [{ id: 'teams', label: 'Create Ops and add their Data Marts', recommended: true, action: { kind: 'teams', teams: [] } }],
+    multi: { checked, action: () => undefined, items: [
+      { path: 'a', label: 'Sales', icon: 'context', recommended: true, description: 'Closes deals', link: '/x' },
+      { path: 'b', label: 'Marketing', icon: 'context', recommended: false },
+      { path: 'c', label: 'Support', icon: 'context', recommended: false }] }, ...over });
+
+  test('a Recommended pill never shares its line with a (?) or link that takes width: they hang in a zero-width box after the pill', () => {
+    render(<SetupTab {...props([ctxRow(['a', 'b'])])} />);
+    const label = screen.getByRole('checkbox', { name: /Sales/ }) as HTMLInputElement;
+    const end = label.labels![0]!.querySelector('.gy-radio-end')!;
+    // pill first, then the hanging tools; nothing between the label's last word and the pill
+    expect([...end.children].map((c) => c.className)).toEqual(['gy-row-rec', 'gy-radio-tools']);
+    expect(end.querySelector('.gy-radio-tools .gy-fieldtip')).not.toBeNull();
+    expect(end.querySelector('.gy-radio-tools .gy-row-link')).not.toBeNull();
+    expect(label.labels![0]!.querySelector('.gy-radio-tail .gy-fieldtip')).toBeNull();
+    // a label with no pill keeps its (?) in the tail, still inside the zero-width box
+    const plain = (screen.getByRole('checkbox', { name: /Marketing/ }) as HTMLInputElement).labels![0]!;
+    expect(plain.querySelector('.gy-radio-tail .gy-radio-tools')).toBeNull();
+    const rule = rules.find((r) => r.startsWith('.gy-radio-tools {'))!;
+    expect(rule).toMatch(/width: 0;/);
+    expect(rule).toMatch(/display: inline-block/);
+    expect(rules.some((r) => /^\.gy-radio \.gy-row-link \{[^}]*-1rem/.test(r))).toBe(false);
+  });
+
+  test('(?) and link icons show by hover only: no focus-within reveal, no bare (hover: none) media', () => {
+    const reveal = rules.filter((r) => /opacity: 1/.test(r) && /(fieldtip|row-link|ctx-tools)/.test(r));
+    expect(reveal.length).toBeGreaterThan(0);
+    expect(css).not.toMatch(/:focus-within[^{]*(fieldtip|row-link-reveal|ctx-tools)|(fieldtip|row-link-reveal|ctx-tools)[^{]*:focus-within/);
+    const media = css.split('\n').filter((l) => /^@media \((any-)?hover: none\)/.test(l) && /gy-(fieldtip|ctx-tools|row-link)/.test(l));
+    expect(media.length).toBeGreaterThan(0);
+    for (const l of media) expect(l).toMatch(/^@media \(hover: none\) and \(pointer: coarse\)/);
+    // hidden, they ignore the pointer too
+    expect(rules.find((r) => r.startsWith('.gy-fieldtip { opacity: 0'))).toMatch(/pointer-events: none/);
+    expect(rules.find((r) => r.startsWith('.gy-ctx-tools { display'))).toMatch(/opacity: 0; pointer-events: none/);
+    expect(css).toMatch(/\.gy-setup-cell > summary:has\(:focus-visible\) \.gy-ctx-tools/);
+  });
+
+  test('a cell label draws its (?) and link, and a click on the summary leaves them to the hover rules', () => {
+    const rows = [row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', groupDescription: 'Ads', groupLink: '/m', state: 'done', current: 'x' })];
+    const { container } = render(<SetupTab {...props(rows, { savedOpen: new Set() })} />);
+    const tools = container.querySelector('summary .gy-ctx-tools')!;
+    expect(tools.querySelector('.gy-fieldtip')).not.toBeNull();
+    expect(tools.querySelector('.gy-row-link')).not.toBeNull();
+    // nothing in the markup shows them: no inline style, no data attribute
+    expect(tools.getAttribute('style')).toBeNull();
+    expect(container.querySelector('summary')!.getAttribute('data-show')).toBeNull();
+  });
+
+  test('a folded cell shrinks to its header: start-aligned when closed, stretched equal heights when open', () => {
+    expect(css).toMatch(/\.gy-setup-groups > \.gy-setup-cell:not\(\[open\]\) \{ align-self: start; \}/);
+    expect(rules.find((r) => r.startsWith('.gy-setup-groups {'))).toMatch(/align-items: stretch/);
+    const rule = rules.find((r) => r.startsWith('.gy-setup-cell {'))!;
+    expect(rule).toMatch(/padding: 0\.75rem/);
+    expect(rule).toMatch(/border: 1px solid/);
+    const rows = [row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', state: 'done', current: 'x' }), row({ id: 'team:s.metric', block: 'teams', group: 'Sales', state: 'open' })];
+    const { container } = render(<SetupTab {...props(rows, { savedOpen: new Set(['team:s.metric']) })} />);
+    const cells = [...container.querySelectorAll('.gy-setup-groups > details.gy-setup-cell')] as HTMLDetailsElement[];
+    expect(cells.map((c) => c.open)).toEqual([false, true]);
+    expect(cells[0]!.querySelector(':scope > summary')).not.toBeNull();
+  });
+
+  test('a staged set of boxes and a staged "Create …" never replace each other', () => {
+    const create = 'Create Ops and add their Data Marts';
+    const { rerender } = render(<SetupTab {...props([ctxRow(['a', 'b'])], { picked: { 'teams.exist': `set:${JSON.stringify(['a'])}` } })} />);
+    expect(screen.getByRole('button', { name: create })).toBeDisabled();
+    rerender(<SetupTab {...props([ctxRow(['a', 'b'])], { picked: { 'teams.exist': 'teams' } })} />);
+    for (const b of screen.getAllByRole('checkbox')) expect(b).toBeDisabled();
+    expect(screen.getByText('Cancel to pick contexts by checkbox')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  });
+
+  test('checking back to the saved set drops the staged pick on a needle and a core row', () => {
+    for (const make of [() => ctxRow(['a', 'b', 'c']), () => row({ id: 'core.classes', title: 'Core Classes', options: [], multi: { max: 7, checked: ['a', 'b', 'c'], action: () => undefined, items: ['a', 'b', 'c'].map((p) => ({ path: p, label: `Mart ${p}`, icon: 'mart' as const, recommended: false })) } })]) {
+      const saved = make();
+      const staged = { ...saved, multi: { ...saved.multi!, checked: ['a', 'b'] } };
+      const p = props([staged], { picked: { [saved.id]: `set:${JSON.stringify(['a', 'b'])}` }, optionRows: { [saved.id]: saved } });
+      const { unmount } = render(<SetupTab {...p} />);
+      fireEvent.click(screen.getByRole('checkbox', { name: /(Support|Mart c)/ }));
+      expect(p.onPick).toHaveBeenLastCalledWith(saved.id, null);
+      unmount();
+    }
+  });
+
+  test('a tooltip with a link is a non-modal dialog whose links Tab reaches; Tab past the last returns to the (?)', () => {
+    const r = [row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'See [one](https://a.com) and [two](https://b.com)' }, set('b', 'Orders · profit')] })];
+    render(<SetupTab {...props(r)} />);
+    const help = screen.getByRole('button', { name: 'About Orders · revenue' });
+    fireEvent.click(help);
+    const dialog = screen.getByRole('dialog', { name: 'Orders · revenue' });
+    expect(dialog).toHaveAttribute('aria-modal', 'false');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    const [one, two] = screen.getAllByRole('link');
+    one!.focus();
+    fireEvent.keyDown(one!, { key: 'Tab' });
+    expect(document.activeElement).toBe(one);
+    two!.focus();
+    fireEvent.keyDown(two!, { key: 'Tab' });
+    expect(document.activeElement).toBe(help);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  test('focus moving away from an open tooltip closes it', () => {
+    render(<SetupTab {...props([row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'Net' }, set('b', 'Orders · profit')] })])} />);
+    const help = screen.getByRole('button', { name: 'About Orders · revenue' });
+    fireEvent.click(help);
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    fireEvent.blur(help, { relatedTarget: screen.getByRole('radio', { name: /profit/ }) });
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 });

@@ -76,8 +76,8 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
         <div ref={pop} className="gy-opt-search-pop" style={place} hidden={!visible} onMouseDown={(e) => e.preventDefault()}>
           <ul id={listId} role="listbox" aria-label={label} className="gy-opt-search-list" hidden={!shown}>
             {matches.map((o, i) => (
-              <li key={o.id} id={`${listId}-${i}`} role="option" aria-selected={i === active} className="gy-opt-search-item" onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); if ((e.target as Element).closest('.gy-fieldtip, .gy-fieldtip-body')) return; pick(o); }}>
-                {icon(o)}<span className="gy-opt-search-label">{o.label}</span><FieldHelp label={o.label} description={o.description} tabStop={false} />
+              <li key={o.id} id={`${listId}-${i}`} role="option" aria-selected={i === active} aria-describedby={o.description ? `${listId}-${i}-d` : undefined} className="gy-opt-search-item" onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); if ((e.target as Element).closest('.gy-fieldtip, .gy-fieldtip-body')) return; pick(o); }}>
+                {icon(o)}<span className="gy-opt-search-label">{o.label}</span><FieldHelp label={o.label} description={o.description} tabStop={false} />{o.description && <span id={`${listId}-${i}-d`} className="gy-sr">{o.description}</span>}
               </li>
             ))}
           </ul>

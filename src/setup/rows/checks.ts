@@ -47,7 +47,7 @@ export function checkRows(ctx: Ctx): Row[] {
     }));
   }
 
-  const used = new Set<string>([...s.coreClasses, ...Object.entries(s.contexts).filter(([id]) => countsContext(s, id)).flatMap(([, c]) => [c.metric?.martId, c.plan?.martId]), ...Object.values(s.classes).flatMap((c) => c.shown.map((x) => x.martId)), ...Object.values(s.plans).map((p) => p.martId), goal.plan?.martId].filter((x): x is string => !!x));
+  const used = new Set<string>([...s.coreClasses, ...Object.entries(s.contexts).filter(([id]) => countsContext(s, id, ctx.graph.inputs.contexts)).flatMap(([, c]) => [c.metric?.martId, c.plan?.martId]), ...Object.values(s.classes).flatMap((c) => c.shown.map((x) => x.martId)), ...Object.values(s.plans).map((p) => p.martId), goal.plan?.martId].filter((x): x is string => !!x));
   used.delete(goal.martId);
   const bad = [...used].filter((id) => !accessible(id));
   const first = bad[0];

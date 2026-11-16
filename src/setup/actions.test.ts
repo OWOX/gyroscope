@@ -88,3 +88,15 @@ test('another error returns its message without a snippet', async () => {
   const owox = { ...(d.owox as object), project: { getSettings: async () => ({ description: 'x' }), updateDescription: async () => { throw new Error('boom'); } } } as never;
   expect(await runAction({ kind: 'append', scope: 'project', text: 'P' }, { ...d, owox })).toEqual({ ok: false, error: 'boom' });
 });
+
+test('teams adds the contexts it makes to a saved needle list, and leaves an unset list alone', async () => {
+  const { d } = deps();
+  const saved = await saveSetup(d.store, EMPTY_SETUP, { ...EMPTY_SETUP, needleContexts: ['old'] }, 'Ann', new Date());
+  const r = await runAction({ kind: 'teams', teams: [{ name: 'Marketing', martIds: ['ads'] }] }, { ...d, settings: saved });
+  expect(r).toMatchObject({ ok: true, settings: { needleContexts: ['old', 'c9'] } });
+  // a reused context that is already in the list is not added twice
+  const again = await runAction({ kind: 'teams', teams: [{ name: 'Marketing', martIds: ['ads'] }] }, { ...d, settings: (r as { settings: typeof saved }).settings });
+  expect(again).toMatchObject({ ok: true, settings: { needleContexts: ['old', 'c9'] } });
+  const all = await runAction({ kind: 'teams', teams: [{ name: 'Marketing', martIds: ['ads'] }] }, d);
+  expect(all).toMatchObject({ ok: true, settings: { needleContexts: null } });
+});

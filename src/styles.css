@@ -494,8 +494,9 @@ button.gy-badge:hover { color: var(--foreground); }
 :root.dark .gy-setup-group-icon { background: color-mix(in oklab, white 8%, transparent); }
 .gy-setup-group-name { flex: 0 1 auto; min-width: 0; }
 .gy-setup-group-chevron { margin-left: auto; }
-/* a context cell: bordered, as tall as the tallest in its grid row, content from the top */
+/* a context cell: bordered, as tall as the tallest in its grid row, content from the top; folded, the whole cell shrinks to its header (border and padding stay) instead of stretching to the row */
 .gy-setup-cell { box-sizing: border-box; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--card); }
+.gy-setup-groups > .gy-setup-cell:not([open]) { align-self: start; }
 .gy-row-title-plain { font-weight: 400; }
 /* a cell is narrow: its rows spend less on the severity dot's column, so a label and its pill keep one line longer */
 .gy-setup-cell .gy-row { grid-template-columns: 1rem minmax(0, 1fr); gap: 0.375rem; }
@@ -503,13 +504,13 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-ctx-list { display: inline-flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
 .gy-ctx-item { display: inline-flex; align-items: center; gap: 0.375rem; }
 .gy-ctx-item .gy-setup-group-icon { width: 1rem; height: 1rem; margin: 0; }
-/* the (?) and the OWOX link after a context's name show on hover or focus, always on touch */
-.gy-ctx-tools { display: inline-flex; align-items: center; gap: 0.125rem; opacity: 0; transition: opacity 120ms; }
-.gy-setup-cell > summary:hover .gy-ctx-tools, .gy-setup-cell > summary:focus-within .gy-ctx-tools { opacity: 1; }
+/* the (?) and the OWOX link after a context's name show while the label is hovered, while a tooltip is open or an icon has keyboard focus, and always on a touch-only device; a click on the label leaves them hidden */
+.gy-ctx-tools { display: inline-flex; align-items: center; gap: 0.125rem; opacity: 0; pointer-events: none; transition: opacity 120ms; }
+.gy-setup-cell > summary:hover .gy-ctx-tools, .gy-setup-cell > summary:has(:focus-visible) .gy-ctx-tools { opacity: 1; pointer-events: auto; }
 .gy-ctx-tools .gy-fieldtip { align-self: center; margin: 0; }
-.gy-ctx-tools:has([aria-expanded='true']) { opacity: 1; }
+.gy-ctx-tools:has([aria-expanded='true']) { opacity: 1; pointer-events: auto; }
 .gy-ctx-tools .gy-row-link { min-width: 1.25rem; min-height: 1.25rem; }
-@media (hover: none) { .gy-ctx-tools { opacity: 1; } }
+@media (hover: none) and (pointer: coarse) { .gy-ctx-tools { opacity: 1; pointer-events: auto; } }
 @media (prefers-reduced-motion: reduce) { .gy-ctx-tools { transition: none; } }
 .gy-setup-group-chevron { flex: none; color: var(--muted-foreground); transition: transform 0.2s; }
 .gy-setup-group[open] > summary .gy-setup-group-chevron { transform: rotate(180deg); }
@@ -548,10 +549,10 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-valueline { display: inline-flex; align-items: center; gap: 0.125rem; max-width: 100%; }
 .gy-row-link { flex: none; display: inline-grid; place-items: center; min-width: 1.5rem; min-height: 1.5rem; padding: 0; border: 0; background: none; border-radius: 0.25rem; color: var(--muted-foreground); cursor: pointer; }
 .gy-row-link:hover { color: var(--foreground); }
-/* the link icon after an option shows only while its line is hovered or has focus; it keeps its space, so nothing shifts */
+/* the link icon after an option shows only while its line is hovered or an icon on it has keyboard focus (a click leaves it hidden), and always on a touch-only device */
 .gy-row-link.gy-row-link-reveal { opacity: 0; pointer-events: none; transition: opacity 120ms; }
-.gy-radio:hover .gy-row-link-reveal, .gy-row:hover .gy-row-valueline .gy-row-link-reveal, .gy-row-valueline:focus-within .gy-row-link-reveal, .gy-radio:focus-within .gy-row-link-reveal, .gy-row-recline:hover .gy-row-link-reveal, .gy-row-recline:focus-within .gy-row-link-reveal { opacity: 1; pointer-events: auto; }
-@media (hover: none) { .gy-row-link.gy-row-link-reveal { opacity: 1; pointer-events: auto; } }
+.gy-radio:hover .gy-row-link-reveal, .gy-row:hover .gy-row-valueline .gy-row-link-reveal, .gy-row-valueline:has(:focus-visible) .gy-row-link-reveal, .gy-radio:has(:focus-visible) .gy-row-link-reveal, .gy-row-recline:hover .gy-row-link-reveal, .gy-row-recline:has(:focus-visible) .gy-row-link-reveal, .gy-row-link-reveal:focus-visible { opacity: 1; pointer-events: auto; }
+@media (hover: none) and (pointer: coarse) { .gy-row-link.gy-row-link-reveal { opacity: 1; pointer-events: auto; } }
 @media (prefers-reduced-motion: reduce) { .gy-row-link.gy-row-link-reveal { transition: none; } }
 .gy-row-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
 .gy-progress-legend > span { display: inline-flex; gap: 0.75rem; }
@@ -569,11 +570,15 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-radio label { display: flex; align-items: flex-start; }
 .gy-radio-text { min-width: 0; flex: 1 1 auto; }
 .gy-opt-icon { flex: none; margin: 0.1875rem 0.375rem 0 0; color: var(--muted-foreground); }
-/* the last word and its (?) stay glued; the pill is an inline item after them, and the link icon after the pill hangs out of the line (negative margin), so the hidden icon never pushes the pill down */
-.gy-radio-tail { white-space: nowrap; }
+/* the pill is an inline item after the label; the (?) and the link icon are zero-width (.gy-radio-tools) and hang past the line's end, so while hidden they take no room and the pill stays on the label's line whenever the two fit; shown, they float over the empty space after the line */
+.gy-radio-tail, .gy-radio-end { white-space: nowrap; }
+.gy-radio-tools { position: relative; display: inline-block; width: 0; height: 1rem; vertical-align: middle; }
+.gy-radio-tools-in { position: absolute; left: 0.125rem; top: 50%; display: inline-flex; align-items: center; gap: 0.125rem; translate: 0 -50%; border-radius: 0.25rem; background: var(--card); }
+.gy-radio-tools .gy-fieldtip { margin: 0; align-self: center; }
+.gy-radio-tools .gy-row-link { margin: 0; }
 .gy-radio-word { white-space: normal; overflow-wrap: anywhere; }
 .gy-row-recline .gy-opt-icon { display: inline-block; margin: 0 0.375rem 0 0; vertical-align: middle; }
-.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; min-width: 1rem; min-height: 1rem; margin: 0 -1rem 0 0.125rem; }
+.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; min-width: 1rem; min-height: 1rem; }
 .gy-row-recline .gy-row-link { display: inline-grid; vertical-align: middle; }
 .gy-row-note { font-size: 0.75rem; }
 .gy-row-rec { display: inline-block; margin-left: 0.25rem; padding: 0 0.1875rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.625rem; line-height: 1.4; color: var(--muted-foreground); white-space: nowrap; vertical-align: middle; }
@@ -617,12 +622,14 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-fieldtip-btn { display: inline-grid; place-items: center; width: 1rem; height: 1rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted-foreground); cursor: pointer; }
 .gy-fieldtip-btn:hover, .gy-fieldtip-btn:focus-visible, .gy-fieldtip-btn[aria-expanded='true'] { color: var(--foreground); }
 .gy-fieldtip-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
-/* the (?) shows while its label is hovered or has focus, or while its tooltip is open; always on touch */
-.gy-fieldtip { opacity: 0; transition: opacity 120ms; }
-.gy-fieldtip:focus-within, .gy-fieldtip:has([aria-expanded='true']),
+/* the (?) shows while its label is hovered, while its tooltip is open or the (?) has keyboard focus (a click leaves it hidden), and always on a touch-only device; hidden, it ignores the pointer */
+.gy-fieldtip { opacity: 0; pointer-events: none; transition: opacity 120ms; }
+.gy-fieldtip:has(:focus-visible), .gy-fieldtip:has([aria-expanded='true']),
 .gy-setup-title:hover .gy-fieldtip, .gy-row-title:hover .gy-fieldtip, .gy-radio:hover .gy-fieldtip, .gy-row:hover .gy-row-valueline .gy-fieldtip, .gy-row-recline:hover .gy-fieldtip,
-.gy-opt-search-item:hover .gy-fieldtip, .gy-opt-search-item[aria-selected='true'] .gy-fieldtip, .gy-setup-cell > summary:hover .gy-fieldtip { opacity: 1; }
-@media (hover: none) { .gy-fieldtip { opacity: 1; } }
+.gy-opt-search-item:hover .gy-fieldtip, .gy-opt-search-item[aria-selected='true'] .gy-fieldtip, .gy-setup-cell > summary:hover .gy-fieldtip { opacity: 1; pointer-events: auto; }
+.gy-fieldtip:has(:focus-visible), .gy-fieldtip:has([aria-expanded='true']) { pointer-events: auto; }
+@media (hover: none) and (pointer: coarse) { .gy-fieldtip { pointer-events: auto; } }
+@media (hover: none) and (pointer: coarse) { .gy-fieldtip { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .gy-fieldtip { transition: none; } }
 /* the tooltip: standard dark, floating, opened by click */
 .gy-fieldtip-body { position: fixed; z-index: 40; box-sizing: border-box; width: max-content; max-width: min(22rem, calc(100vw - 1rem)); padding: 0.5rem 0.625rem; border-radius: 0.375rem; background: oklch(0.2 0 0); box-shadow: 0 4px 12px rgb(0 0 0 / 0.15); font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: #fff; white-space: normal; text-align: left; }
