@@ -21,6 +21,7 @@ import { Canvas } from './ui/Canvas';
 import { createMarkdownHtml } from './lib/markdown';
 import { LoadingBar } from './ui/LoadingBar';
 import { Header, RangeControls } from './ui/Header';
+import { LeaveDialog } from './ui/LeaveDialog';
 import { SettingsPage, type SettingsTab } from './ui/SettingsPage';
 
 export interface AppDeps {
@@ -142,10 +143,29 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     setView((v) => (v.name === 'settings' ? v : tab ? { name: 'settings', ...tab } : { name: 'ready' }));
   }, []);
 
+  // an exit with staged Setup picks asks first; the picks would be lost
+  const dirtyNow = useRef(0);
+  const [leaving, setLeaving] = useState<(() => void) | null>(null);
+  const guard = (go: () => void) => { if (dirtyNow.current > 0) setLeaving(() => go); else go(); };
+  const navigate = ctx.ui?.navigate ? (path: string) => guard(() => ctx.ui.navigate(path)) : undefined;
+
   const setup = useSetup({
     owox, store, generateWith, isAdmin, by: editor ?? userId, projectId: ctx.projectId, now,
-    open: ctx.ui?.navigate ? (path) => ctx.ui.navigate(path) : undefined, onModel,
+    open: navigate, onModel,
   });
+  dirtyNow.current = setup.props.dirty;
+  const isDirty = setup.props.dirty > 0;
+  // the host warns on its own exits (sidebar, Back, closing the tab) once it offers setUnsaved
+  const host = ctx.ui as { setUnsaved?: (dirty: boolean) => void } | undefined;
+  const hostNow = useRef(host);
+  hostNow.current = host;
+  const told = useRef(false);
+  useEffect(() => {
+    if (isDirty === told.current) return;
+    told.current = isDirty;
+    hostNow.current?.setUnsaved?.(isDirty);
+  }, [isDirty]);
+  useEffect(() => () => { if (told.current) hostNow.current?.setUnsaved?.(false); }, []);
   const thresholdPct = setup.settings?.thresholdPct ?? EMPTY_SETUP.thresholdPct;
 
   const load = useCallback(async () => {
@@ -296,11 +316,11 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     leaveSettings();
   };
 
-  switch (view.name) {
+  const body = (() => { switch (view.name) {
     case 'loading':
       return <main className="gy-main"><LoadingBar /><p className="gy-muted gy-loadnote">Loading settings and model…</p></main>;
     case 'blocked':
-      return <Blocked blocked={view.blocked} projectId={ctx.projectId} isAdmin={isAdmin} onRetry={() => void load()} onOpenSetup={() => openSettings('setup')} onBack={backToCanvas} onOpen={ctx.ui?.navigate ? (path) => ctx.ui.navigate(path) : undefined} />;
+      return <Blocked blocked={view.blocked} projectId={ctx.projectId} isAdmin={isAdmin} onRetry={() => void load()} onOpenSetup={() => openSettings('setup')} onBack={backToCanvas} onOpen={navigate} />;
     case 'error':
       return (
         <main className="gy-main">
@@ -317,9 +337,9 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
           tab={view.tab}
           onTabChange={(t) => ctx.ui?.setRoute?.(ROUTES[t])}
           setup={setup.props}
-          onBack={leaveSettings}
+          onBack={() => guard(leaveSettings)}
           error={settingsError}
-          onSave={(s) => void saveSettingsAndLeave(s)}
+          onSave={(s) => guard(() => void saveSettingsAndLeave(s))}
         />
       );
     case 'ready': {
@@ -339,11 +359,17 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
             projectId={ctx.projectId}
             markdown={markdown}
             weekStart={settings.weekStart}
-            onOpen={ctx.ui?.navigate ? (path) => ctx.ui.navigate(path) : undefined}
+            onOpen={navigate}
             comparisonOn={!!range && compare.kind !== 'off'} refreshing={refreshing || loading} onRetry={() => void refresh(true)}
           />
         </main>
       );
     }
-  }
+  } })();
+  return (
+    <>
+      {body}
+      {leaving && <LeaveDialog changes={setup.props.dirty} onStay={() => setLeaving(null)} onLeave={() => { const go = leaving; setLeaving(null); setup.props.onDiscard(); go(); }} />}
+    </>
+  );
 }
