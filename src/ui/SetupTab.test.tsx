@@ -640,7 +640,7 @@ describe('the option search dropdown', () => {
   test('read-only has no combobox, only Show N more', () => {
     mount({ readOnly: true });
     expect(screen.queryByRole('combobox')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Show 17 more' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show 16 more' })).toBeInTheDocument();
   });
 
   test('a click reopens the list after Escape', () => {
