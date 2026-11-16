@@ -118,9 +118,10 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
         <div role="group" aria-label={row.title} className="gy-radios">
           {list.map(item)}
         </div>
-        {long && rest.length > 0 && !readOnly && <OptionSearch options={rest.map((i) => ({ id: i.path, label: i.label, recommended: false, action: { kind: 'set', next: (s) => s }, ...(i.martId ? { martId: i.martId } : {}), ...(i.description ? { description: i.description } : {}) }))} label={`Search ${row.title}`} disabled={saving || full} icon={(o) => martIcon(o) || null} onPick={(o) => toggle(o.id, true)} />}
+        {long && rest.length > 0 && !readOnly && <OptionSearch options={rest.map((i) => ({ id: i.path, label: i.label, recommended: false, action: { kind: 'set', next: (s) => s }, ...(i.martId ? { martId: i.martId } : {}), ...(i.description ? { description: i.description } : {}) }))} label={`Search ${row.title}`} disabled={saving || full || stagedCreate} icon={(o) => martIcon(o) || null} onPick={(o) => toggle(o.id, true)} />}
         {full && <span className="gy-muted gy-row-note">{`Up to ${multi.max}: uncheck one to pick another`}</span>}
         {!readOnly && (changing || picked !== undefined) && <button type="button" className="gy-link gy-row-open" disabled={saving} onClick={() => { onPick(null); setChanging(false); }}>Cancel</button>}
+        {stagedSet && extra.some((o) => o.action.kind === 'teams') && <span className="gy-muted gy-row-note">Cancel the checked contexts to create new ones</span>}
         {extra.map((o) => (picked === o.id || (o.declines && picked === undefined && dismissed) ? <span key={o.id} className="gy-muted gy-row-note">{o.label}</span> : <button key={o.id} type="button" className="gy-link gy-row-open" disabled={saving || (stagedSet && o.action.kind === 'teams')} title={stagedSet && o.action.kind === 'teams' ? 'Cancel the checked contexts first' : undefined} onClick={() => onPick(o.id)}>{o.label}</button>))}
         {stagedCreate && <span className="gy-muted gy-row-note">Cancel to pick contexts by checkbox</span>}
       </>

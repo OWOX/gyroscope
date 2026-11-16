@@ -626,10 +626,9 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-fieldtip { opacity: 0; pointer-events: none; transition: opacity 120ms; }
 .gy-fieldtip:has(:focus-visible), .gy-fieldtip:has([aria-expanded='true']),
 .gy-setup-title:hover .gy-fieldtip, .gy-row-title:hover .gy-fieldtip, .gy-radio:hover .gy-fieldtip, .gy-row:hover .gy-row-valueline .gy-fieldtip, .gy-row-recline:hover .gy-fieldtip,
-.gy-opt-search-item:hover .gy-fieldtip, .gy-opt-search-item[aria-selected='true'] .gy-fieldtip, .gy-setup-cell > summary:hover .gy-fieldtip { opacity: 1; pointer-events: auto; }
+.gy-opt-search-item:hover .gy-fieldtip, .gy-opt-search-item[data-kbd] .gy-fieldtip, .gy-setup-cell > summary:hover .gy-fieldtip { opacity: 1; pointer-events: auto; }
 .gy-fieldtip:has(:focus-visible), .gy-fieldtip:has([aria-expanded='true']) { pointer-events: auto; }
-@media (hover: none) and (pointer: coarse) { .gy-fieldtip { pointer-events: auto; } }
-@media (hover: none) and (pointer: coarse) { .gy-fieldtip { opacity: 1; } }
+@media (hover: none) and (pointer: coarse) { .gy-fieldtip { opacity: 1; pointer-events: auto; } }
 @media (prefers-reduced-motion: reduce) { .gy-fieldtip { transition: none; } }
 /* the tooltip: standard dark, floating, opened by click */
 .gy-fieldtip-body { position: fixed; z-index: 40; box-sizing: border-box; width: max-content; max-width: min(22rem, calc(100vw - 1rem)); padding: 0.5rem 0.625rem; border-radius: 0.375rem; background: oklch(0.2 0 0); box-shadow: 0 4px 12px rgb(0 0 0 / 0.15); font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: #fff; white-space: normal; text-align: left; }

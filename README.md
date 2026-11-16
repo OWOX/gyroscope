@@ -18,6 +18,14 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 
 ## Release notes
 
+### 0.5.5
+
+1. Every (?) opens a dark tooltip on click and renders its Markdown: headings, tables, lists and links. Long text is cut at a whole line with "Show more".
+2. The (?) and the OWOX link icons show on hover only, and take no room until shown, so the Recommended tag stays beside its label.
+3. "Contexts That Move the Needle" and "Core Classes" are checkbox lists. Contexts you leave unchecked no longer count anywhere.
+4. A context card folds whole, down to its header.
+5. Metrics cards show a (?) and a link on the class name.
+
 ### 0.5.4
 
 1. Options sit under the setting's title instead of in a right column. A saved value starts with its Data Mart icon.
@@ -76,7 +84,7 @@ The plugin platform does not support a local preview. Test Gyroscope as an insta
 1. Push to `main`. GitHub Pages deploys `dist/` to the folder of the compatibility line: `v5/` for 0.5.x. Installs of 0.2 keep loading the root.
 2. A new compatibility line (0.6) needs `plugin.json` `delivery.url` moved to its folder (`/v6/`); a test fails until it is.
 3. Check the plugin with `owox-ctl plugins check OWOX/gyroscope --ref main`.
-4. Create a release with `gh release create v0.5.4 --target <full commit SHA> --generate-notes`.
+4. Create a release with `gh release create v0.5.5 --target <full commit SHA> --generate-notes`.
 5. In OWOX, open Plugins, then Publish Plugin, and choose "Only me" for testing.
 
 ## How it works
