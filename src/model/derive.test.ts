@@ -145,6 +145,16 @@ describe('a viewer without the project goal Data Mart', () => {
     expect(center(deriveModel(withContexts(['near', 'twin']), graph([near, twin]))).goal.goalMartId).toBe('near');
   });
 
+  test('a context outside needleContexts counts for nothing: no goal fallback, no class contexts', () => {
+    const tagged = (n: MartNode) => ({ ...n, contexts: [{ id: 'ctx-near', name: 'Near' }, { id: 'ctx-other', name: 'Other' }] });
+    const g = graph([tagged(far), tagged(near)]);
+    expect(center(deriveModel(withContexts(['near']), g)).goal.goalMartId).toBe('near');
+    expect(deriveModel({ ...withContexts(['near']), needleContexts: ['ctx-other'] }, g)).toMatchObject({ ok: false, blocked: { code: 'NO_ACCESSIBLE_GOAL' } });
+    const m = center(deriveModel({ ...filled, needleContexts: ['ctx-other'] }, graph([tagged(orders), users])));
+    expect(m.classes.find((c) => c.id === 'orders')!.contexts).toEqual([{ id: 'ctx-other', name: 'Other' }]);
+    expect(center(deriveModel(filled, graph([tagged(orders), users]))).classes.find((c) => c.id === 'orders')!.contexts).toHaveLength(2);
+  });
+
   test('a number with no path to the goal ranks last', () => {
     const iso = metricNode('iso', []);
     expect(center(deriveModel(withContexts(['iso', 'far']), graph([iso, far, near]))).goal.goalMartId).toBe('far');

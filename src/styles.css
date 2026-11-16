@@ -566,7 +566,6 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-radio label { display: flex; align-items: flex-start; }
 .gy-radio-text { min-width: 0; flex: 1 1 auto; }
 .gy-opt-icon { flex: none; margin: 0.1875rem 0.375rem 0 0; color: var(--muted-foreground); }
-.gy-opt-gap { width: 14px; height: 14px; }
 /* the last word and its (?) stay glued; the pill is an inline item after them, and the link icon after the pill hangs out of the line (negative margin), so the hidden icon never pushes the pill down */
 .gy-radio-tail { white-space: nowrap; }
 .gy-radio-word { white-space: normal; overflow-wrap: anywhere; }

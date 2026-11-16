@@ -8,8 +8,6 @@ import { OptionSearch } from './OptionSearch';
 /** The context icon, as the context cell's label draws it. */
 export const ContextIcon = ({ size = 16 }: { size?: number }) => <span className="gy-setup-group-icon" aria-hidden="true"><Tags size={size} aria-hidden="true" /></span>;
 
-/** The options that stand for no value: they have no Data Mart, so their label starts right after the radio. */
-const NO_VALUE = new Set(['Not set', 'Not needed']);
 const SHOWN = 3;
 /** A list of this many options or more gets a search field instead of "Show N more". */
 export const SEARCH_AT = 12;
@@ -60,16 +58,16 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const implicit = unset && picked === undefined && row.state === 'done' && !!row.current;
   const match = implicit ? ordered.find((o) => o.label === row.current) : undefined;
   const keepLabel = dismissed ? was ?? 'Not needed' : was ? `Keep ${was}` : src.state === 'broken' || src.state === 'error' ? 'Keep the saved value' : 'Not set';
-  const hasRadios = choices.length > 0 || dismissed;
+  const hasRadios = choices.length > 0 || dismissed || !!src.multi;
 
   const moreOf = (link?: string) => (link && onOpen ? () => onOpen(link) : undefined);
   const linkBtn = (o: Pick<Option, 'link' | 'linkLabel' | 'label'>) => o.link && onOpen && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(o.link!); }}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
-  // labels line up: where some option has an icon, the ones without reserve its width
-  const iconed = src.options.some((o) => o.martId && o.action.kind !== 'open');
-  const martIcon = (o?: Option) => o?.martId && <MartIcon icon={martIcons?.[o.martId] ?? null} size={14} className="gy-opt-icon" aria-hidden="true" />;
+  // an option without a Data Mart ("Not set", "No plan yet") has no icon slot: its label starts right after the radio
+  const martIcon = (o?: { martId?: string }) => o?.martId && <MartIcon icon={martIcons?.[o.martId] ?? null} size={14} className="gy-opt-icon" aria-hidden="true" />;
+  const itemIcon = (i: { martId?: string; icon?: 'mart' | 'context' }) => (i.icon === 'context' ? <Tags size={14} className="gy-opt-icon" aria-hidden="true" /> : martIcon(i));
   // the last word and its (?) stay together; the pill follows inline, and the link icon after it takes no line width (see .gy-radio .gy-row-link)
   let seq = 0;
-  const radio = (key: string, label: ReactNode, checked: boolean, onChange: () => void, o?: Option, disabled = false) => {
+  const radio = (key: string, label: ReactNode, checked: boolean, onChange: () => void, o?: Option, disabled = false, martId = o?.martId) => {
     const nid = `${uid}-n${seq++}`;
     const text = typeof label === 'string' ? label : null;
     const cut = text ? text.search(/\s\S*$/) : -1;
@@ -78,7 +76,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     return (
       <div key={key} className="gy-radio">
         <input id={`${uid}-${key}`} aria-labelledby={`${nid}-h ${nid}-w${o?.recommended ? ` ${nid}-r` : ''}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
-        <label htmlFor={`${uid}-${key}`}>{martIcon(o) || (iconed && !NO_VALUE.has(text ?? '') && <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" />)}<span className="gy-radio-text"><span id={`${nid}-h`}>{head}</span><span className="gy-radio-tail"><span id={`${nid}-w`} className="gy-radio-word">{tail}</span>{o?.description && <FieldHelp label={o.label} description={o.description} onMore={moreOf(o.link)} />}</span>{o?.recommended && <span id={`${nid}-r`} className="gy-row-rec">Recommended</span>}{o && linkBtn(o)}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></label>
+        <label htmlFor={`${uid}-${key}`}>{martIcon({ martId })}<span className="gy-radio-text"><span id={`${nid}-h`}>{head}</span><span className="gy-radio-tail"><span id={`${nid}-w`} className="gy-radio-word">{tail}</span>{o?.description && <FieldHelp label={o.label} description={o.description} onMore={moreOf(o.link)} />}</span>{o?.recommended && <span id={`${nid}-r`} className="gy-row-rec">Recommended</span>}{o && linkBtn(o)}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></label>
       </div>
     );
   };
@@ -88,16 +86,16 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const checks = (() => {
     if (!multi) return null;
     const live = row.multi?.checked ?? multi.checked;
-    const full = live.length >= multi.max;
+    const full = multi.max !== undefined && live.length >= multi.max;
     // the saved set is no pick: checking back to it (an empty set on a dismissed row included) clears the staged one
-    const send = (paths: string[]) => onPick(paths.length === multi.checked.length && paths.every((p) => multi.checked.includes(p)) ? null : `shown:set:${paths.join('|')}`);
+    const send = (paths: string[]) => onPick(paths.length === multi.checked.length && paths.every((p) => multi.checked.includes(p)) ? null : `set:${JSON.stringify(paths)}`);
     const toggle = (path: string, on: boolean) => send(multi.items.filter((i) => (i.path === path ? on : live.includes(i.path))).map((i) => i.path));
     // a long list shows the top boxes and every checked one; a search adds the rest
     const long = multi.items.length >= SEARCH_AT;
     const list = long ? multi.items.filter((i, n) => n < SHOWN_MULTI || live.includes(i.path)) : multi.items;
     const rest = multi.items.filter((i) => !list.includes(i));
-    const none = src.options.find((o) => o.declines);
-    const declined = picked === none?.id || (picked === undefined && dismissed);
+    // the options a checkbox row keeps as links under its boxes: the one that declines, and the one that creates contexts
+    const extra = src.options.filter((o) => o.declines || o.action.kind === 'teams');
     const item = (i: (typeof list)[number]) => {
       const cid = `${uid}-c-${i.path}`, lid = `${uid}-c${list.indexOf(i)}`;
       const on = live.includes(i.path);
@@ -105,7 +103,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
       return (
         <div key={i.path} className="gy-radio gy-check">
           <input id={cid} type="checkbox" aria-labelledby={`${lid}-w${i.recommended ? ` ${lid}-r` : ''}`} checked={on} disabled={saving || (full && !on)} onChange={(e) => toggle(i.path, e.target.checked)} />
-          <label htmlFor={cid}>{martIcon({ martId: i.martId } as Option) || null}<span className="gy-radio-text"><span className="gy-radio-tail"><span id={`${lid}-w`} className="gy-radio-word">{text}</span>{i.description && <FieldHelp label={text} description={i.description} onMore={moreOf(i.link)} />}</span>{i.recommended && <span id={`${lid}-r`} className="gy-row-rec">Recommended</span>}{linkBtn({ link: i.link, linkLabel: i.linkLabel, label: text })}</span></label>
+          <label htmlFor={cid}>{itemIcon(i)}<span className="gy-radio-text"><span className="gy-radio-tail"><span id={`${lid}-w`} className="gy-radio-word">{text}</span>{i.description && <FieldHelp label={text} description={i.description} onMore={moreOf(i.link)} />}</span>{i.recommended && <span id={`${lid}-r`} className="gy-row-rec">Recommended</span>}{linkBtn({ link: i.link, linkLabel: i.linkLabel, label: text })}</span></label>
         </div>
       );
     };
@@ -114,10 +112,10 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
         <div role="group" aria-label={row.title} className="gy-radios">
           {list.map(item)}
         </div>
-        {long && rest.length > 0 && !readOnly && <OptionSearch options={rest.map((i) => ({ id: i.path, label: i.label, recommended: false, action: { kind: 'set', next: (s) => s }, martId: i.martId, ...(i.description ? { description: i.description } : {}) }))} label={`Search ${row.title}`} disabled={saving || full} icon={(o) => martIcon(o) || null} onPick={(o) => toggle(o.id, true)} />}
+        {long && rest.length > 0 && !readOnly && <OptionSearch options={rest.map((i) => ({ id: i.path, label: i.label, recommended: false, action: { kind: 'set', next: (s) => s }, ...(i.martId ? { martId: i.martId } : {}), ...(i.description ? { description: i.description } : {}) }))} label={`Search ${row.title}`} disabled={saving || full} icon={(o) => martIcon(o) || null} onPick={(o) => toggle(o.id, true)} />}
         {full && <span className="gy-muted gy-row-note">{`Up to ${multi.max}: uncheck one to pick another`}</span>}
         {!readOnly && (changing || picked !== undefined) && <button type="button" className="gy-link gy-row-open" disabled={saving} onClick={() => { onPick(null); setChanging(false); }}>Cancel</button>}
-        {none && (declined ? <span className="gy-muted gy-row-note">{none.label}</span> : <button type="button" className="gy-link gy-row-open" disabled={saving} onClick={() => onPick(none.id)}>{none.label}</button>)}
+        {extra.map((o) => (picked === o.id || (o.declines && picked === undefined && dismissed) ? <span key={o.id} className="gy-muted gy-row-note">{o.label}</span> : <button key={o.id} type="button" className="gy-link gy-row-open" disabled={saving} onClick={() => onPick(o.id)}>{o.label}</button>))}
       </>
     );
   })();
@@ -147,12 +145,12 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
         <div role="radiogroup" aria-label={row.title} className="gy-radios">
           {implicit
             ? (match ? null : radio('implicit', row.current, true, () => {}, undefined, true))
-            : radio('keep', keepOpt ? keepOpt.label : keepLabel, picked === undefined, () => onPick(null), keepOpt ?? (dup?.recommended ? dup : undefined))}
+            : radio('keep', keepOpt ? keepOpt.label : keepLabel, picked === undefined, () => onPick(null), keepOpt ?? (dup?.recommended ? dup : undefined), false, keepOpt?.martId ?? dup?.martId ?? (was && !dismissed ? src.currentMartId : undefined))}
           {dismissed && radio('undismiss', 'Not set', picked === 'undismiss', () => onPick('undismiss'))}
           {list.map((o) => radio(o.id, o.label, picked === o.id || match?.id === o.id, () => onPick(o.id), o))}
           {offerDismiss && radio('dismiss', 'Not needed', picked === 'dismiss', () => onPick('dismiss'))}
         </div>
-        {search && hidden > 0 && <OptionSearch options={remaining} label={`Search ${row.title}`} disabled={saving} icon={(o) => martIcon(o) || (iconed ? <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" /> : null)} onPick={(o) => onPick(o.id)} />}
+        {search && hidden > 0 && <OptionSearch options={remaining} label={`Search ${row.title}`} disabled={saving} icon={(o) => martIcon(o) || null} onPick={(o) => onPick(o.id)} />}
         {!search && !more && hidden > 0 && <button type="button" className="gy-link gy-row-more" onClick={() => setMore(true)}>{`Show ${hidden} more`}</button>}
         {implicit && <span className="gy-muted gy-row-note">Set by your choice above</span>}
       </>

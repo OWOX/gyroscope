@@ -42,11 +42,14 @@ const clock = (at: string | null): string => {
 /** Settings as sorted JSON without the save stamp, to tell whether a change changes anything. */
 const stable = (v: unknown): string => JSON.stringify(v, (k, x) => (k === 'updatedAt' || k === 'updatedBy' ? undefined : x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([p], [q]) => (p < q ? -1 : 1))) : x));
 
+/** The ids a multi-pick option id carries: `set:` and a JSON array, so no id needs escaping. */
+const parsePick = (optionId: string): string[] => { try { const v: unknown = JSON.parse(optionId.slice(4)); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; } };
+
 const actionOf = (row: Row | undefined, optionId: string): Action | undefined => {
   if (optionId === 'dismiss') return row?.dismissable ? { kind: 'set', next: (s) => dismiss(s, row.id) } : undefined;
   if (optionId === 'undismiss') return row?.dismissed ? { kind: 'set', next: (s) => undismiss(s, row.id) } : undefined;
-  if (optionId.startsWith('shown:set:')) {
-    const a = row?.multi?.action(optionId.slice(10).split('|').filter(Boolean));
+  if (optionId.startsWith('set:')) {
+    const a = row?.multi?.action(parsePick(optionId));
     return a?.kind === 'set' ? { kind: 'set', next: (s) => undismiss(a.next(s), row!.id) } : undefined;
   }
   const o = row?.options.find((x) => x.id === optionId);

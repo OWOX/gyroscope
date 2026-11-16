@@ -9,7 +9,7 @@ const recOf = (r: { current: { props: { rows: { id: string; options: { id: strin
 const owox = () => fakeOwox({
   projectDescription: 'We sell shoes', contexts: [],
   marts: [{ id: 'orders', title: 'Orders', status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' }],
-  details: { orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }] } },
+  details: { orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }, { name: 'refunds', type: 'NUMERIC', isPrimaryKey: false }] } },
   blendables: { orders: { availableSources: [], mainUniqueCountKeyFields: ['order_id'] } },
   rows: () => [],
 });
@@ -632,17 +632,17 @@ test('the numbers on the card: a checkbox set stages one pick, Save writes it, r
   const { store, result } = await classCase({ classes: { orders: { keyMetricId: null, shown: [items] } } });
   const row = () => result.current.props.rows.find((r) => r.id === 'class:orders.shown')!;
   expect(row().multi!.checked).toEqual(['items']);
-  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:items|discount'));
-  expect(result.current.props.picked).toEqual({ 'class:orders.shown': 'shown:set:items|discount' });
+  await act(async () => result.current.props.onPick('class:orders.shown', `set:${JSON.stringify(['items', 'discount'])}`));
+  expect(result.current.props.picked).toEqual({ 'class:orders.shown': `set:${JSON.stringify(['items', 'discount'])}` });
   expect(row().multi!.checked).toEqual(['items', 'discount']);
   expect(result.current.props.dirty).toBe(1);
   // a second change replaces the first pick, not adds one
-  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:discount'));
+  await act(async () => result.current.props.onPick('class:orders.shown', `set:${JSON.stringify(['discount'])}`));
   expect(result.current.props.dirty).toBe(1);
-  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:items'));
+  await act(async () => result.current.props.onPick('class:orders.shown', `set:${JSON.stringify(['items'])}`));
   expect(result.current.props.picked).toEqual({});
   expect(result.current.props.dirty).toBe(0);
-  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:discount|items'));
+  await act(async () => result.current.props.onPick('class:orders.shown', `set:${JSON.stringify(['discount', 'items'])}`));
   await act(async () => result.current.props.onSave());
   await waitFor(() => expect(result.current.props.dirty).toBe(0));
   expect((await loadSetup(store)).settings.classes.orders!.shown.map((c) => c.measure.field)).toEqual(['discount', 'items']);
@@ -651,11 +651,41 @@ test('the numbers on the card: a checkbox set stages one pick, Save writes it, r
 test('unchecking every number writes an empty list and ends a dismissal', async () => {
   const items = { martId: 'orders', measure: { field: 'items', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'items' };
   const { store, result } = await classCase({ classes: { orders: { keyMetricId: null, shown: [items] } }, dismissed: ['class:orders.shown'] });
-  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:'));
+  await act(async () => result.current.props.onPick('class:orders.shown', 'set:[]'));
   expect(result.current.props.dirty).toBe(1);
   await act(async () => result.current.props.onSave());
   await waitFor(() => expect(result.current.props.dirty).toBe(0));
   const s = (await loadSetup(store)).settings;
   expect(s.classes.orders!.shown).toEqual([]);
   expect(s.dismissed).not.toContain('class:orders.shown');
+});
+
+test('Contexts That Move the Needle: a checkbox pick saves the checked ids, all checked saves null, and hidden contexts lose their rows', async () => {
+  const { saveSetup, EMPTY_SETUP } = await import('../store/settings');
+  const mart = { status: 'PUBLISHED', description: null, contexts: [], modifiedAt: '' };
+  const source = fakeOwox({
+    projectDescription: null, contexts: [{ id: 'c:1.a', name: 'Sales' }, { id: 'c-2', name: 'Marketing' }] as never,
+    marts: [{ id: 'orders', title: 'Orders', ...mart }],
+    details: { orders: { id: 'orders', title: 'Orders', fields: [{ name: 'order_id', type: 'STRING', isPrimaryKey: true }, { name: 'date', type: 'DATE', isPrimaryKey: false }, { name: 'revenue', type: 'NUMERIC', isPrimaryKey: false }] } },
+    blendables: { orders: { availableSources: [], mainUniqueCountKeyFields: ['order_id'] } },
+    rows: () => [],
+  });
+  const store = memoryCollections();
+  await saveSetup(store, EMPTY_SETUP, { ...EMPTY_SETUP, goal: { martId: 'orders', measure: { field: 'revenue', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'revenue', plan: null } }, 'Ann', new Date());
+  const { result } = renderHook(() => useSetup(adminArgs(store, vi.fn() as never, { generateWith: null, owox: source })));
+  await act(() => result.current.reload());
+  const rows = () => result.current.props.rows;
+  expect(rows().some((r) => r.id.startsWith('team:c:1.a'))).toBe(true);
+  expect(rows().find((r) => r.id === 'teams.exist')!.multi!.checked).toEqual(['c:1.a', 'c-2']);
+  await act(async () => result.current.props.onPick('teams.exist', `set:${JSON.stringify(['c-2'])}`));
+  expect(rows().some((r) => r.id.startsWith('team:c:1.a'))).toBe(false);
+  expect(result.current.props.dirty).toBe(1);
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect((await loadSetup(store)).settings.needleContexts).toEqual(['c-2']);
+  // checking back every context is the saved-null state: a pick that saves null
+  await act(async () => result.current.props.onPick('teams.exist', `set:${JSON.stringify(['c:1.a', 'c-2'])}`));
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect((await loadSetup(store)).settings.needleContexts).toBeNull();
 });

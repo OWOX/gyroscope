@@ -578,9 +578,9 @@ describe('an option that points at a Data Mart', () => {
     const name = screen.getByRole('radio', { name: 'Orders · revenue Recommended' });
     expect(name.getAttribute('id')).toBe(label.getAttribute('for'));
     expect(screen.queryByRole('radio', { name: /Open/ })).toBeNull();
-    // an option without a Data Mart has no icon of its own, only the reserved width
+    // an option without a Data Mart has no icon and no reserved width
     expect(document.querySelector('label[for$="-g"] svg')).toBeNull();
-    expect(document.querySelector('label[for$="-g"] .gy-opt-gap')).not.toBeNull();
+    expect(document.querySelector('label[for$="-g"] .gy-opt-gap')).toBeNull();
   });
 
   test('clicking the link inside a label opens the page and leaves the radio unchecked', () => {
@@ -764,9 +764,9 @@ describe('Data Mart field icon, checkboxes and descriptions', () => {
     const p = props([shownRow({ multi: { ...shownRow().multi!, checked: ['c'] } })]);
     render(<SetupTab {...p} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /tax/ }));
-    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:b|c');
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', `set:${JSON.stringify(['b', 'c'])}`);
     fireEvent.click(screen.getByRole('checkbox', { name: /tips/ }));
-    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:');
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'set:[]');
     fireEvent.click(screen.getByRole('button', { name: 'No extra numbers' }));
     expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:none');
   });
@@ -786,7 +786,7 @@ describe('Data Mart field icon, checkboxes and descriptions', () => {
     fireEvent.focus(box);
     fireEvent.change(box, { target: { value: 'f13' } });
     fireEvent.mouseDown(screen.getByRole('option', { name: /f13/ }));
-    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:f13');
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', `set:${JSON.stringify(['f13'])}`);
   });
 
   test('a field with a description gets a (?) with a tooltip, glued to the last word of its label, and a click does not pick; one without gets none', () => {
@@ -857,19 +857,19 @@ describe('0.5.4 fixes', () => {
     const p = props([shown(['f0'], { state: 'done', current: 'Orders · f0' })], { savedOpen: new Set(['class:orders.shown']) });
     const { unmount } = render(<SetupTab {...p} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /f0/ }));
-    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:');
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'set:[]');
     unmount();
     const q = props([shown([], { dismissed: true })]);
     render(<SetupTab {...q} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /f2/ }));
-    expect(q.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:f2');
+    expect(q.onPick).toHaveBeenLastCalledWith('class:orders.shown', `set:${JSON.stringify(['f2'])}`);
   });
 
   test('unchecking a staged box back to the saved state removes the pick', () => {
     function S() {
       const [pk, setPk] = useState<Record<string, string>>({});
       const r = shown(['f0']);
-      const live = pk[r.id] ? { ...r, multi: { ...r.multi!, checked: pk[r.id]!.slice('shown:set:'.length).split('|').filter(Boolean) } } : r;
+      const live = pk[r.id] ? { ...r, multi: { ...r.multi!, checked: JSON.parse(pk[r.id]!.slice(4)) as string[] } } : r;
       return <SetupTab {...props([live], { picked: pk, optionRows: pk[r.id] ? { [r.id]: r } : {}, onPick: (id, o) => setPk((x) => { const n = { ...x }; if (o === null) delete n[id]; else n[id] = o; return n; }) })} />;
     }
     render(<S />);
@@ -954,12 +954,69 @@ describe('the Contexts block', () => {
 });
 
 describe('0.5.5 layout', () => {
-  test('the "Not set" radio has no empty icon slot, even where other options have an icon', () => {
+  test('an option without a Data Mart ("Not set", "Not needed", "No plan yet") has no icon slot, even where other options have an icon', () => {
     const iconed = { ...set('a', 'Orders · revenue', true), martId: 'orders' };
-    render(<SetupTab {...props([row({ options: [iconed, set('b', 'Plain')], dismissable: true })])} />);
+    render(<SetupTab {...props([row({ options: [iconed, set('b', 'No plan yet')], dismissable: true })])} />);
     const lab = (name: string) => (screen.getByRole('radio', { name }) as HTMLInputElement).labels![0]!;
-    expect(lab('Not set').querySelector('.gy-opt-gap')).toBeNull();
-    expect(lab('Not needed').querySelector('.gy-opt-gap')).toBeNull();
-    expect(lab('Plain').querySelector('.gy-opt-gap')).not.toBeNull();
+    for (const n of ['Not set', 'Not needed', 'No plan yet']) expect(lab(n).querySelector('.gy-opt-gap, svg')).toBeNull();
+    expect(lab('Orders · revenue Recommended').querySelector('svg')).not.toBeNull();
+  });
+});
+
+describe('0.5.5 checkbox rows', () => {
+  const ctxRow = (over: Partial<Row> = {}) => row({
+    id: 'teams.exist', block: 'teams', title: 'Contexts That Move the Needle', severity: 'notice', state: 'open', current: 'Sales', currentList: ['Sales'],
+    options: [{ id: 'teams', label: 'Create Ops and add their Data Marts', recommended: true, action: { kind: 'teams', teams: [] } }, { id: 'open', label: 'Create contexts in OWOX', recommended: false, action: { kind: 'open', path: '/x' } }],
+    multi: { checked: ['c:1', 'c-2'], action: () => undefined, items: [
+      { path: 'c:1', label: 'Sales', icon: 'context', recommended: false, description: 'Closes deals', link: '/ui/p/contexts?context=c%3A1' },
+      { path: 'c-2', label: 'Marketing', icon: 'context', recommended: false },
+      { path: 'c.3', label: 'Support', icon: 'context', recommended: false }] }, ...over });
+
+  test('a context checkbox row has a context icon, a (?) and an OWOX link per context, no maximum, and the links under the boxes', () => {
+    const p = props([ctxRow()]);
+    render(<SetupTab {...p} />);
+    const group = screen.getByRole('group', { name: 'Contexts That Move the Needle' });
+    const boxes = within(group).getAllByRole('checkbox');
+    expect(boxes.map((b) => (b as HTMLInputElement).checked)).toEqual([true, true, false]);
+    expect(group.querySelectorAll('svg.lucide-tags')).toHaveLength(3);
+    expect(within(group).getByRole('button', { name: 'About Sales' })).toBeInTheDocument();
+    fireEvent.click(within(group).getByRole('button', { name: 'Open Sales in OWOX' }));
+    expect(p.onOpen).toHaveBeenCalledWith('/ui/p/contexts?context=c%3A1');
+    expect(screen.queryByText(/Up to/)).toBeNull();
+    fireEvent.click(boxes[2]!);
+    expect(p.onPick).toHaveBeenLastCalledWith('teams.exist', `set:${JSON.stringify(['c:1', 'c-2', 'c.3'])}`);
+    fireEvent.click(boxes[0]!);
+    expect(p.onPick).toHaveBeenLastCalledWith('teams.exist', `set:${JSON.stringify(['c-2'])}`);
+    fireEvent.click(screen.getByRole('button', { name: 'Create Ops and add their Data Marts' }));
+    expect(p.onPick).toHaveBeenLastCalledWith('teams.exist', 'teams');
+    fireEvent.click(screen.getByRole('button', { name: 'Create contexts in OWOX' }));
+    expect(p.onOpen).toHaveBeenLastCalledWith('/x');
+  });
+
+  const coreRow = (checked: string[], n = 8) => row({
+    id: 'core.classes', title: 'Core Classes', state: 'open', options: [],
+    multi: { max: 7, checked, action: () => undefined, items: Array.from({ length: n }, (_, i) => ({ path: `m${i}`, label: `Mart ${i}`, martId: `m${i}`, icon: 'mart' as const, recommended: i < 3, description: i === 0 ? 'Buyers' : undefined, link: `/ui/p/data-marts/m${i}/data-setup` })) } });
+
+  test('core classes: a checkbox per class with the Recommended pill, the Data Mart icon, its (?) and link; no radios; at most 7', () => {
+    const six = ['m0', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6'];
+    const { rerender } = render(<SetupTab {...props([coreRow(['m0'])], { martIcons: { m0: 'orders' } })} />);
+    const group = screen.getByRole('group', { name: 'Core Classes' });
+    expect(within(group).getAllByRole('checkbox')).toHaveLength(8);
+    expect(within(group).getAllByText('Recommended')).toHaveLength(3);
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(group.querySelector('svg.lucide-receipt')).not.toBeNull();
+    expect(within(group).getByRole('button', { name: 'About Mart 0' })).toBeInTheDocument();
+    expect(within(group).getAllByRole('checkbox').every((b) => !(b as HTMLInputElement).disabled)).toBe(true);
+    rerender(<SetupTab {...props([coreRow(six)], { martIcons: {} })} />);
+    const boxes = within(screen.getByRole('group', { name: 'Core Classes' })).getAllByRole('checkbox') as HTMLInputElement[];
+    expect(boxes[7]!.disabled).toBe(true);
+    expect(boxes[6]!.disabled).toBe(false);
+    expect(screen.getByText('Up to 7: uncheck one to pick another')).toBeInTheDocument();
+  });
+
+  test('a checkbox row with nothing to offer shows its link instead of boxes', () => {
+    render(<SetupTab {...props([row({ id: 'core.classes', title: 'Core Classes', options: [{ id: 'none', label: 'Not available yet: add Data Marts', recommended: true, action: { kind: 'open', path: '/m' } }] })])} />);
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Not available yet: add Data Marts' })).toBeInTheDocument();
   });
 });

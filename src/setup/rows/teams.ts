@@ -1,18 +1,28 @@
 import type { ProjectSettingsV5 } from '../../types';
 import { criticalCandidates, dateCandidates, kindFor } from '../recommend/fields';
+import { countsContext } from '../../model/derive';
 import { teamDrafts } from '../recommend/structure';
-import type { Row } from '../types';
+import type { Multi, MultiItem, Row } from '../types';
 import { contextPage, descriptionRow, make, metricRow, openOption, planRow, type Ctx, type Plain } from './common';
 
 /** The teams block: whether contexts exist, then a number, plan and description line per context. */
 export function teamRows(ctx: Ctx): Row[] {
   const { s } = ctx;
-  const contexts = ctx.graph.inputs.contexts;
+  const all = ctx.graph.inputs.contexts;
+  // a context that doesn't move the needle has no rows
+  const contexts = all.filter((c) => countsContext(s, c.id));
   const drafts = teamDrafts(ctx.nodes);
   const options: Plain[] = [];
   if (drafts.length) options.push({ id: 'teams', label: `Create ${drafts.map((d) => d.name).join(', ')} and add their Data Marts`, action: { kind: 'teams', teams: drafts } });
   options.push(openOption('open', 'Create contexts in OWOX', `/ui/${ctx.projectId}/project-settings/contexts`));
-  const rows = [make(ctx, 'teams.exist', 'teams.exist', 'teams', {}, { state: contexts.length >= 2 ? 'done' : 'open', current: contexts.length ? contexts.map((c) => c.name).join(', ') : null, ...(contexts.length ? { currentList: contexts.map((c) => c.name) } : {}), options })];
+  const items: MultiItem[] = all.map((c) => ({ path: c.id, label: c.name, icon: 'context', recommended: false, link: contextPage(ctx, c.id), linkLabel: c.name, ...(c.description ? { description: c.description } : {}) }));
+  const ids = new Set(all.map((c) => c.id));
+  // every context checked is "null", so a context added later joins by itself
+  const multi: Multi = {
+    items, checked: contexts.map((c) => c.id),
+    action: (paths) => (paths.every((p) => ids.has(p)) ? { kind: 'set', next: (x) => ({ ...x, needleContexts: all.every((c) => paths.includes(c.id)) ? null : all.filter((c) => paths.includes(c.id)).map((c) => c.id) }) } : undefined),
+  };
+  const rows = [make(ctx, 'teams.exist', 'teams.exist', 'teams', {}, { state: contexts.length >= 2 ? 'done' : 'open', current: contexts.length ? contexts.map((c) => c.name).join(', ') : null, ...(contexts.length ? { currentList: contexts.map((c) => c.name) } : {}), ...(items.length ? { multi } : {}), options })];
 
   for (const c of contexts) {
     const vars = { Team: c.name };

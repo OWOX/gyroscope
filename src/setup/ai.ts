@@ -21,7 +21,7 @@ export function aiGenerateWith(model: unknown, signal?: AbortSignal): GenerateWi
   };
 }
 
-export const AI_ROWS = /^(goal\.metric|goal\.plan|core\.classes|teams\.exist|team:[^.]+\.(metric|plan)|metric:.+\.plan|ratio:.+)$/;
+export const AI_ROWS = /^(goal\.metric|goal\.plan|team:[^.]+\.(metric|plan)|metric:.+\.plan|ratio:.+)$/;
 const MAX_OPTIONS = 30;
 const Pick = z.object({ pick: z.number().int() });
 
