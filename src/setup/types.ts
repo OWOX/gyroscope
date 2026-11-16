@@ -34,6 +34,12 @@ export interface Row {
   group?: string;
   /** The Data Mart's id when the group is a Data Mart, to look its icon up. */
   groupId?: string;
+  /** The group's description (Markdown), for the (?) on its label. */
+  groupDescription?: string;
+  /** The OWOX page of the group, for the link on its label. */
+  groupLink?: string;
+  /** The current value as separate names, for rows that list several (each shows the context icon). */
+  currentList?: string[];
   title: string; question: string; why: string;
   severity: Severity;
   state: RowState;

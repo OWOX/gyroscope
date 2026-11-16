@@ -22,7 +22,7 @@ export const COPY: Record<string, Copy> = {
   'goal.description': c('Goal in Project Description', 'Does the OWOX project description name the critical number?', 'So people and OWOX AI read the same goal.', 'notice'),
   'core.classes': c('Core Classes', 'Who buys, what is bought, and where do they come from?', 'These are drawn around the goal and show how the business fits together.', 'warning'),
   'teams.exist': c('Contexts That Move the Goal', 'Which contexts own a part of the goal?', 'To group the canvas by context.', 'notice'),
-  'team.metric': c('{Team} Critical Number', 'Which number shows {Team} is doing its job?', 'To judge each context on its own number.', 'warning'),
+  'team.metric': c('{Team} Critical Number', 'Which number shows whether {Team} moves the needle?', 'To judge each context on its own number.', 'warning'),
   'team.plan': c('{Team} Plan', "What should {Team}'s number be?", 'To show whether the context is on track.', 'notice'),
   'team.description': c('{Team} Number in Context Description', 'Does the context description name its number?', 'So the context and OWOX AI read the same number.', 'notice'),
   'class.key': c('{Class} Headline Number', 'Which number should this class show first?', 'The card shows it large, with its trend.', 'warning'),

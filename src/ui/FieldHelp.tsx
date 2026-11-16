@@ -1,12 +1,12 @@
 import { CircleHelp } from 'lucide-react';
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 const MARGIN = 8;
 
 /** A (?) after a Data Mart field's label: hover or focus shows the field's schema description in a small tooltip. Nothing renders without one.
  *  The tooltip floats in the plugin root (fixed, above or below the (?), kept inside the viewport), so no collapsing block clips it. */
-export function FieldHelp({ label, description, tabStop = true, tipId }: { label: string; description?: string; tabStop?: boolean; tipId?: string }) {
+export function FieldHelp({ label, description, tabStop = true, tipId }: { label: string; description?: ReactNode; tabStop?: boolean; tipId?: string }) {
   const auto = useId();
   const id = tipId ?? auto;
   const btn = useRef<HTMLButtonElement>(null);
@@ -45,7 +45,7 @@ export function FieldHelp({ label, description, tabStop = true, tipId }: { label
       <button ref={btn} type="button" className="gy-fieldtip-btn" aria-label={`About ${label}`} aria-describedby={id} tabIndex={tabStop ? undefined : -1}
         onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide} onKeyDown={onKey}><CircleHelp size={12} aria-hidden="true" /></button>
       {host && createPortal(
-        <span ref={tip} id={id} role="tooltip" className="gy-fieldtip-body" data-open={open} style={place} onMouseEnter={show} onMouseLeave={hide}>{description}</span>,
+        <span ref={tip} id={id} role="tooltip" className="gy-fieldtip-body" data-rich={typeof description === 'string' ? undefined : true} data-open={open} style={place} onMouseEnter={show} onMouseLeave={hide}>{description}</span>,
         host,
       )}
     </span>

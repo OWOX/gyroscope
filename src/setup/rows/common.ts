@@ -31,6 +31,8 @@ export const dismiss = (s: ProjectSettingsV5, id: string): ProjectSettingsV5 => 
 export const undismiss = (s: ProjectSettingsV5, id: string): ProjectSettingsV5 => (s.dismissed.includes(id) ? { ...s, dismissed: s.dismissed.filter((x) => x !== id) } : s);
 /** The OWOX page of a Data Mart, or of one of its fields. */
 export const martPage = (ctx: Ctx, martId: string, field?: string) => `/ui/${ctx.projectId}/data-marts/${encodeURIComponent(martId)}/data-setup${field === undefined ? '' : `?field=${encodeURIComponent(field)}`}`;
+/** The OWOX page of a context. */
+export const contextPage = (ctx: Ctx, id: string) => `/ui/${ctx.projectId}/project-settings/contexts?context=${encodeURIComponent(id)}`;
 export const dataMartPage = (ctx: Ctx, id?: string) => (id ? martPage(ctx, id) : `/ui/${ctx.projectId}/data-marts`);
 
 export function buildCtx(input: RowsInput): Ctx {
@@ -86,7 +88,7 @@ export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string)
 }
 
 /** A row from its catalog key; `options` come first-is-recommended and are normalised here. */
-export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, rest: { state: RowState; current: string | null; currentMartId?: string; currentDescription?: string; multi?: Multi; options: Plain[]; detail?: string; group?: string; groupId?: string; severity?: Severity; none?: string }): Row {
+export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, rest: { state: RowState; current: string | null; currentMartId?: string; currentDescription?: string; multi?: Multi; options: Plain[]; detail?: string; group?: string; groupId?: string; groupDescription?: string; groupLink?: string; currentList?: string[]; severity?: Severity; none?: string }): Row {
   const c = COPY[key]!;
   const base = rest.severity ?? c.severity;
   // a broken saved value counts 🟡 unless the row is a blocker

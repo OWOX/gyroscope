@@ -252,7 +252,7 @@ describe('rows by block', () => {
 
   test('teams: contexts become rows per team, with the team name in the title', () => {
     const g = graph([{ ...orders, contexts: [{ id: 'c1', name: 'Sales' }] }]);
-    g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: null }, { id: 'c2', name: 'Marketing', description: null }];
+    g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: 'Closes **deals**' }, { id: 'c2', name: 'Marketing', description: null }];
     const a = buildRows({ ...input(filled), graph: g });
     expect(byId(a, 'teams.exist').state).toBe('done');
     expect(byId(a, 'teams.exist').title).toBe('Contexts That Move the Goal');
@@ -260,6 +260,10 @@ describe('rows by block', () => {
     expect(a.filter((r) => r.block === 'teams').map((r) => `${r.title} ${r.question} ${r.why}`).join(' ')).not.toMatch(/\b[Tt]eams?\b/);
     expect(byId(a, 'team:c1.metric')).toMatchObject({ title: 'Sales Critical Number', group: 'Sales', severity: 'warning' });
     expect(rec(byId(a, 'team:c1.metric'))).toBe('field:orders:revenue');
+    expect(byId(a, 'team:c1.metric').question).toBe('Which number shows whether Sales moves the needle?');
+    expect(byId(a, 'teams.exist').currentList).toEqual(['Sales', 'Marketing']);
+    expect(byId(a, 'team:c1.plan')).toMatchObject({ groupDescription: 'Closes **deals**', groupLink: '/ui/p1/project-settings/contexts?context=c1' });
+    expect(byId(a, 'team:c2.plan').groupDescription).toBeUndefined();
     expect(byId(a, 'team:c2.description').options[0]!.action).toMatchObject({ kind: 'append', scope: { contextId: 'c2' } });
   });
 

@@ -1,4 +1,4 @@
-import { ChevronDown, Tags } from 'lucide-react';
+import { ChevronDown, SquareArrowOutUpRight } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BLOCKS } from '../setup/catalog';
@@ -9,7 +9,9 @@ import { HintBubble, HintButton } from './Hint';
 import { LoadingBar } from './LoadingBar';
 import { MartIcon } from './MartIcon';
 import { ProgressBar, ProgressLegend } from './ProgressBar';
-import { SetupRow } from './SetupRow';
+import { FieldHelp } from './FieldHelp';
+import { MarkdownText } from './MarkdownText';
+import { ContextIcon, SetupRow } from './SetupRow';
 
 export interface SetupTabProps {
   rows: Row[]; loading: boolean; readOnly: boolean; message: string | null;
@@ -90,8 +92,8 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
       (el?.querySelector<HTMLElement>('input[type="radio"], input[type="checkbox"]') ?? el?.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true });
     }, 0);
   }, [target]);
-  const renderRow = (r: Row) => (
-    <SetupRow key={r.id} row={r} readOnly={readOnly} picked={picked[r.id]} unset={savedOpen.has(r.id)} optionRow={optionRows?.[r.id]} saving={saving} saveCount={saveCount} martIcons={martIcons}
+  const renderRow = (r: Row, inCell = false) => (
+    <SetupRow key={r.id} row={r} readOnly={readOnly} picked={picked[r.id]} unset={savedOpen.has(r.id)} optionRow={optionRows?.[r.id]} saving={saving} saveCount={saveCount} martIcons={martIcons} inCell={inCell}
       hintOpen={hintOpen(r.id, savedOpen.has(r.id))} onHint={() => toggle(r.id, savedOpen.has(r.id))}
       onPick={(o) => onPick(r.id, o)} onRetry={onRetry} onOpen={onOpen} />
   );
@@ -127,20 +129,27 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
         const cells = groups.map((g) => {
           const inGroup = mine.filter((r) => r.group === g);
           const gid = inGroup.find((r) => r.groupId)?.groupId;
+          const gdesc = inGroup.find((r) => r.groupDescription)?.groupDescription;
+          const glink = inGroup.find((r) => r.groupLink)?.groupLink;
+          const cell = b.id === 'teams';
           return (
-            <details key={g} className="gy-setup-group" open={inGroup.some((r) => savedOpen.has(r.id))}>
+            <details key={g} className={cell ? 'gy-setup-group gy-setup-cell' : 'gy-setup-group'} open={inGroup.some((r) => savedOpen.has(r.id))}>
               <summary>
-                <span className="gy-setup-group-icon" aria-hidden="true">{gid !== undefined ? <MartIcon icon={martIcons?.[gid] ?? null} size={16} aria-hidden="true" /> : <Tags size={16} aria-hidden="true" />}</span>
+                {gid !== undefined ? <span className="gy-setup-group-icon" aria-hidden="true"><MartIcon icon={martIcons?.[gid] ?? null} size={16} aria-hidden="true" /></span> : <ContextIcon />}
                 <span className="gy-setup-group-name">{g}</span>
+                {cell && (gdesc || (glink && onOpen)) && <span className="gy-ctx-tools">
+                  <FieldHelp label={g} description={gdesc && <MarkdownText text={gdesc} />} />
+                  {glink && onOpen && <button type="button" className="gy-row-link" aria-label={`Open ${g} in OWOX`} title={`Open ${g} in OWOX`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(glink); }}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>}
+                </span>}
                 <ChevronDown size={12} className="gy-setup-group-chevron" aria-hidden="true" />
               </summary>
-              {inGroup.map(renderRow)}
+              {inGroup.map((r) => renderRow(r, cell))}
             </details>
           );
         });
         return (
           <Block key={b.id} info={b} rows={mine} folded={!initial} hintOpen={hintOpen(id, initial)} onHint={() => toggle(id, initial)} attention={target?.block === b.id}>
-            {loose.map(renderRow)}
+            {loose.map((r) => renderRow(r))}
             {b.id === 'teams' ? <div className="gy-setup-groups">{cells}</div> : cells}
           </Block>
         );

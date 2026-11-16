@@ -537,12 +537,12 @@ describe('an option that points at a Data Mart', () => {
   const plain = set('g', 'Orders · profit');
   const r = row({ options: [rec, plain] });
 
-  test('shows the mart icon, then the label, the link and the Recommended pill, in that order', () => {
+  test('shows the mart icon, then the label, the Recommended pill and the link, in that order', () => {
     render(<SetupTab {...props([r], { martIcons: { orders: 'orders' } })} />);
     const label = document.querySelector('label[for$="-f"]')!;
     expect(label.querySelector('svg.lucide-receipt')).not.toBeNull();
     const order = [...label.querySelectorAll('svg.lucide-receipt, .gy-row-link, .gy-row-rec')];
-    expect(order.map((e) => (e.matches('svg') ? 'icon' : e.matches('.gy-row-link') ? 'link' : 'pill'))).toEqual(['icon', 'link', 'pill']);
+    expect(order.map((e) => (e.matches('svg') ? 'icon' : e.matches('.gy-row-link') ? 'link' : 'pill'))).toEqual(['icon', 'pill', 'link']);
     expect(label.firstElementChild!.matches('svg.lucide-receipt')).toBe(true);
     expect(label.textContent).toContain('Orders · revenue');
     const name = screen.getByRole('radio', { name: 'Orders · revenue Recommended' });
@@ -882,5 +882,43 @@ describe('0.5.4 fixes', () => {
     expect(screen.queryByText(/Up to 3/)).toBeNull();
     rerender(<SetupTab {...props([shown(['f0', 'f1', 'f2'])])} />);
     expect(screen.getByText(/Up to 3/)).toBeInTheDocument();
+  });
+});
+
+describe('the Contexts block', () => {
+  const ctxRow = (id: string, title: string, over: Partial<Row> = {}) => row({ id, block: 'teams', group: 'Marketing', groupLink: '/ui/p/project-settings/contexts?context=m', groupDescription: 'Brings people **in**.', title, severity: 'warning', state: 'done', current: 'Orders · revenue', ...over });
+  const rows = [ctxRow('team:m.metric', 'Marketing Critical Number'), ctxRow('team:m.plan', 'Marketing Plan', { current: null, state: 'open' }), row({ id: 'teams.exist', block: 'teams', title: 'Contexts That Move the Goal', severity: 'notice', state: 'done', current: 'Marketing, Sales', currentList: ['Marketing', 'Sales'] })];
+
+  test('row titles in a context cell are plain and drop the context name; the cell is bordered', () => {
+    const { container } = render(<SetupTab {...props(rows)} />);
+    const cell = container.querySelector('details.gy-setup-cell')!;
+    expect(cell).not.toBeNull();
+    expect([...cell.querySelectorAll('.gy-row-title-plain')].map((e) => e.textContent)).toEqual(['Critical Number', 'Plan']);
+    expect(cell.querySelector('.gy-row-title strong')).toBeNull();
+    expect(screen.getByText('Contexts That Move the Goal').tagName).toBe('STRONG');
+    expect(container.querySelector('.gy-setup-groups')).not.toBeNull();
+  });
+
+  test('the goal row lists each context with its icon', () => {
+    const { container } = render(<SetupTab {...props(rows)} />);
+    const items = container.querySelectorAll('.gy-ctx-item');
+    expect([...items].map((e) => e.textContent)).toEqual(['Marketing', 'Sales']);
+    items.forEach((e) => expect(e.querySelector('.gy-setup-group-icon svg')).not.toBeNull());
+  });
+
+  test('the label shows the description as Markdown and links to the context page', () => {
+    const onOpen = vi.fn();
+    render(<SetupTab {...props(rows, { onOpen })} />);
+    const tip = screen.getByRole('button', { name: 'About Marketing' });
+    fireEvent.focus(tip);
+    expect(screen.getByRole('tooltip').querySelector('strong')?.textContent).toBe('in');
+    fireEvent.click(screen.getByRole('button', { name: 'Open Marketing in OWOX' }));
+    expect(onOpen).toHaveBeenCalledWith('/ui/p/project-settings/contexts?context=m');
+  });
+
+  test('no description: no (?), the link stays', () => {
+    render(<SetupTab {...props(rows.map((r) => ({ ...r, groupDescription: undefined })))} />);
+    expect(screen.queryByRole('button', { name: 'About Marketing' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open Marketing in OWOX' })).toBeInTheDocument();
   });
 });
