@@ -497,6 +497,9 @@ button.gy-badge:hover { color: var(--foreground); }
 /* a context cell: bordered, as tall as the tallest in its grid row, content from the top */
 .gy-setup-cell { box-sizing: border-box; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--card); }
 .gy-row-title-plain { font-weight: 400; }
+/* a cell is narrow: its rows spend less on the severity dot's column, so a label and its pill keep one line longer */
+.gy-setup-cell .gy-row { grid-template-columns: 1rem minmax(0, 1fr); gap: 0.375rem; }
+.gy-setup-cell .gy-row::before { left: calc(1rem + 0.375rem); }
 .gy-ctx-list { display: inline-flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
 .gy-ctx-item { display: inline-flex; align-items: center; gap: 0.375rem; }
 .gy-ctx-item .gy-setup-group-icon { width: 1rem; height: 1rem; margin: 0; }
