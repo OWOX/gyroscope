@@ -11,7 +11,7 @@ export function teamRows(ctx: Ctx): Row[] {
   const drafts = teamDrafts(ctx.nodes);
   const options: Plain[] = [];
   if (drafts.length) options.push({ id: 'teams', label: `Create ${drafts.map((d) => d.name).join(', ')} and add their Data Marts`, action: { kind: 'teams', teams: drafts } });
-  options.push(openOption('open', 'Create contexts in OWOX', `/ui/${ctx.projectId}/contexts`));
+  options.push(openOption('open', 'Create contexts in OWOX', `/ui/${ctx.projectId}/project-settings/contexts`));
   const rows = [make(ctx, 'teams.exist', 'teams.exist', 'teams', {}, { state: contexts.length >= 2 ? 'done' : 'open', current: contexts.length ? contexts.map((c) => c.name).join(', ') : null, ...(contexts.length ? { currentList: contexts.map((c) => c.name) } : {}), options })];
 
   for (const c of contexts) {
