@@ -599,6 +599,15 @@ describe('a long option list gets a search', () => {
     expect(box).toHaveAttribute('aria-expanded', 'false');
   });
 
+  test('11 options keep Show more, 12 get the search', () => {
+    const { unmount } = render(<SetupTab {...props([row({ options: many(11) })])} />);
+    expect(screen.getByRole('button', { name: 'Show 8 more' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    unmount();
+    render(<SetupTab {...props([row({ options: many(12) })])} />);
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
+  });
+
   test('10 options keep Show 7 more', () => {
     render(<SetupTab {...props([row({ options: many(10) })])} />);
     expect(screen.getByRole('button', { name: 'Show 7 more' })).toBeInTheDocument();
@@ -711,11 +720,12 @@ describe('Data Mart field icon, checkboxes and descriptions', () => {
     expect(boxes[0]).toBeChecked();
     expect(within(group).getByText('Recommended')).toBeInTheDocument();
     expect(boxes[3]).toBeEnabled();
-    expect(screen.getByText('Up to 3')).toBeInTheDocument();
+    expect(screen.queryByText(/Up to 3/)).toBeNull();
     rerender(<SetupTab {...props([shownRow({ multi: { ...shownRow().multi!, checked: ['a', 'b', 'c'] } })])} />);
     const full = within(screen.getByRole('group', { name: 'Orders Numbers on the Card' })).getAllByRole('checkbox');
     expect(full[3]).toBeDisabled();
     expect(full[2]).toBeEnabled();
+    expect(screen.getByText(/Up to 3/)).toBeInTheDocument();
   });
 
   test('checking a box stages the set in checkbox order; unchecking all stages the empty set; No extra numbers declines', () => {
@@ -762,5 +772,113 @@ describe('Data Mart field icon, checkboxes and descriptions', () => {
   test('a set row shows the description of its current field', () => {
     render(<SetupTab {...props([row({ state: 'done', current: 'Orders · revenue', currentMartId: 'orders', currentDescription: 'Net of refunds' })], { savedOpen: new Set() })} />);
     expect(screen.getByRole('button', { name: 'About Orders · revenue', hidden: true })).toBeInTheDocument();
+  });
+});
+
+describe('0.5.4 fixes', () => {
+  const items = (n: number) => Array.from({ length: n }, (_, i) => ({ path: `f${i}`, label: `Orders · f${i}`, martId: 'orders', recommended: false, ...(i === 0 ? { link: '/ui/p/data-marts/orders', linkLabel: 'Orders · f0' } : {}), ...(i === 1 ? { description: 'Units sold' } : {}) }));
+  const shown = (checked: string[], over: Partial<Row> = {}, n = 4): Row => row({ id: 'class:orders.shown', block: 'metrics', group: 'Orders', groupId: 'orders', title: 'Orders Numbers on the Card', severity: 'notice', state: 'open', dismissable: true,
+    options: [{ ...set('shown:none', 'No extra numbers'), declines: true }], multi: { max: 3, checked, action: () => undefined, items: items(n) }, ...over });
+  const openOther = row({ id: 'other', block: 'metrics', title: 'Other', options: [set('x', 'X')] });
+  const tip = (container: HTMLElement) => container.querySelector('.gy-fieldtip-body') as HTMLElement;
+
+  test('the field tooltip floats outside the collapsible clip, opens on hover and focus, and Escape closes it', () => {
+    const p = props([row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'Net of refunds' }, set('b', 'Orders · profit')] })]);
+    const { container } = render(<SetupTab {...p} />);
+    const t = tip(container);
+    expect(t.closest('.dm-collapsible-clip')).toBeNull();
+    expect(t.closest('.dm-page, .gy-setup, body')).not.toBeNull();
+    expect(t).toHaveAttribute('data-open', 'false');
+    const help = screen.getByRole('button', { name: 'About Orders · revenue' });
+    fireEvent.mouseEnter(help);
+    expect(t).toHaveAttribute('data-open', 'true');
+    fireEvent.keyDown(help, { key: 'Escape' });
+    expect(t).toHaveAttribute('data-open', 'false');
+    fireEvent.focus(help);
+    expect(t).toHaveAttribute('data-open', 'true');
+    fireEvent.keyDown(help, { key: 'Escape' });
+    expect(t).toHaveAttribute('data-open', 'false');
+  });
+
+  test('search items show the (?) for a described option; hovering or clicking it picks nothing, clicking the item does', () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({ ...set(`o${i}`, `Orders · field ${i}`), ...(i === 5 ? { description: 'Five' } : {}) }));
+    const p = props([row({ options: many })]);
+    render(<SetupTab {...p} />);
+    const box = screen.getByRole('combobox');
+    fireEvent.change(box, { target: { value: 'field 5' } });
+    const opt = screen.getByRole('option', { name: /field 5/ });
+    const help = within(opt).getByRole('button', { name: 'About Orders · field 5' });
+    fireEvent.mouseEnter(help); fireEvent.focus(help);
+    fireEvent.mouseDown(help); fireEvent.click(help);
+    expect(p.onPick).not.toHaveBeenCalled();
+    fireEvent.mouseDown(opt);
+    expect(p.onPick).toHaveBeenCalledWith('goal.metric', 'o5');
+  });
+
+  test('the edit pencil focuses the first checkbox of a checkbox row', async () => {
+    render(<SetupTab {...props([shown(['f0'], { state: 'done', current: 'Orders · f0' }), openOther], { savedOpen: new Set(['other']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Orders Numbers on the Card', hidden: true }));
+    await waitFor(() => expect(screen.getAllByRole('checkbox')[0]).toHaveFocus());
+  });
+
+  test('checking back to the saved set stages no pick; an unset or dismissed row with nothing saved too', () => {
+    const p = props([shown(['f0'], { state: 'done', current: 'Orders · f0' })], { savedOpen: new Set(['class:orders.shown']) });
+    const { unmount } = render(<SetupTab {...p} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /f0/ }));
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:');
+    unmount();
+    const q = props([shown([], { dismissed: true })]);
+    render(<SetupTab {...q} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /f2/ }));
+    expect(q.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:f2');
+  });
+
+  test('unchecking a staged box back to the saved state removes the pick', () => {
+    function S() {
+      const [pk, setPk] = useState<Record<string, string>>({});
+      const r = shown(['f0']);
+      const live = pk[r.id] ? { ...r, multi: { ...r.multi!, checked: pk[r.id]!.slice('shown:set:'.length).split('|').filter(Boolean) } } : r;
+      return <SetupTab {...props([live], { picked: pk, optionRows: pk[r.id] ? { [r.id]: r } : {}, onPick: (id, o) => setPk((x) => { const n = { ...x }; if (o === null) delete n[id]; else n[id] = o; return n; }) })} />;
+    }
+    render(<S />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /f2/ }));
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: /f2/ }));
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+  });
+
+  test('Cancel shows in Edit or with a staged pick, removes the pick and closes Edit', () => {
+    const p = props([shown(['f0'], { state: 'done', current: 'Orders · f0' }), openOther], { savedOpen: new Set(['other']) });
+    render(<SetupTab {...p} />);
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Orders Numbers on the Card', hidden: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', null);
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+  });
+
+  test('11 checkboxes list all, 12 show the top boxes and a search', () => {
+    const { unmount } = render(<SetupTab {...props([shown([], {}, 11)])} />);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(11);
+    expect(screen.queryByRole('combobox')).toBeNull();
+    unmount();
+    render(<SetupTab {...props([shown([], {}, 12)])} />);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(6);
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
+  });
+
+  test('a checkbox item with a link shows the Open in OWOX button, which opens without ticking', () => {
+    const p = props([shown([])]);
+    render(<SetupTab {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Orders · f0 in OWOX' }));
+    expect(p.onOpen).toHaveBeenCalledWith('/ui/p/data-marts/orders');
+    expect(screen.queryByRole('button', { name: 'Open Orders · f1 in OWOX' })).toBeNull();
+  });
+
+  test('the Up to 3 note shows only when 3 are checked', () => {
+    const { rerender } = render(<SetupTab {...props([shown(['f0', 'f1'])])} />);
+    expect(screen.queryByText(/Up to 3/)).toBeNull();
+    rerender(<SetupTab {...props([shown(['f0', 'f1', 'f2'])])} />);
+    expect(screen.getByText(/Up to 3/)).toBeInTheDocument();
   });
 });

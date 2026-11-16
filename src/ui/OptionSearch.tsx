@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Option } from '../setup/types';
+import { FieldHelp } from './FieldHelp';
 
 export const MAX_MATCHES = 8;
 
 const LIST_REM = 16;
+const GAP = 4;
+const EDGE = 8;
 
 /** A search field over a long list of options: a combobox with at most 8 matches in a dropdown. Picking calls `onPick` and clears the field. */
 export function OptionSearch({ options, label, disabled, icon, onPick }: { options: Option[]; label: string; disabled?: boolean; icon: (o: Option) => ReactNode; onPick: (o: Option) => void }) {
@@ -24,22 +27,29 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
   useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
   const empty = open && !disabled && needle !== '' && matches.length === 0;
   const visible = shown || empty;
-  // below the field, or above it when the viewport leaves less than the list's height underneath
+  // below the field, or above it when the viewport leaves less than the list's height underneath; the list never outgrows the room on its side
+  const last = useRef('');
   const reposition = useCallback(() => {
     const r = wrap.current?.getBoundingClientRect();
     if (!r) return;
     const need = LIST_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
-    const up = window.innerHeight - r.bottom < need && r.top > window.innerHeight - r.bottom;
-    setPlace({ left: r.left, width: r.width, ...(up ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }) });
+    const below = window.innerHeight - r.bottom, above = r.top;
+    const up = below < need && above > below;
+    const maxHeight = Math.max(0, Math.min(need, (up ? above : below) - GAP - EDGE));
+    const key = [r.left, r.width, up ? 'u' : 'd', up ? r.top : r.bottom, maxHeight].join('|');
+    if (key === last.current) return;
+    last.current = key;
+    setPlace({ left: r.left, width: r.width, maxHeight, ...(up ? { bottom: window.innerHeight - r.top + GAP } : { top: r.bottom + GAP }) });
   }, []);
   useLayoutEffect(() => {
     if (!visible) return;
+    last.current = '';
     reposition();
-    window.addEventListener('scroll', reposition, true);
-    window.addEventListener('resize', reposition);
-    const away = (e: MouseEvent) => { const t = e.target as Node; if (!wrap.current?.contains(t) && !pop.current?.contains(t)) setOpen(false); };
+    // any layout change while open (a hint folding, a block resizing) moves the field: follow it every frame
+    let raf = requestAnimationFrame(function tick() { reposition(); raf = requestAnimationFrame(tick); });
+    const away = (e: MouseEvent) => { const t = e.target as Element; if (!wrap.current?.contains(t) && !pop.current?.contains(t) && !t.closest?.('.gy-fieldtip-body')) setOpen(false); };
     document.addEventListener('mousedown', away);
-    return () => { window.removeEventListener('scroll', reposition, true); window.removeEventListener('resize', reposition); document.removeEventListener('mousedown', away); };
+    return () => { cancelAnimationFrame(raf); document.removeEventListener('mousedown', away); };
   }, [visible, reposition]);
   const pick = (o: Option) => { if (disabled) return; onPick(o); setQ(''); setOpen(false); setActive(0); };
   const onKey = (e: KeyboardEvent) => {
@@ -66,8 +76,8 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
         <div ref={pop} className="gy-opt-search-pop" style={place} hidden={!visible} onMouseDown={(e) => e.preventDefault()}>
           <ul id={listId} role="listbox" aria-label={label} className="gy-opt-search-list" hidden={!shown}>
             {matches.map((o, i) => (
-              <li key={o.id} id={`${listId}-${i}`} role="option" aria-selected={i === active} className="gy-opt-search-item" onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); pick(o); }}>
-                {icon(o)}<span>{o.label}</span>
+              <li key={o.id} id={`${listId}-${i}`} role="option" aria-selected={i === active} className="gy-opt-search-item" onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); if ((e.target as Element).closest('.gy-fieldtip, .gy-fieldtip-body')) return; pick(o); }}>
+                {icon(o)}<span className="gy-opt-search-label">{o.label}</span><FieldHelp label={o.label} description={o.description} />
               </li>
             ))}
           </ul>

@@ -7,10 +7,8 @@ import { MartIcon } from './MartIcon';
 import { OptionSearch } from './OptionSearch';
 
 const SHOWN = 3;
-/** More hidden options than this get a search field instead of "Show N more". */
-const SEARCH_OVER = 8;
-/** A checkbox list longer than this shows its top boxes and a search for the rest. */
-const SEARCH_MULTI = 12;
+/** A list of this many options or more gets a search field instead of "Show N more". */
+export const SEARCH_AT = 12;
 const SHOWN_MULTI = 6;
 
 export interface SetupRowProps {
@@ -35,8 +33,8 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const [more, setMore] = useState(false);
   useEffect(() => { setChanging(false); }, [saveCount]);
   const rowRef = useRef<HTMLDivElement>(null);
-  // the edit pencil opens the list with the checked radio focused
-  useEffect(() => { if (changing) rowRef.current?.querySelector<HTMLElement>('input[type="radio"]:checked')?.focus(); }, [changing]);
+  // the edit pencil opens the list with its first radio or checkbox focused
+  useEffect(() => { if (changing) rowRef.current?.querySelector<HTMLElement>('input[type="radio"], input[type="checkbox"]')?.focus(); }, [changing]);
   const anchor = useRef<HTMLButtonElement>(null);
   const hintId = useId();
   const uid = useId();
@@ -61,7 +59,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const keepLabel = dismissed ? was ?? 'Not needed' : was ? `Keep ${was}` : src.state === 'broken' || src.state === 'error' ? 'Keep the saved value' : 'Not set';
   const hasRadios = choices.length > 0 || dismissed;
 
-  const linkBtn = (o: Option) => o.link && onOpen && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(o.link!); }}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
+  const linkBtn = (o: Pick<Option, 'link' | 'linkLabel' | 'label'>) => o.link && onOpen && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(o.link!); }}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
   // labels line up: where some option has an icon, the ones without reserve its width
   const iconed = src.options.some((o) => o.martId && o.action.kind !== 'open');
   const martIcon = (o?: Option) => o?.martId && <MartIcon icon={martIcons?.[o.martId] ?? null} size={14} className="gy-opt-icon" aria-hidden="true" />;
@@ -88,10 +86,11 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     if (!multi) return null;
     const live = row.multi?.checked ?? multi.checked;
     const full = live.length >= multi.max;
-    const send = (paths: string[]) => onPick(`shown:set:${paths.join('|')}`);
+    // the saved set is no pick: checking back to it (an empty set on a dismissed row included) clears the staged one
+    const send = (paths: string[]) => onPick(paths.length === multi.checked.length && paths.every((p) => multi.checked.includes(p)) ? null : `shown:set:${paths.join('|')}`);
     const toggle = (path: string, on: boolean) => send(multi.items.filter((i) => (i.path === path ? on : live.includes(i.path))).map((i) => i.path));
     // a long list shows the top boxes and every checked one; a search adds the rest
-    const long = multi.items.length > SEARCH_MULTI;
+    const long = multi.items.length >= SEARCH_AT;
     const list = long ? multi.items.filter((i, n) => n < SHOWN_MULTI || live.includes(i.path)) : multi.items;
     const rest = multi.items.filter((i) => !list.includes(i));
     const none = src.options.find((o) => o.declines);
@@ -103,7 +102,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
       return (
         <div key={i.path} className="gy-radio gy-check">
           <input id={cid} type="checkbox" checked={on} disabled={saving || (full && !on)} onChange={(e) => toggle(i.path, e.target.checked)} />
-          <label htmlFor={cid}>{martIcon({ martId: i.martId } as Option) || null}<span className="gy-radio-text"><span>{text}</span>{i.recommended && <span className="gy-row-rec">Recommended</span>}</span></label>
+          <label htmlFor={cid}>{martIcon({ martId: i.martId } as Option) || null}<span className="gy-radio-text"><span className="gy-radio-tail"><span className="gy-radio-word">{text}</span>{linkBtn({ link: i.link, linkLabel: i.linkLabel, label: text })}</span>{i.recommended && <span className="gy-row-rec">Recommended</span>}</span></label>
           {i.description && <FieldHelp label={text} description={i.description} />}
         </div>
       );
@@ -113,8 +112,9 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
         <div role="group" aria-label={row.title} className="gy-radios">
           {list.map(item)}
         </div>
-        {long && rest.length > 0 && !readOnly && <OptionSearch options={rest.map((i) => ({ id: i.path, label: i.label, recommended: false, action: { kind: 'set', next: (s) => s }, martId: i.martId }))} label={`Search ${row.title}`} disabled={saving || full} icon={(o) => martIcon(o) || null} onPick={(o) => toggle(o.id, true)} />}
-        <span className="gy-muted gy-row-note">{full ? `Up to ${multi.max}: uncheck one to pick another` : `Up to ${multi.max}`}</span>
+        {long && rest.length > 0 && !readOnly && <OptionSearch options={rest.map((i) => ({ id: i.path, label: i.label, recommended: false, action: { kind: 'set', next: (s) => s }, martId: i.martId, ...(i.description ? { description: i.description } : {}) }))} label={`Search ${row.title}`} disabled={saving || full} icon={(o) => martIcon(o) || null} onPick={(o) => toggle(o.id, true)} />}
+        {full && <span className="gy-muted gy-row-note">{`Up to ${multi.max}: uncheck one to pick another`}</span>}
+        {!readOnly && (changing || picked !== undefined) && <button type="button" className="gy-link gy-row-open" disabled={saving} onClick={() => { onPick(null); setChanging(false); }}>Cancel</button>}
         {none && (declined ? <span className="gy-muted gy-row-note">{none.label}</span> : <button type="button" className="gy-link gy-row-open" disabled={saving} onClick={() => onPick(none.id)}>{none.label}</button>)}
       </>
     );
@@ -138,7 +138,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     const must = ordered.find((o) => o.id === picked) ?? match;
     const list = must && !shown.includes(must) ? [...shown, must] : shown;
     const hidden = ordered.length - list.length;
-    const search = !readOnly && !more && ordered.length - SHOWN > SEARCH_OVER;
+    const search = !readOnly && !more && ordered.length >= SEARCH_AT;
     const remaining = ordered.filter((o) => !list.includes(o));
     return (
       <>

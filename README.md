@@ -21,7 +21,7 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 ### 0.5.3
 
 1. Options sit under the question's title, each with its Data Mart icon, link and Recommended tag.
-2. A long option list (more than eleven options) gets a search field instead of "Show N more". Type to filter by Data Mart or field, pick with the arrow keys and Enter or a click. The pick shows as a checked radio.
+2. A long option list (12 or more options) gets a search field instead of "Show N more". Type to filter by Data Mart or field, pick with the arrow keys and Enter or a click. The pick shows as a checked radio.
 3. The progress bar is the bottom edge of the sticky header. The "N recommended · N notices left" line scrolls with the blocks.
 4. Section titles no longer show a count beside them.
 
