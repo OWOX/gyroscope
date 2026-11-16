@@ -626,3 +626,36 @@ test('a skipped ratio staged to Add saves the ratio and loses its dismissal', as
   expect(s.dismissed).not.toContain(id);
   expect(s.ratios.map((r) => r.id)).toEqual([id]);
 });
+
+test('the numbers on the card: a checkbox set stages one pick, Save writes it, restoring the saved set removes it', async () => {
+  const items = { martId: 'orders', measure: { field: 'items', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'items' };
+  const { store, result } = await classCase({ classes: { orders: { keyMetricId: null, shown: [items] } } });
+  const row = () => result.current.props.rows.find((r) => r.id === 'class:orders.shown')!;
+  expect(row().multi!.checked).toEqual(['items']);
+  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:items|discount'));
+  expect(result.current.props.picked).toEqual({ 'class:orders.shown': 'shown:set:items|discount' });
+  expect(row().multi!.checked).toEqual(['items', 'discount']);
+  expect(result.current.props.dirty).toBe(1);
+  // a second change replaces the first pick, not adds one
+  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:discount'));
+  expect(result.current.props.dirty).toBe(1);
+  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:items'));
+  expect(result.current.props.picked).toEqual({});
+  expect(result.current.props.dirty).toBe(0);
+  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:discount|items'));
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  expect((await loadSetup(store)).settings.classes.orders!.shown.map((c) => c.measure.field)).toEqual(['discount', 'items']);
+});
+
+test('unchecking every number writes an empty list and ends a dismissal', async () => {
+  const items = { martId: 'orders', measure: { field: 'items', fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: 'items' };
+  const { store, result } = await classCase({ classes: { orders: { keyMetricId: null, shown: [items] } }, dismissed: ['class:orders.shown'] });
+  await act(async () => result.current.props.onPick('class:orders.shown', 'shown:set:'));
+  expect(result.current.props.dirty).toBe(1);
+  await act(async () => result.current.props.onSave());
+  await waitFor(() => expect(result.current.props.dirty).toBe(0));
+  const s = (await loadSetup(store)).settings;
+  expect(s.classes.orders!.shown).toEqual([]);
+  expect(s.dismissed).not.toContain('class:orders.shown');
+});

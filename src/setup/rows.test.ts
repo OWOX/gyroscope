@@ -1,5 +1,6 @@
 import { describe } from 'vitest';
 import { buildRows, type RowsInput } from './rows';
+import { BLOCKS } from './catalog';
 import { EMPTY_SETUP } from '../store/settings';
 import { deriveModel, type Graph } from '../model/derive';
 import type { MartNode } from '../model/graph';
@@ -79,6 +80,13 @@ const byId = (rows: ReturnType<typeof buildRows>, id: string) => rows.find((r) =
 
 describe('rows over a connected project', () => {
   const rows = (s = filled, over: Partial<RowsInput> = {}) => buildRows(input(s, [linked(), customers], over));
+
+  test('core rows live in the goal block, titled Core Classes, and the catalog has no separate core block', () => {
+    const r = byId(rows(), 'core.classes');
+    expect(r).toMatchObject({ block: 'goal', title: 'Core Classes' });
+    expect(BLOCKS.map((b) => b.id)).not.toContain('core');
+    expect(BLOCKS.find((b) => b.id === 'goal')!.title).toBe('Goal & Core Classes');
+  });
 
   test('core: the recommended set is a candidate, and choosing every candidate completes the row', () => {
     const r = byId(rows(), 'core.classes');
@@ -244,11 +252,18 @@ describe('rows by block', () => {
 
   test('teams: contexts become rows per team, with the team name in the title', () => {
     const g = graph([{ ...orders, contexts: [{ id: 'c1', name: 'Sales' }] }]);
-    g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: null }, { id: 'c2', name: 'Marketing', description: null }];
+    g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: 'Closes **deals**' }, { id: 'c2', name: 'Marketing', description: null }];
     const a = buildRows({ ...input(filled), graph: g });
     expect(byId(a, 'teams.exist').state).toBe('done');
+    expect(byId(a, 'teams.exist').title).toBe('Contexts That Move the Goal');
+    expect(BLOCKS.find((b) => b.id === 'teams')!.title).toBe('Contexts');
+    expect(a.filter((r) => r.block === 'teams').map((r) => `${r.title} ${r.question} ${r.why}`).join(' ')).not.toMatch(/\b[Tt]eams?\b/);
     expect(byId(a, 'team:c1.metric')).toMatchObject({ title: 'Sales Critical Number', group: 'Sales', severity: 'warning' });
     expect(rec(byId(a, 'team:c1.metric'))).toBe('field:orders:revenue');
+    expect(byId(a, 'team:c1.metric').question).toBe('Which number shows whether Sales moves the needle?');
+    expect(byId(a, 'teams.exist').currentList).toEqual(['Sales', 'Marketing']);
+    expect(byId(a, 'team:c1.plan')).toMatchObject({ groupDescription: 'Closes **deals**', groupLink: '/ui/p1/project-settings/contexts?context=c1' });
+    expect(byId(a, 'team:c2.plan').groupDescription).toBeUndefined();
     expect(byId(a, 'team:c2.description').options[0]!.action).toMatchObject({ kind: 'append', scope: { contextId: 'c2' } });
   });
 
@@ -455,5 +470,50 @@ describe('a plan named by the description', () => {
     const g = graph([retail, planMart]);
     g.inputs.projectDescription = table(link('Plan Data_Revenue · retail_net_sales_month', 'retail_net_sales_month'));
     expect(buildRows({ ...input(EMPTY_SETUP, [retail, planMart]), graph: g }).some((r) => r.id === 'goal.shape')).toBe(true);
+  });
+});
+
+describe('Data Mart icon and field descriptions on rows', () => {
+  const described = node('orders', [f('order_id', 'STRING', { isPrimaryKey: true }), f('date', 'DATE'), f('revenue', 'NUMERIC', { description: 'Net of refunds' }), f('revenue_plan', 'NUMERIC')], 'order_id');
+  const rows = (s = filled) => buildRows(input(s, [described]));
+
+  test('a set row names the Data Mart of its current field; an unset or non-field row does not', () => {
+    const r = rows();
+    expect(byId(r, 'goal.metric')).toMatchObject({ current: 'Orders · revenue', currentMartId: 'orders', currentDescription: 'Net of refunds' });
+    expect(byId(r, 'goal.date').currentMartId).toBe('orders');
+    expect(byId(r, 'goal.date').currentDescription).toBeUndefined();
+    expect(byId(r, 'goal.aggregation').currentMartId).toBeUndefined();
+    expect(byId(rows(EMPTY_SETUP), 'goal.metric').currentMartId).toBeUndefined();
+  });
+
+  test('the option of a field carries its description, and none without one', () => {
+    const opts = byId(rows(EMPTY_SETUP), 'goal.metric').options;
+    expect(opts.find((o) => o.id === 'field:orders:revenue')!.description).toBe('Net of refunds');
+    expect(opts.find((o) => o.id === 'field:orders:revenue_plan')?.description).toBeUndefined();
+  });
+});
+
+describe('the numbers on the card are checkboxes', () => {
+  const two = node('orders', [f('order_id', 'STRING', { isPrimaryKey: true }), f('date', 'DATE'), f('revenue', 'NUMERIC'), f('items', 'NUMERIC'), f('tax', 'NUMERIC'), f('tips', 'NUMERIC'), f('fees', 'NUMERIC')], 'order_id');
+  const choice = (field: string) => ({ martId: 'orders', measure: { field, fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: field });
+  const shownRow = (s: ProjectSettingsV5 = filled) => byId(buildRows(input(s, [two])), 'class:orders.shown');
+  const apply = (r: ReturnType<typeof shownRow>, paths: string[], s: ProjectSettingsV5 = filled) => { const a = r.multi!.action(paths); if (a?.kind !== 'set') throw new Error('no action'); return a.next(s); };
+
+  test('every numeric field but the key is a box, recommended first; the saved set is checked; at most 3', () => {
+    const r = shownRow({ ...filled, classes: { orders: { keyMetricId: null, shown: [choice('tax')] } } });
+    expect(r.multi!.items.map((i) => i.path)).toEqual(expect.arrayContaining(['items', 'tax', 'tips', 'fees']));
+    expect(r.multi!.items.slice(0, 3).every((i) => i.recommended)).toBe(true);
+    expect(r.multi!.checked).toEqual(['tax']);
+    expect(r.multi!.max).toBe(3);
+    expect(r.multi!.action(['items', 'tax', 'tips', 'fees'])).toBeUndefined();
+    expect(r.multi!.action(['nope'])).toBeUndefined();
+  });
+
+  test('a set writes the checked fields in order, no change when it equals the saved set', () => {
+    const r = shownRow();
+    expect(apply(r, ['tips', 'items']).classes.orders!.shown.map((c) => c.measure.field)).toEqual(['tips', 'items']);
+    expect(apply(r, []).classes.orders?.shown ?? []).toEqual([]);
+    const saved = { ...filled, classes: { orders: { keyMetricId: null, shown: [choice('items'), choice('tax')] } } };
+    expect(apply(shownRow(saved), ['tax', 'items'], saved)).toBe(saved);
   });
 });

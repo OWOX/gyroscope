@@ -20,5 +20,5 @@ export function coreRows(ctx: Ctx): Row[] {
   const enough = chosen.length >= 3 || (cand.length > 0 && cand.every((id) => chosen.includes(id)));
   const state: RowState = failed ? 'error' : gone.length ? 'broken' : enough ? 'done' : 'open';
   const detail = failed ? `Couldn't check: ${ctx.graph.failed.get(failed)}` : gone.length ? `${title(gone[0]!)} isn't available any more` : undefined;
-  return [make(ctx, 'core.classes', 'core.classes', 'core', {}, { state, detail, current: chosen.length ? chosen.map(title).join(', ') : null, options })];
+  return [make(ctx, 'core.classes', 'core.classes', 'goal', {}, { state, detail, current: chosen.length ? chosen.map(title).join(', ') : null, options })];
 }

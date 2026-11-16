@@ -483,12 +483,33 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-setup-blocks { display: grid; gap: 0.75rem; }
 .gy-setup-name { font-weight: 500; }
 .gy-setup-group { margin-top: 0.5rem; }
-.gy-setup-group > summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; font-size: 0.8125rem; font-weight: 500; padding: 0.25rem 0; }
+/* the Contexts block lays its context groups out as a grid, one cell each */
+.gy-setup-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr)); gap: 0.5rem; align-items: stretch; }
+.gy-setup-groups > .gy-setup-group { margin-top: 0; min-width: 0; }
+.gy-setup-group > summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; font-size: 0.875rem; font-weight: bolder; padding: 0.25rem 0; }
 .gy-setup-group > summary::-webkit-details-marker { display: none; }
 /* the band's title text starts 2.25rem in (1.75rem tile + 0.5rem gap); the 1.25rem tile is centred under the band's tile, and the text follows it */
 .gy-setup-group-icon { flex: none; display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; margin: 0 0.25rem; border-radius: 0.25rem; background: color-mix(in oklab, var(--border) 75%, transparent); color: var(--foreground); }
 :root.dark .gy-setup-group-icon { background: color-mix(in oklab, white 8%, transparent); }
-.gy-setup-group-name { flex: 1; min-width: 0; }
+.gy-setup-group-name { flex: 0 1 auto; min-width: 0; }
+.gy-setup-group-chevron { margin-left: auto; }
+/* a context cell: bordered, as tall as the tallest in its grid row, content from the top */
+.gy-setup-cell { box-sizing: border-box; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--card); }
+.gy-row-title-plain { font-weight: 400; }
+.gy-ctx-list { display: inline-flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
+.gy-ctx-item { display: inline-flex; align-items: center; gap: 0.375rem; }
+.gy-ctx-item .gy-setup-group-icon { width: 1rem; height: 1rem; margin: 0; }
+/* the (?) and the OWOX link after a context's name show on hover or focus, always on touch */
+.gy-ctx-tools { display: inline-flex; align-items: center; gap: 0.125rem; opacity: 0; transition: opacity 120ms; }
+.gy-setup-cell > summary:hover .gy-ctx-tools, .gy-setup-cell > summary:focus-within .gy-ctx-tools { opacity: 1; }
+.gy-ctx-tools .gy-fieldtip { align-self: center; margin: 0; }
+.gy-ctx-tools .gy-row-link { min-width: 1.25rem; min-height: 1.25rem; }
+@media (hover: none) { .gy-ctx-tools { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .gy-ctx-tools { transition: none; } }
+.gy-fieldtip-body[data-rich] p { margin: 0; }
+.gy-fieldtip-body[data-rich] p + p, .gy-fieldtip-body[data-rich] ul, .gy-fieldtip-body[data-rich] ol { margin-top: 0.375rem; }
+.gy-fieldtip-body[data-rich] ul, .gy-fieldtip-body[data-rich] ol { margin-bottom: 0; padding-left: 1.125rem; }
+.gy-fieldtip-body[data-rich] a { color: var(--primary); text-decoration: underline; }
 .gy-setup-group-chevron { flex: none; color: var(--muted-foreground); transition: transform 0.2s; }
 .gy-setup-group[open] > summary .gy-setup-group-chevron { transform: rotate(180deg); }
 .gy-progress { display: grid; gap: 0.5rem; }
@@ -503,7 +524,7 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-progress-btn[data-severity='warning'] { color: var(--orange); }
 .gy-progress-btn[data-severity='notice'] { color: var(--green); }
 /* the indicator column is as wide as the band's icon tile (1.75rem) with the same 0.5rem gap, so row titles, group titles and hint bubbles share the section title's left edge; text and options split the rest half and half */
-.gy-row { position: relative; display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; align-items: start; padding: 0.625rem 0; }
+.gy-row { position: relative; display: grid; grid-template-columns: 1.75rem minmax(0, 1fr); gap: 0.5rem; align-items: start; padding: 0.625rem 0; }
 /* the separator starts at the title text, not under the dot or check */
 .gy-row::before { content: ''; position: absolute; top: 0; left: calc(1.75rem + 0.5rem); right: 0; border-top: 1px solid var(--border); }
 .gy-row:first-of-type::before { display: none; }
@@ -513,10 +534,11 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-icon[data-severity='notice'], .gy-row[data-severity='notice'] .gy-row-dot { color: var(--green); }
 .gy-row-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
 .gy-row-icon { grid-column: 1; grid-row: 1; }
-/* the title spans the row; below it the hint takes the left half and the options the right half */
-.gy-row-title { grid-column: 2 / -1; grid-row: 1; min-width: 0; }
-.gy-row-text { position: relative; grid-column: 2; grid-row: 2; display: grid; gap: 0.125rem; min-width: 0; }
-.gy-row-side { grid-column: 3; grid-row: 2; }
+/* one column of text: the title, the hint under it, then the options, all aligned with the title */
+.gy-row-title { grid-column: 2; grid-row: 1; min-width: 0; }
+.gy-row-text { position: relative; grid-column: 2; display: grid; gap: 0.125rem; min-width: 0; }
+.gy-row-side { grid-column: 2; }
+.gy-row-text:not(:has(.gy-row-detail, .gy-hintbox:not([hidden]))) { display: none; }
 .gy-row-detail { font-size: 0.75rem; }
 .gy-row-detail[data-tone='bad'] { color: var(--red); }
 .gy-row-detail[data-tone='warn'] { color: var(--orange); }
@@ -556,18 +578,17 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-radio-text { min-width: 0; flex: 1 1 auto; }
 .gy-opt-icon { flex: none; margin: 0.1875rem 0.375rem 0 0; color: var(--muted-foreground); }
 .gy-opt-gap { width: 14px; height: 14px; }
-/* the last word, the link icon and the pill wrap as one; a hidden link keeps its space (opacity only) */
+/* the last word and its (?) stay glued; the pill is an inline item after them, and the link icon after the pill hangs out of the line (negative margin), so the hidden icon never pushes the pill down */
 .gy-radio-tail { white-space: nowrap; }
 .gy-radio-word { white-space: normal; overflow-wrap: anywhere; }
 .gy-row-recline .gy-opt-icon { display: inline-block; margin: 0 0.375rem 0 0; vertical-align: middle; }
-.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; min-width: 1.25rem; min-height: 1rem; margin-left: 0.125rem; }
+.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; min-width: 1rem; min-height: 1rem; margin: 0 -1rem 0 0.125rem; }
 .gy-row-recline .gy-row-link { display: inline-grid; vertical-align: middle; }
 .gy-row-note { font-size: 0.75rem; }
-.gy-row-rec { display: inline-block; margin-left: 0.375rem; padding: 0 0.375rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.6875rem; line-height: 1.4; color: var(--muted-foreground); white-space: nowrap; vertical-align: middle; }
+.gy-row-rec { display: inline-block; margin-left: 0.25rem; padding: 0 0.1875rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.625rem; line-height: 1.4; color: var(--muted-foreground); white-space: nowrap; vertical-align: middle; }
 .gy-row-more, .gy-row-open { text-align: left; }
 .gy-save { display: flex; align-items: center; gap: 0.75rem; font-size: 0.8125rem; }
 .gy-btn:disabled { opacity: 0.5; cursor: default; }
-@media (max-width: 40rem) { .gy-row { grid-template-columns: 1.75rem minmax(0, 1fr); } .gy-row-title, .gy-row-text, .gy-row-side { grid-column: 2; } .gy-row-side { grid-row: 3; } .gy-row-text:not(:has(.gy-row-detail, .gy-hintbox:not([hidden]))) { display: none; } }
 .gy-save-notice { margin: 0; font-size: 0.8125rem; }
 
 /* the header, tabs and (on Setup) the progress bar stay put while the blocks scroll under them; the document scrolls, and no ancestor clips it */
@@ -583,13 +604,30 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-settings-sticky + main { padding-top: 1rem; }
 .gy-setup > .gy-progress { margin-bottom: 0.75rem; }
 /* search over a long option list: a combobox with a dropdown of matches under it */
-.gy-opt-search { position: relative; width: 100%; font-size: 0.8125rem; }
+.gy-opt-search { position: relative; width: 100%; max-width: 32rem; font-size: 0.8125rem; }
 .gy-opt-search-input { width: 100%; height: 2rem; padding: 0 0.625rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); color: var(--foreground); font: inherit; font-size: 0.8125rem; }
 .gy-opt-search-input:focus-visible { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 30%, transparent); }
-.gy-opt-search-list { margin: 0.25rem 0 0; max-height: 16rem; overflow-y: auto; padding: 0.25rem; list-style: none; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); }
+.gy-opt-search-pop { position: fixed; z-index: 20; box-sizing: border-box; max-height: 16rem; overflow-y: auto; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); box-shadow: 0 4px 12px rgb(0 0 0 / 0.1); font-size: 0.8125rem; }
+:root.dark .gy-opt-search-pop { box-shadow: 0 4px 12px rgb(0 0 0 / 0.4); }
+.gy-opt-search-pop[hidden] { display: none; }
+.gy-opt-search-list { margin: 0; padding: 0.25rem; list-style: none; }
 .gy-opt-search-list[hidden] { display: none; }
 .gy-opt-search-empty { padding: 0.375rem 0.5rem; }
 .gy-opt-search-item { display: flex; align-items: flex-start; padding: 0.375rem 0.5rem; border-radius: 0.25rem; cursor: pointer; overflow-wrap: anywhere; }
 .gy-opt-search-item[aria-selected='true'] { background: var(--muted); }
 .gy-opt-search-item .gy-opt-icon { margin-top: 0.1875rem; }
+.gy-opt-search-label { flex: 1 1 auto; min-width: 0; }
+.gy-opt-search-item .gy-fieldtip { margin-top: 0.1875rem; }
 .gy-row, .dm-collapsible, .gy-setup input, .gy-setup button, .gy-setup summary { scroll-margin-top: calc(var(--gy-sticky-h, 0px) + 0.5rem); }
+/* the (?) after a Data Mart field: a tooltip with its schema description, opening upward so a block's clip doesn't cut it */
+.gy-fieldtip { position: relative; flex: none; display: inline-flex; align-items: center; align-self: flex-start; margin: 0.125rem 0 0 0.125rem; }
+.gy-radio-tail > .gy-fieldtip { vertical-align: middle; margin: 0 0 0 0.125rem; }
+.gy-fieldtip-btn { display: inline-grid; place-items: center; width: 1rem; height: 1rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted-foreground); cursor: help; }
+.gy-fieldtip-btn:hover, .gy-fieldtip-btn:focus-visible { color: var(--foreground); }
+.gy-fieldtip-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
+.gy-fieldtip-body { position: fixed; z-index: 40; box-sizing: border-box; width: max-content; max-width: min(18rem, calc(100vw - 1rem)); padding: 0.375rem 0.625rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); box-shadow: 0 4px 12px rgb(0 0 0 / 0.1); font-size: 0.75rem; font-weight: 400; line-height: 1.4; color: var(--muted-foreground); white-space: normal; opacity: 0; visibility: hidden; pointer-events: none; }
+.gy-fieldtip-body[data-open='true'] { opacity: 1; visibility: visible; pointer-events: auto; }
+:root.dark .gy-fieldtip-body { box-shadow: 0 4px 12px rgb(0 0 0 / 0.4); }
+.gy-radio > label { min-width: 0; }
+.gy-opt-icon.gy-value-icon { margin: 0 0.375rem 0 0; }
+.gy-check .gy-radio-text { display: block; }

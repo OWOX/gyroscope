@@ -1,10 +1,9 @@
-import { Boxes, Divide, Gauge, Settings2, ShieldCheck, Target, Users } from 'lucide-react';
+import { Divide, Gauge, Settings2, ShieldCheck, Target, Users } from 'lucide-react';
 import type { BlockInfo, Severity } from './types';
 
 export const BLOCKS: BlockInfo[] = [
-  { id: 'goal', title: 'Goal', question: 'What number does the business live by?', why: 'Every other setting is judged against it.', icon: Target },
-  { id: 'core', title: 'Core Business Entities', question: 'Who buys, what is bought, and where do they come from?', why: 'These are drawn around the goal and show how the business fits together.', icon: Boxes },
-  { id: 'teams', title: 'Teams', question: 'Which teams or areas own a part of the goal?', why: 'To group the canvas by team and judge each on its own number.', icon: Users },
+  { id: 'goal', title: 'Goal & Core Classes', question: 'What number does the business live by, and what is it made of?', why: 'Every other setting is judged against it, and the core classes are drawn around it.', icon: Target },
+  { id: 'teams', title: 'Contexts', question: 'Which contexts own a part of the goal?', why: 'To group the canvas by context and judge each on its own number.', icon: Users },
   { id: 'metrics', title: 'Metrics', question: 'Which numbers should each card show?', why: 'So every card reads at a glance.', icon: Gauge },
   { id: 'ratios', title: 'Ratio Metrics', question: 'How well does one step turn into the next?', why: 'It shows how well one step turns into the next.', icon: Divide },
   { id: 'checks', title: 'Data Checks', question: 'Can Gyroscope read what the settings point at?', why: 'A setting that points at missing data shows nothing.', icon: ShieldCheck },
@@ -21,11 +20,11 @@ export const COPY: Record<string, Copy> = {
   'goal.plan': c('Critical Number Plan', 'What should the number be?', 'To show whether the business is on track.', 'warning'),
   'goal.shape': c('How the Plan Is Written', 'Is the plan a daily amount, a running total, or a level?', 'So the fact and the plan are compared for the same day.', 'warning'),
   'goal.description': c('Goal in Project Description', 'Does the OWOX project description name the critical number?', 'So people and OWOX AI read the same goal.', 'notice'),
-  'core.classes': c('Core Business Entities', 'Who buys, what is bought, and where do they come from?', 'These are drawn around the goal and show how the business fits together.', 'warning'),
-  'teams.exist': c('Teams That Move the Goal', 'Which teams or areas own a part of the goal?', 'To group the canvas by team.', 'notice'),
-  'team.metric': c('{Team} Critical Number', 'Which number shows {Team} is doing its job?', 'To judge each team on its own number.', 'warning'),
-  'team.plan': c('{Team} Plan', "What should {Team}'s number be?", 'To show whether the team is on track.', 'notice'),
-  'team.description': c('{Team} Number in Context Description', 'Does the context description name its number?', 'So the team and OWOX AI read the same number.', 'notice'),
+  'core.classes': c('Core Classes', 'Who buys, what is bought, and where do they come from?', 'These are drawn around the goal and show how the business fits together.', 'warning'),
+  'teams.exist': c('Contexts That Move the Goal', 'Which contexts own a part of the goal?', 'To group the canvas by context.', 'notice'),
+  'team.metric': c('{Team} Critical Number', 'Which number shows whether {Team} moves the needle?', 'To judge each context on its own number.', 'warning'),
+  'team.plan': c('{Team} Plan', "What should {Team}'s number be?", 'To show whether the context is on track.', 'notice'),
+  'team.description': c('{Team} Number in Context Description', 'Does the context description name its number?', 'So the context and OWOX AI read the same number.', 'notice'),
   'class.key': c('{Class} Headline Number', 'Which number should this class show first?', 'The card shows it large, with its trend.', 'warning'),
   'class.shown': c('{Class} Numbers on the Card', 'Which other numbers should the card show?', 'The card shows up to 3 small numbers under the headline.', 'notice'),
   'metric.plan': c('{Metric} Plan', 'What should {Metric} be?', 'To show whether it is on track.', 'notice'),

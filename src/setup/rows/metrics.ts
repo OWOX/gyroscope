@@ -1,9 +1,9 @@
 import type { MetricChoice, MetricFormat, ProjectSettingsV5 } from '../../types';
 import { metricId, ratioMetricId } from '../../model/derive';
-import { dateCandidates, formatFor, kindFor, type FieldCand } from '../recommend/fields';
+import { dateCandidates, formatFor, kindFor, numericFields, type FieldCand } from '../recommend/fields';
 import { keyFor, ratioPairs, shownFor } from '../recommend/structure';
-import type { Row, RowState } from '../types';
-import { dismiss, fieldCheck, fieldLabel, make, martPage, martTitle, planRow, setOption, type Ctx, type Plain } from './common';
+import type { MultiItem, Row, RowState } from '../types';
+import { currentOf, dismiss, fieldCheck, fieldDesc, fieldLabel, make, martPage, martTitle, planRow, setOption, type Ctx, type Plain } from './common';
 
 const FORMATS: Record<MetricFormat, string> = { number: 'Number', percent: 'Percent', currency: 'Money' };
 
@@ -31,8 +31,8 @@ export function metricRows(ctx: Ctx): Row[] {
     rows.push(make(ctx, 'class.key', `class:${cl.id}.key`, 'metrics', vars, {
       group: cl.title, groupId: cl.id,
       state: keyState, detail: keyState === 'broken' ? `${alias(stored!)} isn't on ${cl.title} any more` : undefined,
-      current: stored && keyState === 'done' ? labelOf(stored) : null, severity: important ? 'warning' : 'notice',
-      options: keys.map((id) => { const m = model.metrics.find((x) => x.id === id); return setOption(`metric:${id}`, labelOf(id), write((cur) => ({ ...cur, keyMetricId: id })), m && martPage(ctx, m.martId, m.measure.field), m && labelOf(id), m?.martId); }),
+      current: stored && keyState === 'done' ? labelOf(stored) : null, ...(stored && keyState === 'done' ? (() => { const m = model.metrics.find((x) => x.id === stored); return m ? currentOf(ctx, m.martId, m.measure.field) : {}; })() : {}), severity: important ? 'warning' : 'notice',
+      options: keys.map((id) => { const m = model.metrics.find((x) => x.id === id); return setOption(`metric:${id}`, labelOf(id), write((cur) => ({ ...cur, keyMetricId: id })), m && martPage(ctx, m.martId, m.measure.field), m && labelOf(id), m?.martId, m && fieldDesc(ctx, m.martId, m.measure.field)); }),
     }));
 
     const choice = (c: FieldCand): MetricChoice => ({ martId: c.martId, ...kindFor(c), dateField: dateCandidates(node)[0]?.path ?? null, alias: c.label });
@@ -44,11 +44,30 @@ export function metricRows(ctx: Ctx): Row[] {
     for (const c of recShown) picks.push(setOption(`shown:${c.path}`, fieldLabel(c.martTitle, c.label), write((cur) => ({ ...cur, shown: [choice(c)] })), ...fieldLink(c)));
     picks.push({ ...setOption('shown:none', 'No extra numbers', (x) => dismiss(write((cur) => ({ ...cur, shown: [] }))(x), `class:${cl.id}.shown`)), declines: true });
     const shown = saved?.shown ?? [];
+    // checkboxes: the recommended numbers first, then the class's other numbers; saved ones the Data Mart no longer offers stay listed
+    const keyField = model.metrics.find((m) => m.id === (cl.keyMetricId ?? rec))?.measure.field;
+    const recPaths = new Set(recShown.map((c) => c.path));
+    const pool = [...recShown, ...numericFields([node]).filter((c) => c.path !== keyField && !recPaths.has(c.path))];
+    const items: MultiItem[] = pool.map((c) => ({ path: c.path, label: fieldLabel(c.martTitle, c.label), martId: c.martId, recommended: recPaths.has(c.path), link: martPage(ctx, c.martId, c.path), linkLabel: fieldLabel(c.martTitle, c.label), ...(c.description ? { description: c.description } : {}) }));
+    for (const c of shown) if (c.martId === cl.id && !items.some((i) => i.path === c.measure.field)) items.push({ path: c.measure.field, label: fieldLabel(martTitle(ctx, c.martId), c.alias), martId: c.martId, recommended: false });
+    const multi = {
+      max: 3, items, checked: shown.filter((c) => c.martId === cl.id).map((c) => c.measure.field),
+      action: (paths: string[]) => {
+        if (paths.length > 3 || paths.some((p) => !pool.some((c) => c.path === p) && !items.some((i) => i.path === p))) return undefined;
+        // the same set as saved is no change, whatever order the boxes are in
+        const next = (x: ProjectSettingsV5): ProjectSettingsV5 => {
+          const cur = x.classes[cl.id]?.shown ?? [];
+          if (cur.length === paths.length && cur.every((c) => c.martId === cl.id && paths.includes(c.measure.field))) return x;
+          return write((c) => ({ ...c, shown: paths.map((p) => cur.find((m) => m.martId === cl.id && m.measure.field === p) ?? choice(pool.find((f) => f.path === p)!)) }))(x);
+        };
+        return { kind: 'set' as const, next };
+      },
+    };
     const bad = shown.map((c) => ({ c, chk: fieldCheck(ctx, c.martId, [c.measure.field]) })).find((x) => x.chk.state !== 'done');
     rows.push(make(ctx, 'class.shown', `class:${cl.id}.shown`, 'metrics', vars, {
       group: cl.title, groupId: cl.id,
       state: bad ? bad.chk.state : shown.length ? 'done' : 'open', detail: bad?.chk.detail,
-      current: shown.length ? shown.map((c) => fieldLabel(martTitle(ctx, c.martId), c.alias)).join(', ') : null, options: picks,
+      current: shown.length ? shown.map((c) => fieldLabel(martTitle(ctx, c.martId), c.alias)).join(', ') : null, ...(shown.length ? { currentMartId: cl.id } : {}), multi, options: picks,
     }));
 
     for (const c of shown) {

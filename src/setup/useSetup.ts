@@ -45,6 +45,10 @@ const stable = (v: unknown): string => JSON.stringify(v, (k, x) => (k === 'updat
 const actionOf = (row: Row | undefined, optionId: string): Action | undefined => {
   if (optionId === 'dismiss') return row?.dismissable ? { kind: 'set', next: (s) => dismiss(s, row.id) } : undefined;
   if (optionId === 'undismiss') return row?.dismissed ? { kind: 'set', next: (s) => undismiss(s, row.id) } : undefined;
+  if (optionId.startsWith('shown:set:')) {
+    const a = row?.multi?.action(optionId.slice(10).split('|').filter(Boolean));
+    return a?.kind === 'set' ? { kind: 'set', next: (s) => undismiss(a.next(s), row!.id) } : undefined;
+  }
   const o = row?.options.find((x) => x.id === optionId);
   // a real answer ends a dismissal; an option that declines is a dismissal itself
   return o && row && o.action.kind === 'set' && !o.declines ? { kind: 'set', next: (s) => undismiss((o.action as { next: (s: ProjectSettingsV5) => ProjectSettingsV5 }).next(s), row.id) } : o?.action;

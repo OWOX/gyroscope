@@ -2,7 +2,7 @@ import type { ProjectSettingsV5 } from '../../types';
 import { criticalCandidates, dateCandidates, kindFor } from '../recommend/fields';
 import { teamDrafts } from '../recommend/structure';
 import type { Row } from '../types';
-import { descriptionRow, make, metricRow, openOption, planRow, type Ctx, type Plain } from './common';
+import { contextPage, descriptionRow, make, metricRow, openOption, planRow, type Ctx, type Plain } from './common';
 
 /** The teams block: whether contexts exist, then a number, plan and description line per context. */
 export function teamRows(ctx: Ctx): Row[] {
@@ -11,11 +11,13 @@ export function teamRows(ctx: Ctx): Row[] {
   const drafts = teamDrafts(ctx.nodes);
   const options: Plain[] = [];
   if (drafts.length) options.push({ id: 'teams', label: `Create ${drafts.map((d) => d.name).join(', ')} and add their Data Marts`, action: { kind: 'teams', teams: drafts } });
-  options.push(openOption('open', 'Create contexts in OWOX', `/ui/${ctx.projectId}/contexts`));
-  const rows = [make(ctx, 'teams.exist', 'teams.exist', 'teams', {}, { state: contexts.length >= 2 ? 'done' : 'open', current: contexts.length ? contexts.map((c) => c.name).join(', ') : null, options })];
+  options.push(openOption('open', 'Create contexts in OWOX', `/ui/${ctx.projectId}/project-settings/contexts`));
+  const rows = [make(ctx, 'teams.exist', 'teams.exist', 'teams', {}, { state: contexts.length >= 2 ? 'done' : 'open', current: contexts.length ? contexts.map((c) => c.name).join(', ') : null, ...(contexts.length ? { currentList: contexts.map((c) => c.name) } : {}), options })];
 
   for (const c of contexts) {
     const vars = { Team: c.name };
+    const from = rows.length;
+    const gi = { groupLink: contextPage(ctx, c.id), ...(c.description ? { groupDescription: c.description } : {}) };
     const mine = ctx.nodes.filter((n) => n.contexts.some((x) => x.id === c.id));
     const pool = mine.length ? mine : ctx.nodes;
     const saved = s.contexts[c.id] ?? { metric: null, plan: null };
@@ -28,6 +30,7 @@ export function teamRows(ctx: Ctx): Row[] {
     rows.push(planRow(ctx, 'team.plan', `team:${c.id}.plan`, 'teams', vars, c.name, pool, saved.metric?.martId ?? top?.martId, kind, saved.plan, (x, p) => write((cur) => ({ ...cur, plan: p }))(x), { description: c.description, source: c.id }, saved.metric ? { martId: saved.metric.martId, field: saved.metric.measure.field } : top && { martId: top.martId, field: top.path }));
     const m = saved.metric ?? (top ? { martId: top.martId, alias: top.label, measure: { field: top.path } } : null);
     rows.push(descriptionRow(ctx, 'team.description', `team:${c.id}.description`, 'teams', vars, c.name, c.id, c.description, { contextId: c.id }, m && { alias: m.alias, martId: m.martId, path: m.measure.field, plan: saved.plan }));
+    for (let i = from; i < rows.length; i++) rows[i] = { ...rows[i]!, ...gi };
   }
   return rows;
 }

@@ -1,7 +1,7 @@
 import type { Measure, MetricKind } from '../../types';
 import { cands, criticalCandidates, dateCandidates, kindFor, shapeFor } from '../recommend/fields';
 import type { Row, RowState } from '../types';
-import { descriptionRow, fieldCheck, fieldOption, fieldText, make, martTitle, metricRow, planChoices, planRow, setOption, updGoal, withRepick, type Ctx } from './common';
+import { currentOf, descriptionRow, fieldCheck, fieldOption, fieldText, make, martTitle, metricRow, planChoices, planRow, setOption, updGoal, withRepick, type Ctx } from './common';
 
 type Fn = NonNullable<Measure['fn']> | 'calc';
 const AGG: { fn: Fn; kind: MetricKind; label: string }[] = [
@@ -35,7 +35,7 @@ export function goalRows(ctx: Ctx): Row[] {
   const dates = node ? dateCandidates(node) : [];
   const dateChk = !goal ? open : goal.dateField ? fieldCheck(ctx, goal.martId, [goal.dateField]) : open;
   const date = make(ctx, 'goal.date', 'goal.date', 'goal', {}, {
-    ...dateChk, none: !G ? undefined : ctx.graph.failed.has(G.martId) ? `Not available yet: ${martTitle(ctx, G.martId)} couldn't be read` : node ? `Not available yet: add a date field to ${node.title}` : undefined, current: goal?.dateField ? fieldText(ctx, goal.martId, goal.dateField) : null,
+    ...dateChk, none: !G ? undefined : ctx.graph.failed.has(G.martId) ? `Not available yet: ${martTitle(ctx, G.martId)} couldn't be read` : node ? `Not available yet: add a date field to ${node.title}` : undefined, current: goal?.dateField ? fieldText(ctx, goal.martId, goal.dateField) : null, ...(goal?.dateField ? currentOf(ctx, goal.martId, goal.dateField) : {}),
     options: (goal?.dateField ? withRepick(ctx, goal.martId, goal.dateField, dateChk.state, dates) : dates).map((c) => fieldOption(ctx, c, updGoal(ctx, (g) => ({ ...g, dateField: c.path })))),
   });
 
