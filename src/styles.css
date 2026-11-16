@@ -485,7 +485,7 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-setup-group { margin-top: 0.5rem; }
 /* the Contexts block lays its context groups out as a grid, one cell each */
 /* the grid starts where the rows' text does: past the indicator column (1.75rem + 0.5rem gap) */
-.gy-setup-groups { margin-left: 2.25rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr)); gap: 0.5rem; align-items: stretch; }
+.gy-setup-groups { margin-left: 2.25rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr)); gap: 0.5rem; align-items: stretch; }
 .gy-setup-groups > .gy-setup-group { margin-top: 0; min-width: 0; }
 .gy-setup-group > summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; font-size: 0.875rem; font-weight: bolder; padding: 0.25rem 0; }
 .gy-setup-group > summary::-webkit-details-marker { display: none; }
