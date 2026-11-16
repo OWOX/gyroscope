@@ -95,13 +95,13 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     const none = src.options.find((o) => o.declines);
     const declined = picked === none?.id || (picked === undefined && dismissed);
     const item = (i: (typeof list)[number]) => {
-      const cid = `${uid}-c-${i.path}`;
+      const cid = `${uid}-c-${i.path}`, lid = `${uid}-c${list.indexOf(i)}`;
       const on = live.includes(i.path);
       const text = i.label;
       return (
         <div key={i.path} className="gy-radio gy-check">
-          <input id={cid} type="checkbox" checked={on} disabled={saving || (full && !on)} onChange={(e) => toggle(i.path, e.target.checked)} />
-          <label htmlFor={cid}>{martIcon({ martId: i.martId } as Option) || null}<span className="gy-radio-text"><span className="gy-radio-tail"><span className="gy-radio-word">{text}</span>{i.description && <FieldHelp label={text} description={i.description} />}{linkBtn({ link: i.link, linkLabel: i.linkLabel, label: text })}</span>{i.recommended && <span className="gy-row-rec">Recommended</span>}</span></label>
+          <input id={cid} type="checkbox" aria-labelledby={`${lid}-w${i.recommended ? ` ${lid}-r` : ''}`} checked={on} disabled={saving || (full && !on)} onChange={(e) => toggle(i.path, e.target.checked)} />
+          <label htmlFor={cid}>{martIcon({ martId: i.martId } as Option) || null}<span className="gy-radio-text"><span className="gy-radio-tail"><span id={`${lid}-w`} className="gy-radio-word">{text}</span>{i.description && <FieldHelp label={text} description={i.description} />}{linkBtn({ link: i.link, linkLabel: i.linkLabel, label: text })}</span>{i.recommended && <span id={`${lid}-r`} className="gy-row-rec">Recommended</span>}</span></label>
         </div>
       );
     };
