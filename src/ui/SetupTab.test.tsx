@@ -605,3 +605,60 @@ describe('a long option list gets a search', () => {
     expect(screen.queryByRole('combobox')).toBeNull();
   });
 });
+
+describe('the option search dropdown', () => {
+  const many = Array.from({ length: 20 }, (_, i) => set(`o${i}`, `Orders · field ${i}`));
+  const mount = (over: Partial<SetupTabProps> = {}) => render(<SetupTab {...props([row({ options: many })], over)} />);
+
+  test('a mouse pick from the list stages the pick', () => {
+    const onPick = vi.fn();
+    mount({ onPick });
+    fireEvent.focus(screen.getByRole('combobox'));
+    fireEvent.mouseDown(screen.getAllByRole('option')[2]!);
+    expect(onPick).toHaveBeenCalledWith('goal.metric', 'o5');
+  });
+
+  test('blur closes the list', () => {
+    mount();
+    const box = screen.getByRole('combobox');
+    fireEvent.focus(box);
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.blur(box);
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('while saving the input is disabled and the list closed, and an open list closes', () => {
+    const { rerender } = mount();
+    const box = screen.getByRole('combobox');
+    fireEvent.focus(box);
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+    rerender(<SetupTab {...props([row({ options: many })], { saving: true })} />);
+    expect(screen.getByRole('combobox')).toBeDisabled();
+    expect(screen.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('read-only has no combobox, only Show N more', () => {
+    mount({ readOnly: true });
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Show 17 more' })).toBeInTheDocument();
+  });
+
+  test('a click reopens the list after Escape', () => {
+    mount();
+    const box = screen.getByRole('combobox');
+    fireEvent.focus(box);
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(box);
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('a query that matches nothing shows No matches, not a listbox option', () => {
+    mount();
+    const box = screen.getByRole('combobox');
+    fireEvent.change(box, { target: { value: 'zzz' } });
+    expect(screen.getByText('No matches')).toBeInTheDocument();
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+  });
+});

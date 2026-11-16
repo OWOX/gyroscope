@@ -1,4 +1,4 @@
-import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { Option } from '../setup/types';
 
 export const MAX_MATCHES = 8;
@@ -11,8 +11,10 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
   const listId = useId();
   const needle = q.trim().toLowerCase();
   const matches = (needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options).slice(0, MAX_MATCHES);
-  const shown = open && matches.length > 0;
-  const pick = (o: Option) => { onPick(o); setQ(''); setOpen(false); setActive(0); };
+  const shown = open && !disabled && matches.length > 0;
+  useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
+  const empty = open && !disabled && needle !== '' && matches.length === 0;
+  const pick = (o: Option) => { if (disabled) return; onPick(o); setQ(''); setOpen(false); setActive(0); };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -31,7 +33,7 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
         aria-activedescendant={shown ? `${listId}-${active}` : undefined} autoComplete="off" disabled={disabled}
         placeholder={`Search ${options.length} more…`} value={q}
         onChange={(e) => { setQ(e.target.value); setActive(0); setOpen(true); }}
-        onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} onKeyDown={onKey}
+        onFocus={() => setOpen(true)} onClick={() => setOpen(true)} onBlur={() => setOpen(false)} onKeyDown={onKey}
       />
       <ul id={listId} role="listbox" aria-label={label} className="gy-opt-search-list" hidden={!shown}>
         {matches.map((o, i) => (
@@ -40,6 +42,7 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
           </li>
         ))}
       </ul>
+      {empty && <div className="gy-opt-search-empty gy-muted">No matches</div>}
     </div>
   );
 }
