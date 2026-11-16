@@ -3,8 +3,11 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Option, Row } from '../setup/types';
 import { HintBubble, HintButton } from './Hint';
 import { MartIcon } from './MartIcon';
+import { OptionSearch } from './OptionSearch';
 
 const SHOWN = 3;
+/** More hidden options than this get a search field instead of "Show N more". */
+const SEARCH_OVER = 8;
 
 export interface SetupRowProps {
   row: Row; readOnly: boolean; saving?: boolean;
@@ -92,6 +95,8 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     const must = ordered.find((o) => o.id === picked) ?? match;
     const list = must && !shown.includes(must) ? [...shown, must] : shown;
     const hidden = ordered.length - list.length;
+    const search = !readOnly && !more && ordered.length - SHOWN > SEARCH_OVER;
+    const remaining = ordered.filter((o) => !list.includes(o));
     return (
       <>
         <div role="radiogroup" aria-label={row.title} className="gy-radios">
@@ -102,7 +107,8 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
           {list.map((o) => radio(o.id, o.label, picked === o.id || match?.id === o.id, () => onPick(o.id), o))}
           {offerDismiss && radio('dismiss', 'Not needed', picked === 'dismiss', () => onPick('dismiss'))}
         </div>
-        {!more && hidden > 0 && <button type="button" className="gy-link gy-row-more" onClick={() => setMore(true)}>{`Show ${hidden} more`}</button>}
+        {search && hidden > 0 && <OptionSearch options={remaining} label={`Search ${row.title}`} disabled={saving} icon={(o) => martIcon(o) || (iconed ? <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" /> : null)} onPick={(o) => onPick(o.id)} />}
+        {!search && !more && hidden > 0 && <button type="button" className="gy-link gy-row-more" onClick={() => setMore(true)}>{`Show ${hidden} more`}</button>}
         {implicit && <span className="gy-muted gy-row-note">Set by your choice above</span>}
       </>
     );

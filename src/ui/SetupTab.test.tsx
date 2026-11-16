@@ -562,3 +562,46 @@ describe('an option that points at a Data Mart', () => {
     expect((screen.getByRole('radio', { name: 'Orders · revenue Recommended' }) as HTMLInputElement).checked).toBe(false);
   });
 });
+
+describe('a long option list gets a search', () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => set(`o${i}`, i === 7 ? 'Orders · Gross Sales' : `Orders · field ${i}`));
+  const group = () => screen.getByRole('radiogroup', { name: 'Business Critical Number' });
+
+  test('20 options show 3 radios and a search, not Show more', () => {
+    render(<SetupTab {...props([row({ options: many(20) })])} />);
+    expect(within(group()).getAllByRole('radio')).toHaveLength(4);
+    expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'Search 17 more…');
+    expect(screen.queryByRole('button', { name: /Show/ })).toBeNull();
+  });
+
+  test('typing filters by label, Enter stages the pick, the picked option shows checked', () => {
+    const onPick = vi.fn();
+    const { rerender } = render(<SetupTab {...props([row({ options: many(20) })], { onPick })} />);
+    const box = screen.getByRole('combobox');
+    fireEvent.change(box, { target: { value: 'gross' } });
+    expect(within(screen.getByRole('listbox')).getAllByRole('option').map((o) => o.textContent)).toEqual(['Orders · Gross Sales']);
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(onPick).toHaveBeenCalledWith('goal.metric', 'o7');
+    expect(box).toHaveValue('');
+    rerender(<SetupTab {...props([row({ options: many(20) })], { onPick, picked: { 'goal.metric': 'o7' } })} />);
+    expect(within(group()).getByRole('radio', { name: 'Orders · Gross Sales' })).toBeChecked();
+  });
+
+  test('an empty field suggests 8, arrows move the active option, Escape closes', () => {
+    render(<SetupTab {...props([row({ options: many(20) })])} />);
+    const box = screen.getByRole('combobox');
+    fireEvent.focus(box);
+    expect(box).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByRole('option')).toHaveLength(8);
+    fireEvent.keyDown(box, { key: 'ArrowDown' });
+    expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('10 options keep Show 7 more', () => {
+    render(<SetupTab {...props([row({ options: many(10) })])} />);
+    expect(screen.getByRole('button', { name: 'Show 7 more' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
+});
