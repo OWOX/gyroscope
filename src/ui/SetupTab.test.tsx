@@ -135,6 +135,19 @@ describe('tooltips', () => {
     expect(document.querySelector('.gy-tip-content')).not.toHaveAttribute('data-clamp');
     sh.mockRestore();
   });
+  test('the clamp is cut at the bottom of the last whole line, so no half line shows above Show more', () => {
+    const spies = [
+      vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(500),
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100),
+      vi.spyOn(Range.prototype, 'getClientRects').mockReturnValue([18, 36, 54, 72, 90, 108].map((bottom) => ({ top: bottom - 18, bottom })) as never),
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) }),
+    ];
+    render(<SetupTab {...props([row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', groupLink: '/x', groupDescription: 'Long text', state: 'done', current: 'x' })], { savedOpen: new Set(['team:m.metric']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Marketing' }));
+    expect((document.querySelector('.gy-tip-content') as HTMLElement).style.maxHeight).toBe('90px');
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument();
+    spies.forEach((x) => x.mockRestore());
+  });
   test('a tooltip that fits shows no Show more', () => {
     render(<SetupTab {...props([row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', groupLink: '/x', groupDescription: 'Short', state: 'done', current: 'x' })], { savedOpen: new Set(['team:m.metric']) })} />);
     fireEvent.click(screen.getByRole('button', { name: 'About Marketing' }));

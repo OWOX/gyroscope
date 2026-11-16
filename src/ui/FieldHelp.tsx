@@ -5,6 +5,20 @@ import { MarkdownText } from './MarkdownText';
 
 const MARGIN = 8;
 
+/** The clamp's height cut back to the bottom of its last whole line (or block), so no half line shows above "Show more"; null when the text fits or can't be measured. */
+function wholeLines(b: HTMLElement): number | null {
+  const limit = b.clientHeight;
+  if (b.scrollHeight <= limit + 1) return null;
+  try {
+    const top = b.getBoundingClientRect().top;
+    const range = document.createRange();
+    range.selectNodeContents(b);
+    let best = 0;
+    for (const q of Array.from(range.getClientRects())) { const bottom = q.bottom - top; if (bottom <= limit + 0.5 && bottom > best) best = bottom; }
+    return best > 0 ? Math.ceil(best) : null;
+  } catch { return null; }
+}
+
 const hostOf = (b: Element | null) => b?.closest('.dm-page') ?? b?.closest('.gy-setup') ?? document.body;
 
 /**
@@ -22,6 +36,7 @@ export function FieldHelp({ label, description, onMore, tabStop = true }: { labe
   const [host, setHost] = useState<Element | null>(null);
   const [place, setPlace] = useState<CSSProperties>({});
   const [clipped, setClipped] = useState(false);
+  const [snap, setSnap] = useState<number | null>(null);
   const close = useCallback(() => setOpen(false), []);
   // the (?) sits inside its option's label or a summary: a click on it must not pick the option or fold the group (native listener, so it runs before theirs)
   useEffect(() => { const b = btn.current; const stop = (e: Event) => e.preventDefault(); b?.addEventListener('click', stop); return () => b?.removeEventListener('click', stop); }, [description]);
@@ -37,9 +52,13 @@ export function FieldHelp({ label, description, onMore, tabStop = true }: { labe
   useLayoutEffect(() => {
     if (!open) return;
     const b = body.current;
-    if (onMore && b) setClipped(b.scrollHeight > b.clientHeight + 1);
+    if (onMore && b) {
+      if (snap === null) { const h = wholeLines(b); if (h !== null) { setSnap(h); return; } }
+      setClipped(b.scrollHeight > b.clientHeight + 1);
+    }
     reposition();
-  }, [open, clipped, reposition, onMore]);
+  }, [open, clipped, snap, reposition, onMore]);
+  useEffect(() => { if (!open) setSnap(null); }, [open]);
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => { const t = e.target as Node; if (!btn.current?.contains(t) && !tip.current?.contains(t)) close(); };
@@ -64,7 +83,7 @@ export function FieldHelp({ label, description, onMore, tabStop = true }: { labe
         onClick={(e) => { e.stopPropagation(); if (!open) setHost(hostOf(btn.current)); setOpen((o) => !o); }} onKeyDown={onBtnKey}><CircleHelp size={12} aria-hidden="true" /></button>
       {open && host && createPortal(
         <div ref={tip} id={id} role="tooltip" className="gy-fieldtip-body" style={place} onClick={(e) => e.stopPropagation()} onKeyDown={onTipKey}>
-          <div ref={body} className="gy-tip-content" data-clamp={onMore ? true : undefined}><MarkdownText text={description} /></div>
+          <div ref={body} className="gy-tip-content" data-clamp={onMore ? true : undefined} style={snap === null ? undefined : { maxHeight: snap }}><MarkdownText text={description} /></div>
           {onMore && clipped && <button type="button" className="gy-tip-more" onClick={() => { close(); onMore(); }}>Show more</button>}
         </div>,
         host,
