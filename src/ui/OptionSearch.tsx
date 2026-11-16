@@ -42,7 +42,7 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
           </li>
         ))}
       </ul>
-      {empty && <div className="gy-opt-search-empty gy-muted">No matches</div>}
+      {empty && <div className="gy-opt-search-empty gy-muted" role="status">No matches</div>}
     </div>
   );
 }
