@@ -76,7 +76,7 @@ test('a broken row keeps its saved value as the first radio and explains itself 
 
 describe('hints', () => {
   test('open for an unset row, closed for a set row, and (?) toggles with aria-expanded', () => {
-    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'core', title: 'Entities', state: 'done', current: 'Orders' })])} />);
+    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'goal', title: 'Entities', state: 'done', current: 'Orders' })])} />);
     const unset = screen.getByRole('button', { name: 'About Business Critical Number' });
     const set = screen.getByRole('button', { name: 'About Entities', hidden: true });
     expect(unset).toHaveAttribute('aria-expanded', 'true');
@@ -88,9 +88,9 @@ describe('hints', () => {
     expect(set).toHaveAttribute('aria-expanded', 'true');
   });
   test('a block hint is open when any of its rows is, and the block header no longer carries the question', () => {
-    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'core', title: 'Entities', state: 'done', current: 'Orders' })])} />);
-    expect(screen.getByRole('button', { name: 'About Goal' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: 'About Core Business Entities', hidden: true })).toHaveAttribute('aria-expanded', 'false');
+    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'ratios', title: 'Entities', state: 'done', current: 'Orders' })])} />);
+    expect(screen.getByRole('button', { name: 'About Goal & Core Classes' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'About Ratio Metrics', hidden: true })).toHaveAttribute('aria-expanded', 'false');
     expect(document.querySelector('.gy-setup-why, .gy-setup-sub')).toBeNull();
   });
   test('staged choices do not reopen or close a hint', () => {
@@ -103,12 +103,12 @@ describe('hints', () => {
 });
 
 test('the block tile carries the worst open severity, with an accessible name', () => {
-  const { container } = render(<SetupTab {...props([row({}), row({ id: 'g2', severity: 'warning' }), row({ id: 'b', block: 'core', severity: 'warning', title: 'Entities' }), row({ id: 'c', block: 'teams', severity: 'notice', title: 'Teams' }), row({ id: 'd', block: 'metrics', state: 'done', current: 'x', title: 'Done' })])} />);
+  const { container } = render(<SetupTab {...props([row({}), row({ id: 'g2', severity: 'warning' }), row({ id: 'b', block: 'ratios', severity: 'warning', title: 'Entities' }), row({ id: 'c', block: 'teams', severity: 'notice', title: 'Contexts' }), row({ id: 'd', block: 'metrics', state: 'done', current: 'x', title: 'Done' })])} />);
   const tile = (name: string) => container.querySelector(`.dm-collapsible[aria-label="${name}"] .dm-collapsible-icon`)!;
-  expect(tile('Goal')).toHaveAttribute('data-severity', 'error');
-  expect(tile('Goal')).toHaveAttribute('aria-label', '1 blocker left');
-  expect(tile('Core Business Entities')).toHaveAttribute('data-severity', 'warning');
-  expect(tile('Teams')).not.toHaveAttribute('data-severity');
+  expect(tile('Goal & Core Classes')).toHaveAttribute('data-severity', 'error');
+  expect(tile('Goal & Core Classes')).toHaveAttribute('aria-label', '1 blocker left');
+  expect(tile('Ratio Metrics')).toHaveAttribute('data-severity', 'warning');
+  expect(tile('Contexts')).not.toHaveAttribute('data-severity');
   expect(tile('Metrics')).toHaveAttribute('aria-label', 'All set');
   expect(tile('Metrics')).toHaveAttribute('role', 'img');
   // the right side of the header holds only the chevron
@@ -116,7 +116,7 @@ test('the block tile carries the worst open severity, with an accessible name', 
 });
 
 test('read-only shows the value or Not set and the recommendation as text, without radios, Change or Save', () => {
-  render(<SetupTab {...props([row({}), row({ id: 'b', block: 'core', title: 'Entities', state: 'done', current: 'Orders' })], { readOnly: true })} />);
+  render(<SetupTab {...props([row({}), row({ id: 'b', block: 'goal', title: 'Entities', state: 'done', current: 'Orders' })], { readOnly: true })} />);
   expect(screen.queryByRole('radio', { hidden: true })).toBeNull();
   expect(screen.queryByRole('button', { name: /Edit/, hidden: true })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
@@ -319,7 +319,7 @@ test('a link-only row shows no radios and no Edit pencil, just the value and the
   expect(screen.queryByRole('radio')).toBeNull();
   expect(screen.queryByRole('radiogroup')).toBeNull();
   expect(screen.getByText('Not set')).toBeInTheDocument();
-  const done = row({ id: 'z', block: 'core', title: 'Done link row', state: 'done', current: 'OK', options: [open] });
+  const done = row({ id: 'z', block: 'goal', title: 'Done link row', state: 'done', current: 'OK', options: [open] });
   render(<SetupTab {...props([done])} />);
   expect(screen.queryByRole('button', { name: /Edit/, hidden: true })).toBeNull();
 });
@@ -372,15 +372,15 @@ test('rows that exist only in the draft open their block and seed its hint open'
   const goal = row({ state: 'done', current: 'x' });
   const { rerender, container } = render(<SetupTab {...props([goal], { savedOpen: new Set() })} />);
   const a = row({ id: 'm1', block: 'metrics', title: 'Fresh One' });
-  const b = row({ id: 'c1', block: 'core', title: 'Core One', state: 'done', current: 'y' });
+  const b = row({ id: 'c1', block: 'ratios', title: 'Core One', state: 'done', current: 'y' });
   rerender(<SetupTab {...props([goal, b, a], { savedOpen: new Set(['m1']) })} />);
   const card = (name: string) => container.querySelector(`.dm-collapsible[aria-label="${name}"]`)!;
   expect(card('Metrics')).toHaveAttribute('data-folded', 'false');
   expect(screen.getByRole('button', { name: 'About Metrics' })).toHaveAttribute('aria-expanded', 'true');
-  expect(card('Core Business Entities')).toHaveAttribute('data-folded', 'true');
+  expect(card('Ratio Metrics')).toHaveAttribute('data-folded', 'true');
   // a folded block gains an unset row
   rerender(<SetupTab {...props([goal, { ...b, state: 'open', current: null }, a], { savedOpen: new Set(['m1', 'c1']) })} />);
-  expect(card('Core Business Entities')).toHaveAttribute('data-folded', 'false');
+  expect(card('Ratio Metrics')).toHaveAttribute('data-folded', 'false');
 });
 
 test('a Data Mart group shows the mart icon, the default when it has none', () => {
@@ -660,5 +660,25 @@ describe('the option search dropdown', () => {
     expect(screen.getByText('No matches')).toBeInTheDocument();
     expect(screen.queryAllByRole('option')).toHaveLength(0);
     expect(box).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+describe('layout', () => {
+  test('the Contexts block lays its context groups out in a grid; other blocks keep a single column', () => {
+    const rows = [row({ id: 'team:a.metric', block: 'teams', group: 'Sales' }), row({ id: 'team:b.metric', block: 'teams', group: 'Marketing' }), row({ id: 'class:o.key', block: 'metrics', group: 'Orders' })];
+    const { container } = render(<SetupTab {...props(rows)} />);
+    const grid = container.querySelector('.dm-collapsible[aria-label="Contexts"] .gy-setup-groups')!;
+    expect(grid.querySelectorAll(':scope > details.gy-setup-group')).toHaveLength(2);
+    expect(container.querySelector('.dm-collapsible[aria-label="Metrics"] .gy-setup-groups')).toBeNull();
+  });
+
+  test('the option list is portalled out of the collapsible clip', () => {
+    const many = Array.from({ length: 20 }, (_, i) => set(`o${i}`, `Orders · field ${i}`));
+    const { container } = render(<SetupTab {...props([row({ options: many })])} />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'field' } });
+    const list = screen.getByRole('listbox');
+    expect(list.closest('.dm-collapsible-clip')).toBeNull();
+    expect(list.closest('.gy-opt-search-pop')).toBeInTheDocument();
+    expect(container.querySelector('.dm-collapsible-clip .gy-opt-search-list')).toBeNull();
   });
 });

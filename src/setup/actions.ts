@@ -68,7 +68,7 @@ export async function runAction(a: Action, { owox, store, settings, by, now, ope
             const made = await owox.postJson<{ id?: unknown }>('/api/contexts', { name: t.name, description: '' });
             id = typeof made?.id === 'string' ? made.id : (await owox.getJson<{ id: string; name: string }[]>('/api/contexts')).find(same)?.id;
           }
-          if (!id) throw new Error(`Couldn't find the team ${t.name} after creating it`);
+          if (!id) throw new Error(`Couldn't find the context ${t.name} after creating it`);
           for (const m of t.martIds) await addMartToContext(owox, m, id);
         }
         return { ok: true, settings };

@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { ProjectSettingsV5 } from '../types';
 
 export type Severity = 'error' | 'warning' | 'notice';
-export type BlockId = 'goal' | 'core' | 'teams' | 'metrics' | 'ratios' | 'checks' | 'housekeeping';
+export type BlockId = 'goal' | 'teams' | 'metrics' | 'ratios' | 'checks' | 'housekeeping';
 export type RowState = 'open' | 'done' | 'broken' | 'error';
 export type Scope = 'project' | { contextId: string };
 /** What choosing an option does. `set` returns the next settings; the rest write to OWOX or open a page. */

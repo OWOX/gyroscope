@@ -1,5 +1,6 @@
 import { describe } from 'vitest';
 import { buildRows, type RowsInput } from './rows';
+import { BLOCKS } from './catalog';
 import { EMPTY_SETUP } from '../store/settings';
 import { deriveModel, type Graph } from '../model/derive';
 import type { MartNode } from '../model/graph';
@@ -79,6 +80,13 @@ const byId = (rows: ReturnType<typeof buildRows>, id: string) => rows.find((r) =
 
 describe('rows over a connected project', () => {
   const rows = (s = filled, over: Partial<RowsInput> = {}) => buildRows(input(s, [linked(), customers], over));
+
+  test('core rows live in the goal block, titled Core Classes, and the catalog has no separate core block', () => {
+    const r = byId(rows(), 'core.classes');
+    expect(r).toMatchObject({ block: 'goal', title: 'Core Classes' });
+    expect(BLOCKS.map((b) => b.id)).not.toContain('core');
+    expect(BLOCKS.find((b) => b.id === 'goal')!.title).toBe('Goal & Core Classes');
+  });
 
   test('core: the recommended set is a candidate, and choosing every candidate completes the row', () => {
     const r = byId(rows(), 'core.classes');
@@ -247,6 +255,9 @@ describe('rows by block', () => {
     g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: null }, { id: 'c2', name: 'Marketing', description: null }];
     const a = buildRows({ ...input(filled), graph: g });
     expect(byId(a, 'teams.exist').state).toBe('done');
+    expect(byId(a, 'teams.exist').title).toBe('Contexts That Move the Goal');
+    expect(BLOCKS.find((b) => b.id === 'teams')!.title).toBe('Contexts');
+    expect(a.filter((r) => r.block === 'teams').map((r) => `${r.title} ${r.question} ${r.why}`).join(' ')).not.toMatch(/\b[Tt]eams?\b/);
     expect(byId(a, 'team:c1.metric')).toMatchObject({ title: 'Sales Critical Number', group: 'Sales', severity: 'warning' });
     expect(rec(byId(a, 'team:c1.metric'))).toBe('field:orders:revenue');
     expect(byId(a, 'team:c2.description').options[0]!.action).toMatchObject({ kind: 'append', scope: { contextId: 'c2' } });

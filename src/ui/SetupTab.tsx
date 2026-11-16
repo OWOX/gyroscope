@@ -124,23 +124,24 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
         const loose = mine.filter((r) => !r.group);
         const initial = mine.some((r) => savedOpen.has(r.id));
         const id = `block:${b.id}`;
+        const cells = groups.map((g) => {
+          const inGroup = mine.filter((r) => r.group === g);
+          const gid = inGroup.find((r) => r.groupId)?.groupId;
+          return (
+            <details key={g} className="gy-setup-group" open={inGroup.some((r) => savedOpen.has(r.id))}>
+              <summary>
+                <span className="gy-setup-group-icon" aria-hidden="true">{gid !== undefined ? <MartIcon icon={martIcons?.[gid] ?? null} size={16} aria-hidden="true" /> : <Tags size={16} aria-hidden="true" />}</span>
+                <span className="gy-setup-group-name">{g}</span>
+                <ChevronDown size={12} className="gy-setup-group-chevron" aria-hidden="true" />
+              </summary>
+              {inGroup.map(renderRow)}
+            </details>
+          );
+        });
         return (
           <Block key={b.id} info={b} rows={mine} folded={!initial} hintOpen={hintOpen(id, initial)} onHint={() => toggle(id, initial)} attention={target?.block === b.id}>
             {loose.map(renderRow)}
-            {groups.map((g) => {
-              const inGroup = mine.filter((r) => r.group === g);
-              const gid = inGroup.find((r) => r.groupId)?.groupId;
-              return (
-                <details key={g} className="gy-setup-group" open={inGroup.some((r) => savedOpen.has(r.id))}>
-                  <summary>
-                    <span className="gy-setup-group-icon" aria-hidden="true">{gid !== undefined ? <MartIcon icon={martIcons?.[gid] ?? null} size={16} aria-hidden="true" /> : <Tags size={16} aria-hidden="true" />}</span>
-                    <span className="gy-setup-group-name">{g}</span>
-                    <ChevronDown size={12} className="gy-setup-group-chevron" aria-hidden="true" />
-                  </summary>
-                  {inGroup.map(renderRow)}
-                </details>
-              );
-            })}
+            {b.id === 'teams' ? <div className="gy-setup-groups">{cells}</div> : cells}
           </Block>
         );
       })}
