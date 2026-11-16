@@ -517,3 +517,13 @@ describe('the numbers on the card are checkboxes', () => {
     expect(apply(shownRow(saved), ['tax', 'items'], saved)).toBe(saved);
   });
 });
+
+test('a class group carries the Data Mart page link and its description, for the (?) and link icon on its label', () => {
+  const g = graph([orders]);
+  g.inputs.marts[0] = { ...g.inputs.marts[0]!, description: 'Every **order**' };
+  const s = { ...EMPTY_SETUP, goal, updatedAt: 't' };
+  const d = deriveModel(s, g);
+  const rows = buildRows({ settings: s, graph: g, model: d.ok ? d.model : null, legacyCore: [], projectId: 'p1', hasAi: false, ai: {}, aiPending: new Set() }).filter((r) => r.groupId === 'orders');
+  expect(rows.length).toBeGreaterThan(1);
+  for (const r of rows) expect(r).toMatchObject({ groupLink: '/ui/p1/data-marts/orders/data-setup', groupDescription: 'Every **order**' });
+});
