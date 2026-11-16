@@ -74,31 +74,71 @@ test('a broken row keeps its saved value as the first radio and explains itself 
   expect(screen.getByRole('radio', { name: 'Keep Orders · revenue_old' })).toBeChecked();
 });
 
-describe('hints', () => {
-  test('open for an unset row, closed for a set row, and (?) toggles with aria-expanded', () => {
-    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'goal', title: 'Entities', state: 'done', current: 'Orders' })])} />);
-    const unset = screen.getByRole('button', { name: 'About Business Critical Number' });
-    const set = screen.getByRole('button', { name: 'About Entities', hidden: true });
-    expect(unset).toHaveAttribute('aria-expanded', 'true');
-    expect(set).toHaveAttribute('aria-expanded', 'false');
-    expect(document.getElementById(unset.getAttribute('aria-controls')!)).toHaveTextContent('What is the main business goal? Every card is judged by how it moves this number.');
-    fireEvent.click(unset);
-    expect(unset).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(set);
-    expect(set).toHaveAttribute('aria-expanded', 'true');
-  });
-  test('a block hint is open when any of its rows is, and the block header no longer carries the question', () => {
-    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'ratios', title: 'Entities', state: 'done', current: 'Orders' })])} />);
-    expect(screen.getByRole('button', { name: 'About Goal & Core Classes' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: 'About Ratio Metrics', hidden: true })).toHaveAttribute('aria-expanded', 'false');
-    expect(document.querySelector('.gy-setup-why, .gy-setup-sub')).toBeNull();
-  });
-  test('staged choices do not reopen or close a hint', () => {
-    const { rerender } = render(<SetupTab {...props([row({})])} />);
+describe('tooltips', () => {
+  const tipOf = (btn: HTMLElement) => document.getElementById(btn.getAttribute('aria-controls')!);
+  test('every (?) starts closed, opens on click, closes on a second click, Escape or a click outside', () => {
+    const { container } = render(<SetupTab {...props([row({}), row({ id: 'b', title: 'Entities', state: 'done', current: 'Orders' })])} />);
     const btn = screen.getByRole('button', { name: 'About Business Critical Number' });
+    expect(btn).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'About Goal & Core Classes' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    fireEvent.click(btn);
     expect(btn).toHaveAttribute('aria-expanded', 'true');
-    rerender(<SetupTab {...props([row({ state: 'done', current: 'Orders · profit' })], { picked: { 'goal.metric': 'b' }, savedOpen: new Set(['goal.metric']) })} />);
-    expect(screen.getByRole('button', { name: 'About Business Critical Number', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    const tip = tipOf(btn)!;
+    expect(tip).toHaveAttribute('role', 'tooltip');
+    expect(tip).toHaveTextContent('What is the main business goal? Every card is judged by how it moves this number.');
+    // portalled out of the block: it is never in the document flow
+    expect(container.querySelector('.dm-collapsible')!.contains(tip)).toBe(false);
+    expect(tip.closest('.dm-collapsible-clip')).toBeNull();
+    fireEvent.click(btn);
+    expect(btn).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    fireEvent.click(btn);
+    fireEvent.keyDown(btn, { key: 'Escape' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    fireEvent.click(btn);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+  test('hovering or focusing the (?) opens nothing', () => {
+    render(<SetupTab {...props([row({})])} />);
+    const btn = screen.getByRole('button', { name: 'About Business Critical Number' });
+    fireEvent.mouseEnter(btn); fireEvent.focus(btn);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+  test('a new unset row has no tooltip open, and there are no in-flow hint boxes', () => {
+    const { container } = render(<SetupTab {...props([row({ state: 'done', current: 'x' }), row({ id: 'new', block: 'metrics', title: 'Fresh Row' })])} />);
+    expect(screen.getByRole('button', { name: 'About Fresh Row' })).toHaveAttribute('aria-expanded', 'false');
+    expect(container.querySelector('.gy-hintbox, .gy-hint')).toBeNull();
+  });
+  test('opening one tooltip closes another', () => {
+    render(<SetupTab {...props([row({}), row({ id: 'b', title: 'Other', options: [set('x', 'X')] })])} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Business Critical Number' }));
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'About Other' }));
+    fireEvent.click(screen.getByRole('button', { name: 'About Other' }));
+    expect(screen.getAllByRole('tooltip')).toHaveLength(1);
+  });
+  test('a long description with a page link is clamped, with Show more opening the page; short or link-less text has none', () => {
+    const sh = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(500);
+    const onOpen = vi.fn();
+    const rows = [row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', groupLink: '/ui/p/project-settings/contexts?context=m', groupDescription: 'Long text', state: 'done', current: 'x' })];
+    const { unmount } = render(<SetupTab {...props(rows, { onOpen, savedOpen: new Set(['team:m.metric']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Marketing' }));
+    expect(document.querySelector('.gy-tip-content')).toHaveAttribute('data-clamp');
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(onOpen).toHaveBeenCalledWith('/ui/p/project-settings/contexts?context=m');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    unmount();
+    render(<SetupTab {...props(rows.map((r) => ({ ...r, groupLink: undefined })), { onOpen, savedOpen: new Set(['team:m.metric']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Marketing' }));
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+    expect(document.querySelector('.gy-tip-content')).not.toHaveAttribute('data-clamp');
+    sh.mockRestore();
+  });
+  test('a tooltip that fits shows no Show more', () => {
+    render(<SetupTab {...props([row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', groupLink: '/x', groupDescription: 'Short', state: 'done', current: 'x' })], { savedOpen: new Set(['team:m.metric']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Marketing' }));
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
   });
 });
 
@@ -305,12 +345,11 @@ test('picking the last open row of a group keeps the group open and the block un
   expect(document.querySelector('[data-row-id="b"]')!.closest('.dm-collapsible')).toHaveAttribute('data-folded', 'false');
 });
 
-test('a row that appears because of a pick is unset: radios and an open hint', () => {
+test('a row that appears because of a pick is unset: radios', () => {
   const { rerender } = render(<SetupTab {...props([row({ state: 'done', current: 'x' })], { savedOpen: new Set() })} />);
   const fresh = row({ id: 'new', block: 'metrics', title: 'Fresh Row' });
   rerender(<SetupTab {...props([row({ state: 'done', current: 'x' }), fresh], { savedOpen: new Set(['new']) })} />);
   expect(screen.getByRole('radiogroup', { name: 'Fresh Row' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'About Fresh Row' })).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('a link-only row shows no radios and no Edit pencil, just the value and the links', () => {
@@ -368,7 +407,7 @@ test('Add can switch straight to Skip: the radios come from the row the pick ran
   expect(p.onPick).toHaveBeenCalledWith('ratio:x', 'ratio:skip');
 });
 
-test('rows that exist only in the draft open their block and seed its hint open', () => {
+test('rows that exist only in the draft open their block', () => {
   const goal = row({ state: 'done', current: 'x' });
   const { rerender, container } = render(<SetupTab {...props([goal], { savedOpen: new Set() })} />);
   const a = row({ id: 'm1', block: 'metrics', title: 'Fresh One' });
@@ -376,7 +415,6 @@ test('rows that exist only in the draft open their block and seed its hint open'
   rerender(<SetupTab {...props([goal, b, a], { savedOpen: new Set(['m1']) })} />);
   const card = (name: string) => container.querySelector(`.dm-collapsible[aria-label="${name}"]`)!;
   expect(card('Metrics')).toHaveAttribute('data-folded', 'false');
-  expect(screen.getByRole('button', { name: 'About Metrics' })).toHaveAttribute('aria-expanded', 'true');
   expect(card('Ratio Metrics')).toHaveAttribute('data-folded', 'true');
   // a folded block gains an unset row
   rerender(<SetupTab {...props([goal, { ...b, state: 'open', current: null }, a], { savedOpen: new Set(['m1', 'c1']) })} />);
@@ -389,14 +427,6 @@ test('a Data Mart group shows the mart icon, the default when it has none', () =
   const [orders, ads] = [...container.querySelectorAll('details.gy-setup-group')];
   expect(orders!.querySelector('summary .gy-setup-group-icon svg')).toHaveClass('lucide-receipt');
   expect(ads!.querySelector('summary .gy-setup-group-icon svg')).toHaveClass('lucide-box');
-});
-
-test('the Setup hint bubble carries gy-hintbox, never the canvas gy-hint', () => {
-  const { container } = render(<SetupTab {...props([row({})])} />);
-  const bubbles = container.querySelectorAll('.gy-hintbox');
-  expect(bubbles.length).toBeGreaterThan(0);
-  expect(container.querySelector('.gy-hint')).toBeNull();
-  expect(container.querySelector('[class*="gy-hint "], [class$="gy-hint"]')).toBeNull();
 });
 
 test('a link-only notice offers Not set and Not needed next to its link, and Not needed stages a dismiss', () => {
@@ -673,12 +703,14 @@ describe('the option search dropdown', () => {
 });
 
 describe('layout', () => {
-  test('the Contexts block lays its context groups out in a grid; other blocks keep a single column', () => {
-    const rows = [row({ id: 'team:a.metric', block: 'teams', group: 'Sales' }), row({ id: 'team:b.metric', block: 'teams', group: 'Marketing' }), row({ id: 'class:o.key', block: 'metrics', group: 'Orders' })];
+  test('the Contexts and Metrics blocks lay their groups out as bordered cells in a grid; other blocks keep a single column', () => {
+    const rows = [row({ id: 'team:a.metric', block: 'teams', group: 'Sales' }), row({ id: 'team:b.metric', block: 'teams', group: 'Marketing' }), row({ id: 'class:o.key', block: 'metrics', group: 'Orders', title: 'Orders Headline Number' })];
     const { container } = render(<SetupTab {...props(rows)} />);
     const grid = container.querySelector('.dm-collapsible[aria-label="Contexts"] .gy-setup-groups')!;
     expect(grid.querySelectorAll(':scope > details.gy-setup-group')).toHaveLength(2);
-    expect(container.querySelector('.dm-collapsible[aria-label="Metrics"] .gy-setup-groups')).toBeNull();
+    const metrics = container.querySelector('.dm-collapsible[aria-label="Metrics"] .gy-setup-groups')!;
+    expect(metrics.querySelectorAll(':scope > details.gy-setup-cell')).toHaveLength(1);
+    expect(metrics.querySelector('.gy-row-title-plain')!.textContent).toBe('Headline Number');
   });
 
   test('the option list is portalled out of the collapsible clip', () => {
@@ -761,7 +793,8 @@ describe('Data Mart field icon, checkboxes and descriptions', () => {
     const p = props([shownRow(), row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'Net of refunds' }, set('b', 'Orders · profit')] })]);
     render(<SetupTab {...p} />);
     const help = screen.getByRole('button', { name: 'About Orders · items' });
-    expect(document.getElementById(help.getAttribute('aria-describedby')!)).toHaveTextContent('Units sold');
+    fireEvent.click(help);
+    expect(document.getElementById(help.getAttribute('aria-controls')!)).toHaveTextContent('Units sold');
     expect(help.closest('.gy-radio-tail, .gy-row-value')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'About Orders · tax' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'About Orders · revenue' }));
@@ -782,22 +815,20 @@ describe('0.5.4 fixes', () => {
   const openOther = row({ id: 'other', block: 'metrics', title: 'Other', options: [set('x', 'X')] });
   const tip = (container: HTMLElement) => container.querySelector('.gy-fieldtip-body') as HTMLElement;
 
-  test('the field tooltip floats outside the collapsible clip, opens on hover and focus, and Escape closes it', () => {
+  test('the field tooltip floats outside the collapsible clip, opens on click only, and Escape closes it', () => {
     const p = props([row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'Net of refunds' }, set('b', 'Orders · profit')] })]);
     const { container } = render(<SetupTab {...p} />);
+    const help = screen.getByRole('button', { name: 'About Orders · revenue' });
+    expect(tip(container)).toBeNull();
+    fireEvent.mouseEnter(help); fireEvent.focus(help);
+    expect(tip(container)).toBeNull();
+    fireEvent.click(help);
     const t = tip(container);
+    expect(t).toHaveAttribute('role', 'tooltip');
     expect(t.closest('.dm-collapsible-clip')).toBeNull();
     expect(t.closest('.dm-page, .gy-setup, body')).not.toBeNull();
-    expect(t).toHaveAttribute('data-open', 'false');
-    const help = screen.getByRole('button', { name: 'About Orders · revenue' });
-    fireEvent.mouseEnter(help);
-    expect(t).toHaveAttribute('data-open', 'true');
     fireEvent.keyDown(help, { key: 'Escape' });
-    expect(t).toHaveAttribute('data-open', 'false');
-    fireEvent.focus(help);
-    expect(t).toHaveAttribute('data-open', 'true');
-    fireEvent.keyDown(help, { key: 'Escape' });
-    expect(t).toHaveAttribute('data-open', 'false');
+    expect(tip(container)).toBeNull();
   });
 
   test('search items show the (?) for a described option; hovering or clicking it picks nothing, clicking the item does', () => {
@@ -809,7 +840,6 @@ describe('0.5.4 fixes', () => {
     const opt = screen.getByRole('option', { name: /field 5/ });
     const help = within(opt).getByRole('button', { name: 'About Orders · field 5' });
     expect(help).toHaveAttribute('tabindex', '-1');
-    expect(document.getElementById(opt.getAttribute('aria-describedby')!)).toHaveTextContent('Five');
     fireEvent.mouseEnter(help); fireEvent.focus(help);
     fireEvent.mouseDown(help); fireEvent.click(help);
     expect(p.onPick).not.toHaveBeenCalled();
@@ -910,7 +940,7 @@ describe('the Contexts block', () => {
     const onOpen = vi.fn();
     render(<SetupTab {...props(rows, { onOpen })} />);
     const tip = screen.getByRole('button', { name: 'About Marketing' });
-    fireEvent.focus(tip);
+    fireEvent.click(tip);
     expect(screen.getByRole('tooltip').querySelector('strong')?.textContent).toBe('in');
     fireEvent.click(screen.getByRole('button', { name: 'Open Marketing in OWOX' }));
     expect(onOpen).toHaveBeenCalledWith('/ui/p/project-settings/contexts?context=m');
@@ -920,5 +950,16 @@ describe('the Contexts block', () => {
     render(<SetupTab {...props(rows.map((r) => ({ ...r, groupDescription: undefined })))} />);
     expect(screen.queryByRole('button', { name: 'About Marketing' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Open Marketing in OWOX' })).toBeInTheDocument();
+  });
+});
+
+describe('0.5.5 layout', () => {
+  test('the "Not set" radio has no empty icon slot, even where other options have an icon', () => {
+    const iconed = { ...set('a', 'Orders · revenue', true), martId: 'orders' };
+    render(<SetupTab {...props([row({ options: [iconed, set('b', 'Plain')], dismissable: true })])} />);
+    const lab = (name: string) => (screen.getByRole('radio', { name }) as HTMLInputElement).labels![0]!;
+    expect(lab('Not set').querySelector('.gy-opt-gap')).toBeNull();
+    expect(lab('Not needed').querySelector('.gy-opt-gap')).toBeNull();
+    expect(lab('Plain').querySelector('.gy-opt-gap')).not.toBeNull();
   });
 });
