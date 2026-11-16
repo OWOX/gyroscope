@@ -637,10 +637,10 @@ describe('the option search dropdown', () => {
     expect(screen.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test('read-only has no combobox, only Show N more', () => {
+  test('read-only has no combobox (and no option list at all)', () => {
     mount({ readOnly: true });
     expect(screen.queryByRole('combobox')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Show 16 more' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Show .* more/ })).toBeNull();
   });
 
   test('a click reopens the list after Escape', () => {
