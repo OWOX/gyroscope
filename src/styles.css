@@ -573,7 +573,7 @@ button.gy-badge:hover { color: var(--foreground); }
 /* the pill is an inline item after the label; the (?) and the link icon are zero-width (.gy-radio-tools) and hang past the line's end, so while hidden they take no room and the pill stays on the label's line whenever the two fit; shown, they float over the empty space after the line */
 .gy-radio-tail, .gy-radio-end { white-space: nowrap; }
 .gy-radio-tools { position: relative; display: inline-block; width: 0; height: 1rem; vertical-align: middle; }
-.gy-radio-tools-in { position: absolute; left: 0.125rem; top: 50%; display: inline-flex; align-items: center; gap: 0.125rem; translate: 0 -50%; border-radius: 0.25rem; background: var(--card); }
+.gy-radio-tools-in { position: absolute; left: 0.125rem; top: 50%; display: inline-flex; align-items: center; gap: 0.125rem; translate: 0 -50%; }
 .gy-radio-tools .gy-fieldtip { margin: 0; align-self: center; }
 .gy-radio-tools .gy-row-link { margin: 0; }
 .gy-radio-word { white-space: normal; overflow-wrap: anywhere; }
