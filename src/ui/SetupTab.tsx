@@ -8,7 +8,7 @@ import { CollapsibleCard } from './CollapsibleCard';
 import { HintBubble, HintButton } from './Hint';
 import { LoadingBar } from './LoadingBar';
 import { MartIcon } from './MartIcon';
-import { ProgressBar } from './ProgressBar';
+import { ProgressBar, ProgressLegend } from './ProgressBar';
 import { SetupRow } from './SetupRow';
 
 export interface SetupTabProps {
@@ -95,10 +95,11 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
       hintOpen={hintOpen(r.id, savedOpen.has(r.id))} onHint={() => toggle(r.id, savedOpen.has(r.id))}
       onPick={(o) => onPick(r.id, o)} onRetry={onRetry} onOpen={onOpen} />
   );
-  // the progress bar, a save error and the notice travel together: with Save in the sticky header, a message has to stay in view too
+  const counts = progress(eff);
+  // a save error and the notice travel with the bar: with Save in the sticky header, a message has to stay in view too. The bar is the header's bottom edge.
   const top = (
     <>
-      <ProgressBar counts={progress(eff)} onJump={jump} />
+      {(message || notice) && <div className="gy-setup-notes">
       {message && (
         <div className="gy-setup-banner" role="status">
           <span>{message}</span>
@@ -106,12 +107,15 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
         </div>
       )}
       {notice && <p className="gy-muted gy-save-notice" role="status">{notice}</p>}
+      </div>}
+      <ProgressBar counts={counts} />
     </>
   );
   return (
     <div className="gy-setup">
       {loading && <LoadingBar />}
       {progressSlot === undefined ? top : progressSlot && createPortal(top, progressSlot)}
+      <ProgressLegend counts={counts} onJump={jump} />
       <div className="gy-setup-blocks">
       {BLOCKS.map((b) => {
         const mine = eff.filter((r) => r.block === b.id);
