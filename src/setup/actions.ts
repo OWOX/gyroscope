@@ -74,8 +74,8 @@ export async function runAction(a: Action, { owox, store, settings, by, now, ope
           madeIds.push(id);
         }
         // a saved set of needle contexts would hide what was just created: the new ids join it (an unset list already means "all")
-        // a saved list with no live id already means "all" (countsContext): appending would make it a real list and hide the rest, so it is cleared instead
-        if (settings.needleContexts && !settings.needleContexts.some((i) => existing.some((c) => c.id === i))) {
+        // a saved list with no live id already means "all" (countsContext): appending would make it a real list and hide the rest, so it is cleared instead (an empty list means "none" and stays a list)
+        if (settings.needleContexts && settings.needleContexts.length > 0 && !settings.needleContexts.some((i) => existing.some((c) => c.id === i))) {
           return { ok: true, settings: await saveSetup(store, settings, { ...settings, needleContexts: null }, by, now()) };
         }
         if (settings.needleContexts && madeIds.some((i) => !settings.needleContexts!.includes(i))) {

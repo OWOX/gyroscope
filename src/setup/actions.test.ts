@@ -110,3 +110,12 @@ test('teams clears a saved needle list none of whose ids exist, so every context
   const r = await runAction({ kind: 'teams', teams: [{ name: 'Marketing', martIds: ['ads'] }] }, { ...d, settings: saved });
   expect(r).toMatchObject({ ok: true, settings: { needleContexts: null } });
 });
+
+test('teams appends the new context to an empty needle list (none), which stays a list', async () => {
+  const { d } = deps();
+  const base = d.owox as unknown as { postJson: (p: string, b: unknown) => Promise<unknown> };
+  const owox = { ...base, postJson: async () => ({ id: 's1' }) } as never;
+  const saved = await saveSetup(d.store, EMPTY_SETUP, { ...EMPTY_SETUP, needleContexts: [] }, 'Ann', new Date());
+  const r = await runAction({ kind: 'teams', teams: [{ name: 'Sales', martIds: ['ads'] }] }, { ...d, owox, settings: saved });
+  expect(r).toMatchObject({ ok: true, settings: { needleContexts: ['s1'] } });
+});

@@ -20,7 +20,7 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 
 ### 0.5.5
 
-1. Every (?) opens a dark tooltip on click and renders its Markdown: headings, tables, lists and links. Long text is cut at a whole line with "Show more".
+1. Every (?) opens a dark tooltip on click and renders its Markdown: headings, tables, lists and links. Long context and Data Mart descriptions are cut at a whole line, and "Show more" opens their page; other long text scrolls.
 2. The (?) and the OWOX link icons show on hover only, and take no room until shown, so the Recommended tag stays beside its label.
 3. "Contexts That Move the Needle" and "Core Classes" are checkbox lists. Contexts you leave unchecked no longer count anywhere.
 4. A context card folds whole, down to its header.
