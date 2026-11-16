@@ -118,6 +118,16 @@ describe('rows over a connected project', () => {
     expect(a.some((r) => r.id.endsWith('.plan') && r.id.startsWith('metric:'))).toBe(true);
   });
 
+  test('every option that links to a Data Mart carries that mart id, for its icon', () => {
+    const add = rows().find((r) => r.block === 'ratios')!.options.find((o) => o.id === 'ratio:add')!;
+    if (add.action.kind !== 'set') throw new Error();
+    const withRatio = add.action.next(filled);
+    const all = [...rows(), ...rows({ ...filled, coreClasses: ['orders'] }), ...rows(withRatio)].flatMap((r) => r.options.filter((o) => o.link).map((o) => ({ r: r.id, o })));
+    for (const k of ['core:+', 'core:-', 'ratio:add', 'ratio:remove', 'shown:', 'field:', 'metric:']) expect(all.some(({ o }) => o.id.startsWith(k)), k).toBe(true);
+    expect(all.length).toBeGreaterThan(5);
+    for (const { r, o } of all) { expect(o.martId, `${r} ${o.id}`).toBeTruthy(); expect(o.link, `${r} ${o.id}`).toContain(`/data-marts/${encodeURIComponent(o.martId!)}/`); }
+  });
+
   test('a ratio key option reads as the ratio name alone', () => {
     const add = rows().find((r) => r.block === 'ratios')!.options.find((o) => o.id === 'ratio:add')!;
     if (add.action.kind !== 'set') throw new Error();

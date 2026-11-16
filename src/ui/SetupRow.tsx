@@ -54,20 +54,22 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const keepLabel = dismissed ? was ?? 'Not needed' : was ? `Keep ${was}` : src.state === 'broken' || src.state === 'error' ? 'Keep the saved value' : 'Not set';
   const hasRadios = choices.length > 0 || dismissed;
 
-  const linkBtn = (o: Option) => o.link && onOpen && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={() => onOpen(o.link!)}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
+  const linkBtn = (o: Option) => o.link && onOpen && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Open ${o.linkLabel ?? o.label} in OWOX`} title={`Open ${o.linkLabel ?? o.label} in OWOX`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(o.link!); }}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>;
   // labels line up: where some option has an icon, the ones without reserve its width
   const iconed = src.options.some((o) => o.martId && o.action.kind !== 'open');
   const martIcon = (o?: Option) => o?.martId && <MartIcon icon={martIcons?.[o.martId] ?? null} size={14} className="gy-opt-icon" aria-hidden="true" />;
   // the last word, the link icon and the pill wrap together, so the icon never sits alone on a line
+  let seq = 0;
   const radio = (key: string, label: ReactNode, checked: boolean, onChange: () => void, o?: Option, disabled = false) => {
+    const nid = `${uid}-n${seq++}`;
     const text = typeof label === 'string' ? label : null;
     const cut = text ? text.search(/\s\S*$/) : -1;
     const head = text && cut > 0 ? text.slice(0, cut + 1) : '';
     const tail = text ? text.slice(head.length) : label;
     return (
       <div key={key} className="gy-radio">
-        <input id={`${uid}-${key}`} aria-labelledby={`${uid}-${key}-h ${uid}-${key}-w${o?.recommended ? ` ${uid}-${key}-r` : ''}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
-        <label htmlFor={`${uid}-${key}`}>{martIcon(o) || (iconed && <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" />)}<span className="gy-radio-text"><span id={`${uid}-${key}-h`}>{head}</span><span className="gy-radio-tail"><span id={`${uid}-${key}-w`}>{tail}</span>{o && linkBtn(o)}{o?.recommended && <span id={`${uid}-${key}-r`} className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></span></label>
+        <input id={`${uid}-${key}`} aria-labelledby={`${nid}-h ${nid}-w${o?.recommended ? ` ${nid}-r` : ''}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
+        <label htmlFor={`${uid}-${key}`}>{martIcon(o) || (iconed && <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" />)}<span className="gy-radio-text"><span id={`${nid}-h`}>{head}</span><span className="gy-radio-tail"><span id={`${nid}-w`} className="gy-radio-word">{tail}</span>{o && linkBtn(o)}</span>{o?.recommended && <span id={`${nid}-r`} className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></label>
       </div>
     );
   };

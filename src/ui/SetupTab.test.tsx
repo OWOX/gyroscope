@@ -550,5 +550,15 @@ describe('an option that points at a Data Mart', () => {
     expect(screen.queryByRole('radio', { name: /Open/ })).toBeNull();
     // an option without a Data Mart has no icon of its own, only the reserved width
     expect(document.querySelector('label[for$="-g"] svg')).toBeNull();
+    expect(document.querySelector('label[for$="-g"] .gy-opt-gap')).not.toBeNull();
+  });
+
+  test('clicking the link inside a label opens the page and leaves the radio unchecked', () => {
+    const p = props([r], { martIcons: { orders: 'orders' } });
+    render(<SetupTab {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Orders · revenue in OWOX' }));
+    expect(p.onOpen).toHaveBeenCalledWith('/ui/p/data-marts/orders/data-setup');
+    // (happy-dom fires a label's activation for a nested button; real browsers don't, checked in Chromium)
+    expect((screen.getByRole('radio', { name: 'Orders · revenue Recommended' }) as HTMLInputElement).checked).toBe(false);
   });
 });
