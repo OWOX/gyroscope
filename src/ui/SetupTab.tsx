@@ -1,16 +1,14 @@
 import { ChevronDown, SquareArrowOutUpRight } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BLOCKS } from '../setup/catalog';
 import { isOpen, progress } from '../setup/progress';
 import type { BlockInfo, Row, Severity } from '../setup/types';
 import { CollapsibleCard } from './CollapsibleCard';
-import { HintBubble, HintButton } from './Hint';
 import { LoadingBar } from './LoadingBar';
 import { MartIcon } from './MartIcon';
 import { ProgressBar, ProgressLegend } from './ProgressBar';
 import { FieldHelp } from './FieldHelp';
-import { MarkdownText } from './MarkdownText';
 import { ContextIcon, SetupRow } from './SetupRow';
 
 export interface SetupTabProps {
@@ -18,7 +16,7 @@ export interface SetupTabProps {
   /** Staged choices: row id to option id; 'dismiss' stands for dismissing a notice. */
   picked: Record<string, string>; onPick: (rowId: string, optionId: string | null) => void;
   dirty: number; saving: boolean; onSave: () => void; onDiscard: () => void;
-  /** The rows not done in the saved settings: they show the radio list and seed their hint open. */
+  /** The rows not done in the saved settings: they show the radio list. */
   savedOpen: ReadonlySet<string>;
   /** For a row with a staged pick: the row as that pick ran against it. Its radios, their order and the recommendation come from here. */
   optionRows?: Record<string, Row>;
@@ -44,12 +42,12 @@ export function SetupSaveControls({ dirty, saving, onSave, onDiscard }: Pick<Set
   );
 }
 
+/** The blocks whose groups are bordered cells in a grid. */
+const isGrid = (id: string) => id === 'teams' || id === 'metrics';
 const ORDER: Severity[] = ['error', 'warning', 'notice'];
 const WORD: Record<Severity, [string, string]> = { error: ['blocker', 'blockers'], warning: ['recommended', 'recommended'], notice: ['notice', 'notices'] };
 
-function Block({ info, rows, folded, hintOpen, onHint, attention, children }: { info: BlockInfo; rows: Row[]; folded: boolean; hintOpen: boolean; onHint: () => void; attention: boolean; children: React.ReactNode }) {
-  const anchor = useRef<HTMLButtonElement>(null);
-  const hintId = useId();
+function Block({ info, rows, folded, attention, children }: { info: BlockInfo; rows: Row[]; folded: boolean; attention: boolean; children: React.ReactNode }) {
   const open = rows.filter(isOpen);
   const worst = ORDER.find((s) => open.some((r) => r.severity === s));
   const n = worst ? open.filter((r) => r.severity === worst).length : 0;
@@ -58,8 +56,7 @@ function Block({ info, rows, folded, hintOpen, onHint, attention, children }: { 
   const label = worst ? `${n} ${WORD[worst][n === 1 ? 0 : 1]} left` : 'All set';
   return (
     <CollapsibleCard variant="band" icon={info.icon} iconSeverity={tint} iconLabel={label} label={info.title} collapsed={folded} attention={attention}
-      title={<span className="gy-setup-title"><span className="gy-setup-name">{info.title}</span><HintButton title={info.title} id={hintId} open={hintOpen} onToggle={onHint} anchor={anchor} /></span>}
-      hint={<HintBubble id={hintId} open={hintOpen} anchor={anchor}>{`${info.question} ${info.why}`}</HintBubble>}>
+      title={<span className="gy-setup-title"><span className="gy-setup-name">{info.title}</span><FieldHelp label={info.title} description={`${info.question} ${info.why}`} /></span>}>
       {children}
     </CollapsibleCard>
   );
@@ -74,12 +71,6 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
   // the row a jump is heading for; its block opens through the card's `attention`, then the effect opens its group and focuses it
   const [target, setTarget] = useState<Row | null>(null);
   const jump = (s: Severity) => setTarget(eff.find((r) => isOpen(r) && r.severity === s) ?? null);
-  // a hint opens when its row or block was unanswered when first seen; after that only clicks toggle it
-  const seed = useRef(new Map<string, boolean>());
-  const [clicked, setClicked] = useState<Record<string, boolean>>({});
-  const seeded = (id: string, initial: boolean) => { if (!seed.current.has(id)) seed.current.set(id, initial); return seed.current.get(id)!; };
-  const hintOpen = (id: string, initial: boolean) => clicked[id] ?? seeded(id, initial);
-  const toggle = (id: string, initial: boolean) => setClicked((c) => ({ ...c, [id]: !(c[id] ?? seeded(id, initial)) }));
   useEffect(() => {
     if (!target) return;
     const el = [...document.querySelectorAll<HTMLElement>('[data-row-id]')].find((e) => e.dataset.rowId === target.id);
@@ -94,7 +85,6 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
   }, [target]);
   const renderRow = (r: Row, inCell = false) => (
     <SetupRow key={r.id} row={r} readOnly={readOnly} picked={picked[r.id]} unset={savedOpen.has(r.id)} optionRow={optionRows?.[r.id]} saving={saving} saveCount={saveCount} martIcons={martIcons} inCell={inCell}
-      hintOpen={hintOpen(r.id, savedOpen.has(r.id))} onHint={() => toggle(r.id, savedOpen.has(r.id))}
       onPick={(o) => onPick(r.id, o)} onRetry={onRetry} onOpen={onOpen} />
   );
   const counts = progress(eff);
@@ -125,20 +115,19 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
         const groups = [...new Set(mine.filter((r) => r.group).map((r) => r.group!))];
         const loose = mine.filter((r) => !r.group);
         const initial = mine.some((r) => savedOpen.has(r.id));
-        const id = `block:${b.id}`;
         const cells = groups.map((g) => {
           const inGroup = mine.filter((r) => r.group === g);
           const gid = inGroup.find((r) => r.groupId)?.groupId;
           const gdesc = inGroup.find((r) => r.groupDescription)?.groupDescription;
           const glink = inGroup.find((r) => r.groupLink)?.groupLink;
-          const cell = b.id === 'teams';
+          const cell = isGrid(b.id);
           return (
             <details key={g} className={cell ? 'gy-setup-group gy-setup-cell' : 'gy-setup-group'} open={inGroup.some((r) => savedOpen.has(r.id))}>
               <summary>
                 {gid !== undefined ? <span className="gy-setup-group-icon" aria-hidden="true"><MartIcon icon={martIcons?.[gid] ?? null} size={16} aria-hidden="true" /></span> : <ContextIcon />}
                 <span className="gy-setup-group-name">{g}</span>
                 {cell && (gdesc || (glink && onOpen)) && <span className="gy-ctx-tools">
-                  <FieldHelp label={g} description={gdesc && <MarkdownText text={gdesc} />} />
+                  <FieldHelp label={g} description={gdesc} onMore={glink && onOpen ? () => onOpen(glink) : undefined} />
                   {glink && onOpen && <button type="button" className="gy-row-link" aria-label={`Open ${g} in OWOX`} title={`Open ${g} in OWOX`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(glink); }}><SquareArrowOutUpRight size={14} aria-hidden="true" /></button>}
                 </span>}
                 <ChevronDown size={12} className="gy-setup-group-chevron" aria-hidden="true" />
@@ -148,9 +137,9 @@ export function SetupTab({ rows, loading, readOnly, message, picked, onPick, sav
           );
         });
         return (
-          <Block key={b.id} info={b} rows={mine} folded={!initial} hintOpen={hintOpen(id, initial)} onHint={() => toggle(id, initial)} attention={target?.block === b.id}>
+          <Block key={b.id} info={b} rows={mine} folded={!initial} attention={target?.block === b.id}>
             {loose.map((r) => renderRow(r))}
-            {b.id === 'teams' ? <div className="gy-setup-groups">{cells}</div> : cells}
+            {isGrid(b.id) ? <div className="gy-setup-groups">{cells}</div> : cells}
           </Block>
         );
       })}

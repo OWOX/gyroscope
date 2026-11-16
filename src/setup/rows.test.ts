@@ -88,11 +88,34 @@ describe('rows over a connected project', () => {
     expect(BLOCKS.find((b) => b.id === 'goal')!.title).toBe('Goal & Core Classes');
   });
 
-  test('core: the recommended set is a candidate, and choosing every candidate completes the row', () => {
+  test('core: a checkbox per candidate with the recommended ones marked, and checking every candidate completes the row', () => {
     const r = byId(rows(), 'core.classes');
-    expect(r).toMatchObject({ state: 'open', current: null });
-    expect(rec(r)).toBe('core:customers');
+    expect(r).toMatchObject({ state: 'open', current: null, options: [] });
+    expect(r.multi!.items).toMatchObject([{ path: 'customers', label: 'Customers', martId: 'customers', icon: 'mart', recommended: true, link: '/ui/p1/data-marts/customers/data-setup' }]);
+    expect(r.multi).toMatchObject({ max: 7, checked: [] });
     expect(byId(rows({ ...filled, coreClasses: ['customers'] }), 'core.classes').state).toBe('done');
+  });
+
+  test('core: Save writes the checked classes in checkbox order, an unknown id or more than 7 is refused, unchecking all writes []', () => {
+    const m = byId(rows({ ...filled, coreClasses: ['customers'] }), 'core.classes').multi!;
+    const run = (paths: string[]) => { const a = m.action(paths); return a?.kind === 'set' ? a.next({ ...filled, coreClasses: ['customers'] }).coreClasses : a; };
+    expect(run([])).toEqual([]);
+    expect(run(['customers'])).toEqual(['customers']);
+    expect(run(['nope'])).toBeUndefined();
+    expect(m.action(Array.from({ length: 8 }, (_, i) => `c${i}`))).toBeUndefined();
+  });
+
+  test('core: chosen classes come first in saved order, then the other candidates; a chosen id outside the candidates is listed', () => {
+    const r = byId(rows({ ...filled, coreClasses: ['orders', 'gone'] }), 'core.classes');
+    expect(r.multi!.items.map((i) => i.path)).toEqual(['orders', 'gone', 'customers']);
+    expect(r.multi!.items.find((i) => i.path === 'customers')!.recommended).toBe(true);
+    expect(r.state).toBe('broken');
+  });
+
+  test('core: with no candidates the row keeps its "Not available yet" link and has no checkboxes', () => {
+    const r = byId(buildRows(input(EMPTY_SETUP, [])), 'core.classes');
+    expect(r.multi).toBeUndefined();
+    expect(r.options).toMatchObject([{ id: 'none', action: { kind: 'open', path: '/ui/p1/data-marts' } }]);
   });
 
   test('class rows exist only with a model; the goal and core classes are warnings, others notices', () => {
@@ -114,7 +137,7 @@ describe('rows over a connected project', () => {
     for (const o of only) expect(o.linkLabel).toMatch(/^Orders · /);
     const multi = picks.find((o) => o.id.includes(','));
     if (multi) { expect(multi.link).toBe('/ui/p1/data-marts/orders/data-setup'); expect(multi.linkLabel).toBe('Orders'); }
-    expect(byId(rows({ ...filled, coreClasses: ['orders'] }), 'core.classes').options.find((o) => o.id === 'core:-orders')!.linkLabel).toBe('Orders');
+    expect(byId(rows({ ...filled, coreClasses: ['orders'] }), 'core.classes').multi!.items.find((i) => i.path === 'orders')!.linkLabel).toBe('Orders');
   });
 
   test('a saved shown number gets a plan row and a format row recommending percent for a rate', () => {
@@ -131,7 +154,7 @@ describe('rows over a connected project', () => {
     if (add.action.kind !== 'set') throw new Error();
     const withRatio = add.action.next(filled);
     const all = [...rows(), ...rows({ ...filled, coreClasses: ['orders'] }), ...rows(withRatio)].flatMap((r) => r.options.filter((o) => o.link).map((o) => ({ r: r.id, o })));
-    for (const k of ['core:+', 'core:-', 'ratio:add', 'ratio:remove', 'shown:', 'field:', 'metric:']) expect(all.some(({ o }) => o.id.startsWith(k)), k).toBe(true);
+    for (const k of ['ratio:add', 'ratio:remove', 'shown:', 'field:', 'metric:']) expect(all.some(({ o }) => o.id.startsWith(k)), k).toBe(true);
     expect(all.length).toBeGreaterThan(5);
     for (const { r, o } of all) { expect(o.martId, `${r} ${o.id}`).toBeTruthy(); expect(o.link, `${r} ${o.id}`).toContain(`/data-marts/${encodeURIComponent(o.martId!)}/`); }
   });
@@ -255,7 +278,7 @@ describe('rows by block', () => {
     g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: 'Closes **deals**' }, { id: 'c2', name: 'Marketing', description: null }];
     const a = buildRows({ ...input(filled), graph: g });
     expect(byId(a, 'teams.exist').state).toBe('done');
-    expect(byId(a, 'teams.exist').title).toBe('Contexts That Move the Goal');
+    expect(byId(a, 'teams.exist').title).toBe('Contexts That Move the Needle');
     expect(BLOCKS.find((b) => b.id === 'teams')!.title).toBe('Contexts');
     expect(a.filter((r) => r.block === 'teams').map((r) => `${r.title} ${r.question} ${r.why}`).join(' ')).not.toMatch(/\b[Tt]eams?\b/);
     expect(byId(a, 'team:c1.metric')).toMatchObject({ title: 'Sales Critical Number', group: 'Sales', severity: 'warning' });
@@ -265,6 +288,35 @@ describe('rows by block', () => {
     expect(byId(a, 'team:c1.plan')).toMatchObject({ groupDescription: 'Closes **deals**', groupLink: '/ui/p1/project-settings/contexts?context=c1' });
     expect(byId(a, 'team:c2.plan').groupDescription).toBeUndefined();
     expect(byId(a, 'team:c2.description').options[0]!.action).toMatchObject({ kind: 'append', scope: { contextId: 'c2' } });
+  });
+
+  test('needle contexts: a checkbox per OWOX context, all checked while null; unchecked contexts have no rows', () => {
+    const g = graph([{ ...orders, contexts: [{ id: 'c1', name: 'Sales' }] }]);
+    g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: 'Closes **deals**' }, { id: 'c2', name: 'Marketing', description: null }];
+    const all = byId(buildRows({ ...input(filled), graph: g }), 'teams.exist');
+    expect(all.multi).toMatchObject({ checked: ['c1', 'c2'] });
+    expect(all.multi!.items).toMatchObject([{ path: 'c1', label: 'Sales', icon: 'context', description: 'Closes **deals**', link: '/ui/p1/project-settings/contexts?context=c1' }, { path: 'c2', label: 'Marketing', icon: 'context' }]);
+    expect(all.multi!.items[1]!.description).toBeUndefined();
+    const a = buildRows({ ...input({ ...filled, needleContexts: ['c1', 'ghost'] }), graph: g });
+    const t = byId(a, 'teams.exist');
+    expect(t).toMatchObject({ state: 'open', currentList: ['Sales'], current: 'Sales' });
+    expect(t.multi!.checked).toEqual(['c1']);
+    expect(a.some((r) => r.id.startsWith('team:c2'))).toBe(false);
+    expect(a.some((r) => r.id.startsWith('team:c1'))).toBe(true);
+    const none = buildRows({ ...input({ ...filled, needleContexts: [] }), graph: g });
+    expect(none.some((r) => r.id.startsWith('team:'))).toBe(false);
+    expect(byId(none, 'teams.exist').current).toBeNull();
+  });
+
+  test('needle contexts: Save writes null when every context is checked, else the checked ids in context order', () => {
+    const g = graph([orders]);
+    g.inputs.contexts = [{ id: 'c1', name: 'Sales', description: null }, { id: 'c2', name: 'Marketing', description: null }];
+    const m = byId(buildRows({ ...input(filled), graph: g }), 'teams.exist').multi!;
+    const run = (paths: string[], from = filled) => { const a = m.action(paths); return a?.kind === 'set' ? a.next(from).needleContexts : a; };
+    expect(run(['c2', 'c1'], { ...filled, needleContexts: ['c1'] })).toBeNull();
+    expect(run(['c2'])).toEqual(['c2']);
+    expect(run([])).toEqual([]);
+    expect(m.action(['ghost'])).toBeUndefined();
   });
 
   test('a saved threshold recommends itself, a custom one becomes an option', () => {
@@ -299,7 +351,7 @@ describe('rows by block', () => {
     const rows = buildRows(input(EMPTY_SETUP, [orders]));
     expect(byId(rows, 'goal.metric').options.find((o) => o.id === 'field:orders:revenue')!.link).toBe('/ui/p1/data-marts/orders/data-setup?field=revenue');
     expect(byId(rows, 'goal.date').options[0]!.link).toMatch(/^\/ui\/p1\/data-marts\/orders\/data-setup\?field=/);
-    expect(byId(buildRows(input({ ...EMPTY_SETUP, coreClasses: ['orders'] }, [orders, customers])), 'core.classes').options.find((o) => o.id === 'core:-orders')!.link).toBe('/ui/p1/data-marts/orders/data-setup');
+    expect(byId(buildRows(input({ ...EMPTY_SETUP, coreClasses: ['orders'] }, [orders, customers])), 'core.classes').multi!.items.find((i) => i.path === 'orders')!.link).toBe('/ui/p1/data-marts/orders/data-setup');
   });
 });
 
@@ -516,4 +568,14 @@ describe('the numbers on the card are checkboxes', () => {
     const saved = { ...filled, classes: { orders: { keyMetricId: null, shown: [choice('items'), choice('tax')] } } };
     expect(apply(shownRow(saved), ['tax', 'items'], saved)).toBe(saved);
   });
+});
+
+test('a class group carries the Data Mart page link and its description, for the (?) and link icon on its label', () => {
+  const g = graph([orders]);
+  g.inputs.marts[0] = { ...g.inputs.marts[0]!, description: 'Every **order**' };
+  const s = { ...EMPTY_SETUP, goal, updatedAt: 't' };
+  const d = deriveModel(s, g);
+  const rows = buildRows({ settings: s, graph: g, model: d.ok ? d.model : null, legacyCore: [], projectId: 'p1', hasAi: false, ai: {}, aiPending: new Set() }).filter((r) => r.groupId === 'orders');
+  expect(rows.length).toBeGreaterThan(1);
+  for (const r of rows) expect(r).toMatchObject({ groupLink: '/ui/p1/data-marts/orders/data-setup', groupDescription: 'Every **order**' });
 });

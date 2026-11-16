@@ -18,6 +18,7 @@ export function metricRows(ctx: Ctx): Row[] {
     const node = ctx.byId.get(cl.id);
     if (!node) continue;
     const vars = { Class: cl.title };
+    const from = rows.length;
     const saved = s.classes[cl.id];
     const important = rank(cl.id) < 2;
     const write = (f: (cur: { keyMetricId: string | null; shown: MetricChoice[] }) => { keyMetricId: string | null; shown: MetricChoice[] }) => (x: ProjectSettingsV5): ProjectSettingsV5 => ({ ...x, classes: { ...x.classes, [cl.id]: f(x.classes[cl.id] ?? { keyMetricId: null, shown: [] }) } });
@@ -84,6 +85,10 @@ export function metricRows(ctx: Ctx): Row[] {
         options: order.map((f) => setOption(`format:${f}`, FORMATS[f], (x) => ({ ...x, formats: { ...x.formats, [mid]: { format: f, currency: f === 'currency' ? fr.currency : null } } }))),
       }));
     }
+    // the class label gets the Data Mart's (?) and link, as a context's does
+    const mdesc = ctx.graph.inputs.marts.find((m) => m.id === cl.id)?.description;
+    const gi = { groupLink: martPage(ctx, cl.id), ...(mdesc ? { groupDescription: mdesc } : {}) };
+    for (let i = from; i < rows.length; i++) rows[i] = { ...rows[i]!, ...gi };
   }
   return rows;
 }

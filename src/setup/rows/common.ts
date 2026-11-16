@@ -78,10 +78,10 @@ export function fieldCheck(ctx: Ctx, martId: string, paths: (string | null)[]): 
 export const noneOption = (ctx: Ctx, label = 'Not available yet: add a Data Mart with a number field'): Option => ({ id: 'none', label, recommended: true, action: { kind: 'open', path: dataMartPage(ctx) } });
 
 /** Marks exactly one option recommended: the AI's pick when it names a real option, else the first. */
-export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string): { options: Option[] } {
+export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string, multi = false): { options: Option[] } {
   const seen = new Set<string>();
   const uniq = options.filter((o) => !seen.has(o.id) && !!seen.add(o.id));
-  if (!uniq.length) return { options: [noneOption(ctx, none)] };
+  if (!uniq.length) return { options: multi ? [] : [noneOption(ctx, none)] };
   const want = ctx.ai[id];
   const pick = uniq.some((o) => o.id === want) ? want : uniq[0]!.id;
   return { options: uniq.map((o) => ({ ...o, recommended: o.id === pick })) };
@@ -94,7 +94,7 @@ export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Re
   // a broken saved value counts 🟡 unless the row is a blocker
   const severity: Severity = rest.state === 'broken' && base !== 'error' ? 'warning' : base;
   const { options, none, severity: _s, ...more } = rest;
-  return { id, block, title: fill(c.title, vars), question: fill(c.question, vars), why: fill(c.why, vars), aiPending: ctx.aiPending.has(id), dismissable: severity === 'notice', ...more, severity, ...recommend(ctx, id, options, none) };
+  return { id, block, title: fill(c.title, vars), question: fill(c.question, vars), why: fill(c.why, vars), aiPending: ctx.aiPending.has(id), dismissable: severity === 'notice', ...more, severity, ...recommend(ctx, id, options, none, !!rest.multi) };
 }
 
 export const fieldOption = (ctx: Ctx, c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: fieldLabel(c.martTitle, c.label), action: set(next), link: martPage(ctx, c.martId, c.path), linkLabel: fieldLabel(c.martTitle, c.label), martId: c.martId, ...(c.description ? { description: c.description } : {}) });

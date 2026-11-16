@@ -160,6 +160,8 @@ export interface ProjectSettingsV5 {
   v: 5;
   goal: (MetricChoice & { plan: PlanDef | null }) | null;
   coreClasses: string[];
+  /** The contexts that move the needle; null means every context counts. */
+  needleContexts: string[] | null;
   contexts: Record<string, { metric: MetricChoice | null; plan: PlanDef | null }>;
   classes: Record<string, { keyMetricId: string | null; shown: MetricChoice[] }>;
   plans: Record<string, PlanDef>;

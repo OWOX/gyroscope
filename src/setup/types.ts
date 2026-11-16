@@ -23,10 +23,10 @@ export interface Option { id: string; label: string; recommended: boolean; actio
   martId?: string;
   /** The schema description of the field this option names. */
   description?: string }
-/** One checkbox of a multi-pick row: a Data Mart field. */
-export interface MultiItem { path: string; label: string; martId: string; recommended: boolean; description?: string; link?: string; linkLabel?: string }
-/** A row that picks a set of fields with checkboxes; a pick's option id is `shown:set:<path>|<path>`. */
-export interface Multi { max: number; items: MultiItem[]; checked: string[]; action: (paths: string[]) => Action | undefined }
+/** One checkbox of a multi-pick row: a Data Mart field, a Data Mart or a context (`path` is its id). `icon` says which icon `martId` or none stands for. */
+export interface MultiItem { path: string; label: string; martId?: string; icon?: 'mart' | 'context'; recommended: boolean; description?: string; link?: string; linkLabel?: string }
+/** A row that picks a set with checkboxes; a pick's option id is `set:` and the checked ids as a JSON array. */
+export interface Multi { max?: number; items: MultiItem[]; checked: string[]; action: (paths: string[]) => Action | undefined }
 export interface Row {
   id: string;                 // e.g. 'goal.metric', 'team:<ctxId>.plan', 'class:<martId>.key', 'metric:<metricId>.format', 'ratio:<id>', 'check.goal.pk'
   block: BlockId;

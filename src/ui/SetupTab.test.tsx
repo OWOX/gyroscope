@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, test, vi } from 'vitest';
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -74,31 +75,84 @@ test('a broken row keeps its saved value as the first radio and explains itself 
   expect(screen.getByRole('radio', { name: 'Keep Orders · revenue_old' })).toBeChecked();
 });
 
-describe('hints', () => {
-  test('open for an unset row, closed for a set row, and (?) toggles with aria-expanded', () => {
-    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'goal', title: 'Entities', state: 'done', current: 'Orders' })])} />);
-    const unset = screen.getByRole('button', { name: 'About Business Critical Number' });
-    const set = screen.getByRole('button', { name: 'About Entities', hidden: true });
-    expect(unset).toHaveAttribute('aria-expanded', 'true');
-    expect(set).toHaveAttribute('aria-expanded', 'false');
-    expect(document.getElementById(unset.getAttribute('aria-controls')!)).toHaveTextContent('What is the main business goal? Every card is judged by how it moves this number.');
-    fireEvent.click(unset);
-    expect(unset).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(set);
-    expect(set).toHaveAttribute('aria-expanded', 'true');
-  });
-  test('a block hint is open when any of its rows is, and the block header no longer carries the question', () => {
-    render(<SetupTab {...props([row({}), row({ id: 'b', block: 'ratios', title: 'Entities', state: 'done', current: 'Orders' })])} />);
-    expect(screen.getByRole('button', { name: 'About Goal & Core Classes' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: 'About Ratio Metrics', hidden: true })).toHaveAttribute('aria-expanded', 'false');
-    expect(document.querySelector('.gy-setup-why, .gy-setup-sub')).toBeNull();
-  });
-  test('staged choices do not reopen or close a hint', () => {
-    const { rerender } = render(<SetupTab {...props([row({})])} />);
+describe('tooltips', () => {
+  const tipOf = (btn: HTMLElement) => document.getElementById(btn.getAttribute('aria-controls')!);
+  test('every (?) starts closed, opens on click, closes on a second click, Escape or a click outside', () => {
+    const { container } = render(<SetupTab {...props([row({}), row({ id: 'b', title: 'Entities', state: 'done', current: 'Orders' })])} />);
     const btn = screen.getByRole('button', { name: 'About Business Critical Number' });
+    expect(btn).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'About Goal & Core Classes' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    fireEvent.click(btn);
     expect(btn).toHaveAttribute('aria-expanded', 'true');
-    rerender(<SetupTab {...props([row({ state: 'done', current: 'Orders · profit' })], { picked: { 'goal.metric': 'b' }, savedOpen: new Set(['goal.metric']) })} />);
-    expect(screen.getByRole('button', { name: 'About Business Critical Number', hidden: true })).toHaveAttribute('aria-expanded', 'true');
+    const tip = tipOf(btn)!;
+    expect(tip).toHaveAttribute('role', 'tooltip');
+    expect(tip).toHaveTextContent('What is the main business goal? Every card is judged by how it moves this number.');
+    // portalled out of the block: it is never in the document flow
+    expect(container.querySelector('.dm-collapsible')!.contains(tip)).toBe(false);
+    expect(tip.closest('.dm-collapsible-clip')).toBeNull();
+    fireEvent.click(btn);
+    expect(btn).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    fireEvent.click(btn);
+    fireEvent.keyDown(btn, { key: 'Escape' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    fireEvent.click(btn);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+  test('hovering or focusing the (?) opens nothing', () => {
+    render(<SetupTab {...props([row({})])} />);
+    const btn = screen.getByRole('button', { name: 'About Business Critical Number' });
+    fireEvent.mouseEnter(btn); fireEvent.focus(btn);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+  test('a new unset row has no tooltip open, and there are no in-flow hint boxes', () => {
+    const { container } = render(<SetupTab {...props([row({ state: 'done', current: 'x' }), row({ id: 'new', block: 'metrics', title: 'Fresh Row' })])} />);
+    expect(screen.getByRole('button', { name: 'About Fresh Row' })).toHaveAttribute('aria-expanded', 'false');
+    expect(container.querySelector('.gy-hintbox, .gy-hint')).toBeNull();
+  });
+  test('opening one tooltip closes another', () => {
+    render(<SetupTab {...props([row({}), row({ id: 'b', title: 'Other', options: [set('x', 'X')] })])} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Business Critical Number' }));
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'About Other' }));
+    fireEvent.click(screen.getByRole('button', { name: 'About Other' }));
+    expect(screen.getAllByRole('tooltip')).toHaveLength(1);
+  });
+  test('a long description with a page link is clamped, with Show more opening the page; short or link-less text has none', () => {
+    const sh = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(500);
+    const onOpen = vi.fn();
+    const rows = [row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', groupLink: '/ui/p/project-settings/contexts?context=m', groupDescription: 'Long text', state: 'done', current: 'x' })];
+    const { unmount } = render(<SetupTab {...props(rows, { onOpen, savedOpen: new Set(['team:m.metric']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Marketing' }));
+    expect(document.querySelector('.gy-tip-content')).toHaveAttribute('data-clamp');
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(onOpen).toHaveBeenCalledWith('/ui/p/project-settings/contexts?context=m');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    unmount();
+    render(<SetupTab {...props(rows.map((r) => ({ ...r, groupLink: undefined })), { onOpen, savedOpen: new Set(['team:m.metric']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Marketing' }));
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+    expect(document.querySelector('.gy-tip-content')).not.toHaveAttribute('data-clamp');
+    sh.mockRestore();
+  });
+  test('the clamp is cut at the bottom of the last whole line, so no half line shows above Show more', () => {
+    const spies = [
+      vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(500),
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100),
+      vi.spyOn(Range.prototype, 'getClientRects').mockReturnValue([18, 36, 54, 72, 90, 108].map((bottom) => ({ top: bottom - 18, bottom })) as never),
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) }),
+    ];
+    render(<SetupTab {...props([row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', groupLink: '/x', groupDescription: 'Long text', state: 'done', current: 'x' })], { savedOpen: new Set(['team:m.metric']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Marketing' }));
+    expect((document.querySelector('.gy-tip-content') as HTMLElement).style.maxHeight).toBe('90px');
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument();
+    spies.forEach((x) => x.mockRestore());
+  });
+  test('a tooltip that fits shows no Show more', () => {
+    render(<SetupTab {...props([row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', groupLink: '/x', groupDescription: 'Short', state: 'done', current: 'x' })], { savedOpen: new Set(['team:m.metric']) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'About Marketing' }));
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
   });
 });
 
@@ -305,12 +359,11 @@ test('picking the last open row of a group keeps the group open and the block un
   expect(document.querySelector('[data-row-id="b"]')!.closest('.dm-collapsible')).toHaveAttribute('data-folded', 'false');
 });
 
-test('a row that appears because of a pick is unset: radios and an open hint', () => {
+test('a row that appears because of a pick is unset: radios', () => {
   const { rerender } = render(<SetupTab {...props([row({ state: 'done', current: 'x' })], { savedOpen: new Set() })} />);
   const fresh = row({ id: 'new', block: 'metrics', title: 'Fresh Row' });
   rerender(<SetupTab {...props([row({ state: 'done', current: 'x' }), fresh], { savedOpen: new Set(['new']) })} />);
   expect(screen.getByRole('radiogroup', { name: 'Fresh Row' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'About Fresh Row' })).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('a link-only row shows no radios and no Edit pencil, just the value and the links', () => {
@@ -368,7 +421,7 @@ test('Add can switch straight to Skip: the radios come from the row the pick ran
   expect(p.onPick).toHaveBeenCalledWith('ratio:x', 'ratio:skip');
 });
 
-test('rows that exist only in the draft open their block and seed its hint open', () => {
+test('rows that exist only in the draft open their block', () => {
   const goal = row({ state: 'done', current: 'x' });
   const { rerender, container } = render(<SetupTab {...props([goal], { savedOpen: new Set() })} />);
   const a = row({ id: 'm1', block: 'metrics', title: 'Fresh One' });
@@ -376,7 +429,6 @@ test('rows that exist only in the draft open their block and seed its hint open'
   rerender(<SetupTab {...props([goal, b, a], { savedOpen: new Set(['m1']) })} />);
   const card = (name: string) => container.querySelector(`.dm-collapsible[aria-label="${name}"]`)!;
   expect(card('Metrics')).toHaveAttribute('data-folded', 'false');
-  expect(screen.getByRole('button', { name: 'About Metrics' })).toHaveAttribute('aria-expanded', 'true');
   expect(card('Ratio Metrics')).toHaveAttribute('data-folded', 'true');
   // a folded block gains an unset row
   rerender(<SetupTab {...props([goal, { ...b, state: 'open', current: null }, a], { savedOpen: new Set(['m1', 'c1']) })} />);
@@ -389,14 +441,6 @@ test('a Data Mart group shows the mart icon, the default when it has none', () =
   const [orders, ads] = [...container.querySelectorAll('details.gy-setup-group')];
   expect(orders!.querySelector('summary .gy-setup-group-icon svg')).toHaveClass('lucide-receipt');
   expect(ads!.querySelector('summary .gy-setup-group-icon svg')).toHaveClass('lucide-box');
-});
-
-test('the Setup hint bubble carries gy-hintbox, never the canvas gy-hint', () => {
-  const { container } = render(<SetupTab {...props([row({})])} />);
-  const bubbles = container.querySelectorAll('.gy-hintbox');
-  expect(bubbles.length).toBeGreaterThan(0);
-  expect(container.querySelector('.gy-hint')).toBeNull();
-  expect(container.querySelector('[class*="gy-hint "], [class$="gy-hint"]')).toBeNull();
 });
 
 test('a link-only notice offers Not set and Not needed next to its link, and Not needed stages a dismiss', () => {
@@ -548,9 +592,9 @@ describe('an option that points at a Data Mart', () => {
     const name = screen.getByRole('radio', { name: 'Orders · revenue Recommended' });
     expect(name.getAttribute('id')).toBe(label.getAttribute('for'));
     expect(screen.queryByRole('radio', { name: /Open/ })).toBeNull();
-    // an option without a Data Mart has no icon of its own, only the reserved width
+    // an option without a Data Mart has no icon and no reserved width
     expect(document.querySelector('label[for$="-g"] svg')).toBeNull();
-    expect(document.querySelector('label[for$="-g"] .gy-opt-gap')).not.toBeNull();
+    expect(document.querySelector('label[for$="-g"] .gy-opt-gap')).toBeNull();
   });
 
   test('clicking the link inside a label opens the page and leaves the radio unchecked', () => {
@@ -673,12 +717,14 @@ describe('the option search dropdown', () => {
 });
 
 describe('layout', () => {
-  test('the Contexts block lays its context groups out in a grid; other blocks keep a single column', () => {
-    const rows = [row({ id: 'team:a.metric', block: 'teams', group: 'Sales' }), row({ id: 'team:b.metric', block: 'teams', group: 'Marketing' }), row({ id: 'class:o.key', block: 'metrics', group: 'Orders' })];
+  test('the Contexts and Metrics blocks lay their groups out as bordered cells in a grid; other blocks keep a single column', () => {
+    const rows = [row({ id: 'team:a.metric', block: 'teams', group: 'Sales' }), row({ id: 'team:b.metric', block: 'teams', group: 'Marketing' }), row({ id: 'class:o.key', block: 'metrics', group: 'Orders', title: 'Orders Headline Number' })];
     const { container } = render(<SetupTab {...props(rows)} />);
     const grid = container.querySelector('.dm-collapsible[aria-label="Contexts"] .gy-setup-groups')!;
     expect(grid.querySelectorAll(':scope > details.gy-setup-group')).toHaveLength(2);
-    expect(container.querySelector('.dm-collapsible[aria-label="Metrics"] .gy-setup-groups')).toBeNull();
+    const metrics = container.querySelector('.dm-collapsible[aria-label="Metrics"] .gy-setup-groups')!;
+    expect(metrics.querySelectorAll(':scope > details.gy-setup-cell')).toHaveLength(1);
+    expect(metrics.querySelector('.gy-row-title-plain')!.textContent).toBe('Headline Number');
   });
 
   test('the option list is portalled out of the collapsible clip', () => {
@@ -732,9 +778,9 @@ describe('Data Mart field icon, checkboxes and descriptions', () => {
     const p = props([shownRow({ multi: { ...shownRow().multi!, checked: ['c'] } })]);
     render(<SetupTab {...p} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /tax/ }));
-    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:b|c');
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', `set:${JSON.stringify(['b', 'c'])}`);
     fireEvent.click(screen.getByRole('checkbox', { name: /tips/ }));
-    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:');
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'set:[]');
     fireEvent.click(screen.getByRole('button', { name: 'No extra numbers' }));
     expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:none');
   });
@@ -754,15 +800,16 @@ describe('Data Mart field icon, checkboxes and descriptions', () => {
     fireEvent.focus(box);
     fireEvent.change(box, { target: { value: 'f13' } });
     fireEvent.mouseDown(screen.getByRole('option', { name: /f13/ }));
-    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:f13');
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', `set:${JSON.stringify(['f13'])}`);
   });
 
   test('a field with a description gets a (?) with a tooltip, glued to the last word of its label, and a click does not pick; one without gets none', () => {
     const p = props([shownRow(), row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'Net of refunds' }, set('b', 'Orders · profit')] })]);
     render(<SetupTab {...p} />);
     const help = screen.getByRole('button', { name: 'About Orders · items' });
-    expect(document.getElementById(help.getAttribute('aria-describedby')!)).toHaveTextContent('Units sold');
-    expect(help.closest('.gy-radio-tail, .gy-row-value')).not.toBeNull();
+    fireEvent.click(help);
+    expect(document.getElementById(help.getAttribute('aria-controls')!)).toHaveTextContent('Units sold');
+    expect(help.closest('.gy-radio-tools, .gy-row-value')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'About Orders · tax' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'About Orders · revenue' }));
     expect(p.onPick).not.toHaveBeenCalled();
@@ -782,22 +829,20 @@ describe('0.5.4 fixes', () => {
   const openOther = row({ id: 'other', block: 'metrics', title: 'Other', options: [set('x', 'X')] });
   const tip = (container: HTMLElement) => container.querySelector('.gy-fieldtip-body') as HTMLElement;
 
-  test('the field tooltip floats outside the collapsible clip, opens on hover and focus, and Escape closes it', () => {
+  test('the field tooltip floats outside the collapsible clip, opens on click only, and Escape closes it', () => {
     const p = props([row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'Net of refunds' }, set('b', 'Orders · profit')] })]);
     const { container } = render(<SetupTab {...p} />);
+    const help = screen.getByRole('button', { name: 'About Orders · revenue' });
+    expect(tip(container)).toBeNull();
+    fireEvent.mouseEnter(help); fireEvent.focus(help);
+    expect(tip(container)).toBeNull();
+    fireEvent.click(help);
     const t = tip(container);
+    expect(t).toHaveAttribute('role', 'tooltip');
     expect(t.closest('.dm-collapsible-clip')).toBeNull();
     expect(t.closest('.dm-page, .gy-setup, body')).not.toBeNull();
-    expect(t).toHaveAttribute('data-open', 'false');
-    const help = screen.getByRole('button', { name: 'About Orders · revenue' });
-    fireEvent.mouseEnter(help);
-    expect(t).toHaveAttribute('data-open', 'true');
     fireEvent.keyDown(help, { key: 'Escape' });
-    expect(t).toHaveAttribute('data-open', 'false');
-    fireEvent.focus(help);
-    expect(t).toHaveAttribute('data-open', 'true');
-    fireEvent.keyDown(help, { key: 'Escape' });
-    expect(t).toHaveAttribute('data-open', 'false');
+    expect(tip(container)).toBeNull();
   });
 
   test('search items show the (?) for a described option; hovering or clicking it picks nothing, clicking the item does', () => {
@@ -809,7 +854,6 @@ describe('0.5.4 fixes', () => {
     const opt = screen.getByRole('option', { name: /field 5/ });
     const help = within(opt).getByRole('button', { name: 'About Orders · field 5' });
     expect(help).toHaveAttribute('tabindex', '-1');
-    expect(document.getElementById(opt.getAttribute('aria-describedby')!)).toHaveTextContent('Five');
     fireEvent.mouseEnter(help); fireEvent.focus(help);
     fireEvent.mouseDown(help); fireEvent.click(help);
     expect(p.onPick).not.toHaveBeenCalled();
@@ -827,19 +871,19 @@ describe('0.5.4 fixes', () => {
     const p = props([shown(['f0'], { state: 'done', current: 'Orders · f0' })], { savedOpen: new Set(['class:orders.shown']) });
     const { unmount } = render(<SetupTab {...p} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /f0/ }));
-    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:');
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'set:[]');
     unmount();
     const q = props([shown([], { dismissed: true })]);
     render(<SetupTab {...q} />);
     fireEvent.click(screen.getByRole('checkbox', { name: /f2/ }));
-    expect(q.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:f2');
+    expect(q.onPick).toHaveBeenLastCalledWith('class:orders.shown', `set:${JSON.stringify(['f2'])}`);
   });
 
   test('unchecking a staged box back to the saved state removes the pick', () => {
     function S() {
       const [pk, setPk] = useState<Record<string, string>>({});
       const r = shown(['f0']);
-      const live = pk[r.id] ? { ...r, multi: { ...r.multi!, checked: pk[r.id]!.slice('shown:set:'.length).split('|').filter(Boolean) } } : r;
+      const live = pk[r.id] ? { ...r, multi: { ...r.multi!, checked: JSON.parse(pk[r.id]!.slice(4)) as string[] } } : r;
       return <SetupTab {...props([live], { picked: pk, optionRows: pk[r.id] ? { [r.id]: r } : {}, onPick: (id, o) => setPk((x) => { const n = { ...x }; if (o === null) delete n[id]; else n[id] = o; return n; }) })} />;
     }
     render(<S />);
@@ -910,8 +954,8 @@ describe('the Contexts block', () => {
     const onOpen = vi.fn();
     render(<SetupTab {...props(rows, { onOpen })} />);
     const tip = screen.getByRole('button', { name: 'About Marketing' });
-    fireEvent.focus(tip);
-    expect(screen.getByRole('tooltip').querySelector('strong')?.textContent).toBe('in');
+    fireEvent.click(tip);
+    expect(screen.getByRole('dialog').querySelector('strong')?.textContent).toBe('in');
     fireEvent.click(screen.getByRole('button', { name: 'Open Marketing in OWOX' }));
     expect(onOpen).toHaveBeenCalledWith('/ui/p/project-settings/contexts?context=m');
   });
@@ -920,5 +964,189 @@ describe('the Contexts block', () => {
     render(<SetupTab {...props(rows.map((r) => ({ ...r, groupDescription: undefined })))} />);
     expect(screen.queryByRole('button', { name: 'About Marketing' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Open Marketing in OWOX' })).toBeInTheDocument();
+  });
+});
+
+describe('0.5.5 layout', () => {
+  test('an option without a Data Mart ("Not set", "Not needed", "No plan yet") has no icon slot, even where other options have an icon', () => {
+    const iconed = { ...set('a', 'Orders · revenue', true), martId: 'orders' };
+    render(<SetupTab {...props([row({ options: [iconed, set('b', 'No plan yet')], dismissable: true })])} />);
+    const lab = (name: string) => (screen.getByRole('radio', { name }) as HTMLInputElement).labels![0]!;
+    for (const n of ['Not set', 'Not needed', 'No plan yet']) expect(lab(n).querySelector('.gy-opt-gap, svg')).toBeNull();
+    expect(lab('Orders · revenue Recommended').querySelector('svg')).not.toBeNull();
+  });
+});
+
+describe('0.5.5 checkbox rows', () => {
+  const ctxRow = (over: Partial<Row> = {}) => row({
+    id: 'teams.exist', block: 'teams', title: 'Contexts That Move the Needle', severity: 'notice', state: 'open', current: 'Sales', currentList: ['Sales'],
+    options: [{ id: 'teams', label: 'Create Ops and add their Data Marts', recommended: true, action: { kind: 'teams', teams: [] } }, { id: 'open', label: 'Create contexts in OWOX', recommended: false, action: { kind: 'open', path: '/x' } }],
+    multi: { checked: ['c:1', 'c-2'], action: () => undefined, items: [
+      { path: 'c:1', label: 'Sales', icon: 'context', recommended: false, description: 'Closes deals', link: '/ui/p/contexts?context=c%3A1' },
+      { path: 'c-2', label: 'Marketing', icon: 'context', recommended: false },
+      { path: 'c.3', label: 'Support', icon: 'context', recommended: false }] }, ...over });
+
+  test('a context checkbox row has a context icon, a (?) and an OWOX link per context, no maximum, and the links under the boxes', () => {
+    const p = props([ctxRow()]);
+    render(<SetupTab {...p} />);
+    const group = screen.getByRole('group', { name: 'Contexts That Move the Needle' });
+    const boxes = within(group).getAllByRole('checkbox');
+    expect(boxes.map((b) => (b as HTMLInputElement).checked)).toEqual([true, true, false]);
+    expect(group.querySelectorAll('svg.lucide-tags')).toHaveLength(3);
+    expect(within(group).getByRole('button', { name: 'About Sales' })).toBeInTheDocument();
+    fireEvent.click(within(group).getByRole('button', { name: 'Open Sales in OWOX' }));
+    expect(p.onOpen).toHaveBeenCalledWith('/ui/p/contexts?context=c%3A1');
+    expect(screen.queryByText(/Up to/)).toBeNull();
+    fireEvent.click(boxes[2]!);
+    expect(p.onPick).toHaveBeenLastCalledWith('teams.exist', `set:${JSON.stringify(['c:1', 'c-2', 'c.3'])}`);
+    fireEvent.click(boxes[0]!);
+    expect(p.onPick).toHaveBeenLastCalledWith('teams.exist', `set:${JSON.stringify(['c-2'])}`);
+    fireEvent.click(screen.getByRole('button', { name: 'Create Ops and add their Data Marts' }));
+    expect(p.onPick).toHaveBeenLastCalledWith('teams.exist', 'teams');
+    fireEvent.click(screen.getByRole('button', { name: 'Create contexts in OWOX' }));
+    expect(p.onOpen).toHaveBeenLastCalledWith('/x');
+  });
+
+  const coreRow = (checked: string[], n = 8) => row({
+    id: 'core.classes', title: 'Core Classes', state: 'open', options: [],
+    multi: { max: 7, checked, action: () => undefined, items: Array.from({ length: n }, (_, i) => ({ path: `m${i}`, label: `Mart ${i}`, martId: `m${i}`, icon: 'mart' as const, recommended: i < 3, description: i === 0 ? 'Buyers' : undefined, link: `/ui/p/data-marts/m${i}/data-setup` })) } });
+
+  test('core classes: a checkbox per class with the Recommended pill, the Data Mart icon, its (?) and link; no radios; at most 7', () => {
+    const six = ['m0', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6'];
+    const { rerender } = render(<SetupTab {...props([coreRow(['m0'])], { martIcons: { m0: 'orders' } })} />);
+    const group = screen.getByRole('group', { name: 'Core Classes' });
+    expect(within(group).getAllByRole('checkbox')).toHaveLength(8);
+    expect(within(group).getAllByText('Recommended')).toHaveLength(3);
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(group.querySelector('svg.lucide-receipt')).not.toBeNull();
+    expect(within(group).getByRole('button', { name: 'About Mart 0' })).toBeInTheDocument();
+    expect(within(group).getAllByRole('checkbox').every((b) => !(b as HTMLInputElement).disabled)).toBe(true);
+    rerender(<SetupTab {...props([coreRow(six)], { martIcons: {} })} />);
+    const boxes = within(screen.getByRole('group', { name: 'Core Classes' })).getAllByRole('checkbox') as HTMLInputElement[];
+    expect(boxes[7]!.disabled).toBe(true);
+    expect(boxes[6]!.disabled).toBe(false);
+    expect(screen.getByText('Up to 7: uncheck one to pick another')).toBeInTheDocument();
+  });
+
+  test('a checkbox row with nothing to offer shows its link instead of boxes', () => {
+    render(<SetupTab {...props([row({ id: 'core.classes', title: 'Core Classes', options: [{ id: 'none', label: 'Not available yet: add Data Marts', recommended: true, action: { kind: 'open', path: '/m' } }] })])} />);
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Not available yet: add Data Marts' })).toBeInTheDocument();
+  });
+});
+
+describe('0.5.5 fix round', () => {
+  const css = readFileSync(`${__dirname}/../styles.css`, 'utf8');
+  const rules = css.split('}').map((r) => r.replace(/\/\*[\s\S]*?\*\//g, '').trim());
+  const ctxRow = (checked: string[], over: Partial<Row> = {}) => row({
+    id: 'teams.exist', block: 'teams', title: 'Contexts That Move the Needle', state: 'open', current: 'Sales', currentList: ['Sales'],
+    options: [{ id: 'teams', label: 'Create Ops and add their Data Marts', recommended: true, action: { kind: 'teams', teams: [] } }],
+    multi: { checked, action: () => undefined, items: [
+      { path: 'a', label: 'Sales', icon: 'context', recommended: true, description: 'Closes deals', link: '/x' },
+      { path: 'b', label: 'Marketing', icon: 'context', recommended: false },
+      { path: 'c', label: 'Support', icon: 'context', recommended: false }] }, ...over });
+
+  test('a Recommended pill never shares its line with a (?) or link that takes width: they hang in a zero-width box after the pill', () => {
+    render(<SetupTab {...props([ctxRow(['a', 'b'])])} />);
+    const label = screen.getByRole('checkbox', { name: /Sales/ }) as HTMLInputElement;
+    const end = label.labels![0]!.querySelector('.gy-radio-end')!;
+    // pill first, then the hanging tools; nothing between the label's last word and the pill
+    expect([...end.children].map((c) => c.className)).toEqual(['gy-row-rec', 'gy-radio-tools']);
+    expect(end.querySelector('.gy-radio-tools .gy-fieldtip')).not.toBeNull();
+    expect(end.querySelector('.gy-radio-tools .gy-row-link')).not.toBeNull();
+    expect(label.labels![0]!.querySelector('.gy-radio-tail .gy-fieldtip')).toBeNull();
+    // a label with no pill keeps its (?) in the tail, still inside the zero-width box
+    const plain = (screen.getByRole('checkbox', { name: /Marketing/ }) as HTMLInputElement).labels![0]!;
+    expect(plain.querySelector('.gy-radio-tail .gy-radio-tools')).toBeNull();
+    const rule = rules.find((r) => r.startsWith('.gy-radio-tools {'))!;
+    expect(rule).toMatch(/width: 0;/);
+    expect(rule).toMatch(/display: inline-block/);
+    expect(rules.some((r) => /^\.gy-radio \.gy-row-link \{[^}]*-1rem/.test(r))).toBe(false);
+  });
+
+  test('(?) and link icons show by hover only: no focus-within reveal, no bare (hover: none) media', () => {
+    const reveal = rules.filter((r) => /opacity: 1/.test(r) && /(fieldtip|row-link|ctx-tools)/.test(r));
+    expect(reveal.length).toBeGreaterThan(0);
+    expect(css).not.toMatch(/:focus-within[^{]*(fieldtip|row-link-reveal|ctx-tools)|(fieldtip|row-link-reveal|ctx-tools)[^{]*:focus-within/);
+    const media = css.split('\n').filter((l) => /^@media \((any-)?hover: none\)/.test(l) && /gy-(fieldtip|ctx-tools|row-link)/.test(l));
+    expect(media.length).toBeGreaterThan(0);
+    for (const l of media) expect(l).toMatch(/^@media \(hover: none\) and \(pointer: coarse\)/);
+    // hidden, they ignore the pointer too
+    expect(rules.find((r) => r.startsWith('.gy-fieldtip { opacity: 0'))).toMatch(/pointer-events: none/);
+    expect(rules.find((r) => r.startsWith('.gy-ctx-tools { display'))).toMatch(/opacity: 0; pointer-events: none/);
+    expect(css).toMatch(/\.gy-setup-cell > summary:has\(:focus-visible\) \.gy-ctx-tools/);
+  });
+
+  test('a cell label draws its (?) and link, and a click on the summary leaves them to the hover rules', () => {
+    const rows = [row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', groupDescription: 'Ads', groupLink: '/m', state: 'done', current: 'x' })];
+    const { container } = render(<SetupTab {...props(rows, { savedOpen: new Set() })} />);
+    const tools = container.querySelector('summary .gy-ctx-tools')!;
+    expect(tools.querySelector('.gy-fieldtip')).not.toBeNull();
+    expect(tools.querySelector('.gy-row-link')).not.toBeNull();
+    // nothing in the markup shows them: no inline style, no data attribute
+    expect(tools.getAttribute('style')).toBeNull();
+    expect(container.querySelector('summary')!.getAttribute('data-show')).toBeNull();
+  });
+
+  test('a folded cell shrinks to its header: start-aligned when closed, stretched equal heights when open', () => {
+    expect(css).toMatch(/\.gy-setup-groups > \.gy-setup-cell:not\(\[open\]\) \{ align-self: start; \}/);
+    expect(rules.find((r) => r.startsWith('.gy-setup-groups {'))).toMatch(/align-items: stretch/);
+    const rule = rules.find((r) => r.startsWith('.gy-setup-cell {'))!;
+    expect(rule).toMatch(/padding: 0\.75rem/);
+    expect(rule).toMatch(/border: 1px solid/);
+    const rows = [row({ id: 'team:m.metric', block: 'teams', group: 'Marketing', state: 'done', current: 'x' }), row({ id: 'team:s.metric', block: 'teams', group: 'Sales', state: 'open' })];
+    const { container } = render(<SetupTab {...props(rows, { savedOpen: new Set(['team:s.metric']) })} />);
+    const cells = [...container.querySelectorAll('.gy-setup-groups > details.gy-setup-cell')] as HTMLDetailsElement[];
+    expect(cells.map((c) => c.open)).toEqual([false, true]);
+    expect(cells[0]!.querySelector(':scope > summary')).not.toBeNull();
+  });
+
+  test('a staged set of boxes and a staged "Create …" never replace each other', () => {
+    const create = 'Create Ops and add their Data Marts';
+    const { rerender } = render(<SetupTab {...props([ctxRow(['a', 'b'])], { picked: { 'teams.exist': `set:${JSON.stringify(['a'])}` } })} />);
+    expect(screen.getByRole('button', { name: create })).toBeDisabled();
+    rerender(<SetupTab {...props([ctxRow(['a', 'b'])], { picked: { 'teams.exist': 'teams' } })} />);
+    for (const b of screen.getAllByRole('checkbox')) expect(b).toBeDisabled();
+    expect(screen.getByText('Cancel to pick contexts by checkbox')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  });
+
+  test('checking back to the saved set drops the staged pick on a needle and a core row', () => {
+    for (const make of [() => ctxRow(['a', 'b', 'c']), () => row({ id: 'core.classes', title: 'Core Classes', options: [], multi: { max: 7, checked: ['a', 'b', 'c'], action: () => undefined, items: ['a', 'b', 'c'].map((p) => ({ path: p, label: `Mart ${p}`, icon: 'mart' as const, recommended: false })) } })]) {
+      const saved = make();
+      const staged = { ...saved, multi: { ...saved.multi!, checked: ['a', 'b'] } };
+      const p = props([staged], { picked: { [saved.id]: `set:${JSON.stringify(['a', 'b'])}` }, optionRows: { [saved.id]: saved } });
+      const { unmount } = render(<SetupTab {...p} />);
+      fireEvent.click(screen.getByRole('checkbox', { name: /(Support|Mart c)/ }));
+      expect(p.onPick).toHaveBeenLastCalledWith(saved.id, null);
+      unmount();
+    }
+  });
+
+  test('a tooltip with a link is a non-modal dialog whose links Tab reaches; Tab past the last returns to the (?)', () => {
+    const r = [row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'See [one](https://a.com) and [two](https://b.com)' }, set('b', 'Orders · profit')] })];
+    render(<SetupTab {...props(r)} />);
+    const help = screen.getByRole('button', { name: 'About Orders · revenue' });
+    fireEvent.click(help);
+    const dialog = screen.getByRole('dialog', { name: 'Orders · revenue' });
+    expect(dialog).toHaveAttribute('aria-modal', 'false');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    const [one, two] = screen.getAllByRole('link');
+    one!.focus();
+    fireEvent.keyDown(one!, { key: 'Tab' });
+    expect(document.activeElement).toBe(one);
+    two!.focus();
+    fireEvent.keyDown(two!, { key: 'Tab' });
+    expect(document.activeElement).toBe(help);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  test('focus moving away from an open tooltip closes it', () => {
+    render(<SetupTab {...props([row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'Net' }, set('b', 'Orders · profit')] })])} />);
+    const help = screen.getByRole('button', { name: 'About Orders · revenue' });
+    fireEvent.click(help);
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    fireEvent.blur(help, { relatedTarget: screen.getByRole('radio', { name: /profit/ }) });
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 });

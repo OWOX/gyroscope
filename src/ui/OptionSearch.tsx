@@ -14,6 +14,8 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  // the highlighted item shows its (?) only once the arrow keys moved it; the pointer shows it by hovering
+  const [kbd, setKbd] = useState(false);
   const listId = useId();
   const wrap = useRef<HTMLDivElement>(null);
   const pop = useRef<HTMLDivElement>(null);
@@ -51,11 +53,12 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
     document.addEventListener('mousedown', away);
     return () => { cancelAnimationFrame(raf); document.removeEventListener('mousedown', away); };
   }, [visible, reposition]);
-  const pick = (o: Option) => { if (disabled) return; onPick(o); setQ(''); setOpen(false); setActive(0); };
+  const pick = (o: Option) => { if (disabled) return; onPick(o); setQ(''); setOpen(false); setActive(0); setKbd(false); };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (!open) { setOpen(true); return; }
+      setKbd(true);
       setActive((a) => (a + (e.key === 'ArrowDown' ? 1 : matches.length - 1)) % Math.max(matches.length, 1));
     } else if (e.key === 'Enter') {
       if (shown && matches[active]) { e.preventDefault(); pick(matches[active]!); }
@@ -69,15 +72,15 @@ export function OptionSearch({ options, label, disabled, icon, onPick }: { optio
         type="text" className="gy-opt-search-input" role="combobox" aria-label={label} aria-expanded={shown} aria-controls={listId} aria-autocomplete="list" aria-haspopup="listbox"
         aria-activedescendant={shown ? `${listId}-${active}` : undefined} autoComplete="off" disabled={disabled}
         placeholder={`Search ${options.length} more…`} value={q}
-        onChange={(e) => { setQ(e.target.value); setActive(0); setOpen(true); }}
+        onChange={(e) => { setQ(e.target.value); setActive(0); setKbd(false); setOpen(true); }}
         onFocus={() => setOpen(true)} onClick={() => setOpen(true)} onBlur={() => setOpen(false)} onKeyDown={onKey}
       />
       {host && createPortal(
         <div ref={pop} className="gy-opt-search-pop" style={place} hidden={!visible} onMouseDown={(e) => e.preventDefault()}>
           <ul id={listId} role="listbox" aria-label={label} className="gy-opt-search-list" hidden={!shown}>
             {matches.map((o, i) => (
-              <li key={o.id} id={`${listId}-${i}`} role="option" aria-selected={i === active} aria-describedby={o.description ? `${listId}-${i}-tip` : undefined} className="gy-opt-search-item" onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); if ((e.target as Element).closest('.gy-fieldtip, .gy-fieldtip-body')) return; pick(o); }}>
-                {icon(o)}<span className="gy-opt-search-label">{o.label}</span><FieldHelp label={o.label} description={o.description} tabStop={false} tipId={`${listId}-${i}-tip`} />
+              <li key={o.id} id={`${listId}-${i}`} role="option" aria-selected={i === active} aria-describedby={o.description ? `${listId}-${i}-d` : undefined} className="gy-opt-search-item" data-kbd={kbd && i === active ? true : undefined} onMouseEnter={() => { setKbd(false); setActive(i); }} onMouseDown={(e) => { e.preventDefault(); if ((e.target as Element).closest('.gy-fieldtip, .gy-fieldtip-body')) return; pick(o); }}>
+                {icon(o)}<span className="gy-opt-search-label">{o.label}</span><FieldHelp label={o.label} description={o.description} tabStop={false} />{o.description && <span id={`${listId}-${i}-d`} className="gy-sr" aria-hidden="true">{o.description}</span>}
               </li>
             ))}
           </ul>

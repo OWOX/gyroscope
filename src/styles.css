@@ -484,7 +484,8 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-setup-name { font-weight: 500; }
 .gy-setup-group { margin-top: 0.5rem; }
 /* the Contexts block lays its context groups out as a grid, one cell each */
-.gy-setup-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr)); gap: 0.5rem; align-items: stretch; }
+/* the grid starts where the rows' text does: past the indicator column (1.75rem + 0.5rem gap) */
+.gy-setup-groups { margin-left: 2.25rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr)); gap: 0.5rem; align-items: stretch; }
 .gy-setup-groups > .gy-setup-group { margin-top: 0; min-width: 0; }
 .gy-setup-group > summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; font-size: 0.875rem; font-weight: bolder; padding: 0.25rem 0; }
 .gy-setup-group > summary::-webkit-details-marker { display: none; }
@@ -493,23 +494,24 @@ button.gy-badge:hover { color: var(--foreground); }
 :root.dark .gy-setup-group-icon { background: color-mix(in oklab, white 8%, transparent); }
 .gy-setup-group-name { flex: 0 1 auto; min-width: 0; }
 .gy-setup-group-chevron { margin-left: auto; }
-/* a context cell: bordered, as tall as the tallest in its grid row, content from the top */
+/* a context cell: bordered, as tall as the tallest in its grid row, content from the top; folded, the whole cell shrinks to its header (border and padding stay) instead of stretching to the row */
 .gy-setup-cell { box-sizing: border-box; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--card); }
+.gy-setup-groups > .gy-setup-cell:not([open]) { align-self: start; }
 .gy-row-title-plain { font-weight: 400; }
+/* a cell is narrow: its rows spend less on the severity dot's column, so a label and its pill keep one line longer */
+.gy-setup-cell .gy-row { grid-template-columns: 1rem minmax(0, 1fr); gap: 0.375rem; }
+.gy-setup-cell .gy-row::before { left: calc(1rem + 0.375rem); }
 .gy-ctx-list { display: inline-flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
 .gy-ctx-item { display: inline-flex; align-items: center; gap: 0.375rem; }
 .gy-ctx-item .gy-setup-group-icon { width: 1rem; height: 1rem; margin: 0; }
-/* the (?) and the OWOX link after a context's name show on hover or focus, always on touch */
-.gy-ctx-tools { display: inline-flex; align-items: center; gap: 0.125rem; opacity: 0; transition: opacity 120ms; }
-.gy-setup-cell > summary:hover .gy-ctx-tools, .gy-setup-cell > summary:focus-within .gy-ctx-tools { opacity: 1; }
+/* the (?) and the OWOX link after a context's name show while the label is hovered, while a tooltip is open or an icon has keyboard focus, and always on a touch-only device; a click on the label leaves them hidden */
+.gy-ctx-tools { display: inline-flex; align-items: center; gap: 0.125rem; opacity: 0; pointer-events: none; transition: opacity 120ms; }
+.gy-setup-cell > summary:hover .gy-ctx-tools, .gy-setup-cell > summary:has(:focus-visible) .gy-ctx-tools { opacity: 1; pointer-events: auto; }
 .gy-ctx-tools .gy-fieldtip { align-self: center; margin: 0; }
+.gy-ctx-tools:has([aria-expanded='true']) { opacity: 1; pointer-events: auto; }
 .gy-ctx-tools .gy-row-link { min-width: 1.25rem; min-height: 1.25rem; }
-@media (hover: none) { .gy-ctx-tools { opacity: 1; } }
+@media (hover: none) and (pointer: coarse) { .gy-ctx-tools { opacity: 1; pointer-events: auto; } }
 @media (prefers-reduced-motion: reduce) { .gy-ctx-tools { transition: none; } }
-.gy-fieldtip-body[data-rich] p { margin: 0; }
-.gy-fieldtip-body[data-rich] p + p, .gy-fieldtip-body[data-rich] ul, .gy-fieldtip-body[data-rich] ol { margin-top: 0.375rem; }
-.gy-fieldtip-body[data-rich] ul, .gy-fieldtip-body[data-rich] ol { margin-bottom: 0; padding-left: 1.125rem; }
-.gy-fieldtip-body[data-rich] a { color: var(--primary); text-decoration: underline; }
 .gy-setup-group-chevron { flex: none; color: var(--muted-foreground); transition: transform 0.2s; }
 .gy-setup-group[open] > summary .gy-setup-group-chevron { transform: rotate(180deg); }
 .gy-progress { display: grid; gap: 0.5rem; }
@@ -535,10 +537,9 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
 .gy-row-icon { grid-column: 1; grid-row: 1; }
 /* one column of text: the title, the hint under it, then the options, all aligned with the title */
-.gy-row-title { grid-column: 2; grid-row: 1; min-width: 0; }
+.gy-row-title { grid-column: 2; grid-row: 1; min-width: 0; justify-self: start; }
 .gy-row-text { position: relative; grid-column: 2; display: grid; gap: 0.125rem; min-width: 0; }
 .gy-row-side { grid-column: 2; }
-.gy-row-text:not(:has(.gy-row-detail, .gy-hintbox:not([hidden]))) { display: none; }
 .gy-row-detail { font-size: 0.75rem; }
 .gy-row-detail[data-tone='bad'] { color: var(--red); }
 .gy-row-detail[data-tone='warn'] { color: var(--orange); }
@@ -548,24 +549,16 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-valueline { display: inline-flex; align-items: center; gap: 0.125rem; max-width: 100%; }
 .gy-row-link { flex: none; display: inline-grid; place-items: center; min-width: 1.5rem; min-height: 1.5rem; padding: 0; border: 0; background: none; border-radius: 0.25rem; color: var(--muted-foreground); cursor: pointer; }
 .gy-row-link:hover { color: var(--foreground); }
-/* the link icon after an option shows only while its line is hovered or has focus; it keeps its space, so nothing shifts */
+/* the link icon after an option shows only while its line is hovered or an icon on it has keyboard focus (a click leaves it hidden), and always on a touch-only device */
 .gy-row-link.gy-row-link-reveal { opacity: 0; pointer-events: none; transition: opacity 120ms; }
-.gy-radio:hover .gy-row-link-reveal, .gy-row:hover .gy-row-valueline .gy-row-link-reveal, .gy-row-valueline:focus-within .gy-row-link-reveal, .gy-radio:focus-within .gy-row-link-reveal, .gy-row-recline:hover .gy-row-link-reveal, .gy-row-recline:focus-within .gy-row-link-reveal { opacity: 1; pointer-events: auto; }
-@media (hover: none) { .gy-row-link.gy-row-link-reveal { opacity: 1; pointer-events: auto; } }
+.gy-radio:hover .gy-row-link-reveal, .gy-row:hover .gy-row-valueline .gy-row-link-reveal, .gy-row-valueline:has(:focus-visible) .gy-row-link-reveal, .gy-radio:has(:focus-visible) .gy-row-link-reveal, .gy-row-recline:hover .gy-row-link-reveal, .gy-row-recline:has(:focus-visible) .gy-row-link-reveal, .gy-row-link-reveal:focus-visible { opacity: 1; pointer-events: auto; }
+@media (hover: none) and (pointer: coarse) { .gy-row-link.gy-row-link-reveal { opacity: 1; pointer-events: auto; } }
 @media (prefers-reduced-motion: reduce) { .gy-row-link.gy-row-link-reveal { transition: none; } }
 .gy-row-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
 .gy-progress-legend > span { display: inline-flex; gap: 0.75rem; }
-/* hint: a (?) button and the bubble it opens, its caret pointing back at the button */
-.gy-hintbox-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
-.gy-hintbox-btn { flex: none; display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted-foreground); cursor: pointer; }
-.gy-hintbox-btn:hover { color: var(--foreground); }
-.gy-hintbox-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
-.gy-hintbox { position: relative; width: fit-content; max-width: 100%; margin-top: 0.4rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: var(--muted-foreground); }
-.gy-hintbox[hidden] { display: none; }
-.gy-hintbox::before { content: ''; position: absolute; top: -5px; left: calc(var(--caret-x, 1rem) - 4px); width: 8px; height: 8px; background: var(--card); border-top: 1px solid var(--border); border-left: 1px solid var(--border); transform: rotate(45deg); }
-.dm-collapsible-hint { display: flow-root; margin: -0.6rem 0 0.75rem 2.25rem; }
-.dm-collapsible-hint .gy-hintbox { margin-top: 0; }
-.dm-collapsible[data-folded='true'] .dm-collapsible-hint { display: none; }
+/* a row title: the text and its (?) */
+.gy-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; width: fit-content; max-width: 100%; }
+.gy-row-title .gy-fieldtip, .gy-setup-title .gy-fieldtip { align-self: center; margin: 0; }
 /* the block's icon tile takes the colour of its worst open severity */
 .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='error'], :root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='error'] { color: var(--red); background: color-mix(in oklab, var(--red) 15%, transparent); }
 .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'], :root.dark .dm-collapsible[data-variant='band'] .dm-collapsible-icon[data-severity='warning'] { color: var(--orange); background: color-mix(in oklab, var(--orange) 15%, transparent); }
@@ -577,12 +570,15 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-radio label { display: flex; align-items: flex-start; }
 .gy-radio-text { min-width: 0; flex: 1 1 auto; }
 .gy-opt-icon { flex: none; margin: 0.1875rem 0.375rem 0 0; color: var(--muted-foreground); }
-.gy-opt-gap { width: 14px; height: 14px; }
-/* the last word and its (?) stay glued; the pill is an inline item after them, and the link icon after the pill hangs out of the line (negative margin), so the hidden icon never pushes the pill down */
-.gy-radio-tail { white-space: nowrap; }
+/* the pill is an inline item after the label; the (?) and the link icon are zero-width (.gy-radio-tools) and hang past the line's end, so while hidden they take no room and the pill stays on the label's line whenever the two fit; shown, they float over the empty space after the line */
+.gy-radio-tail, .gy-radio-end { white-space: nowrap; }
+.gy-radio-tools { position: relative; display: inline-block; width: 0; height: 1rem; vertical-align: middle; }
+.gy-radio-tools-in { position: absolute; left: 0.125rem; top: 50%; display: inline-flex; align-items: center; gap: 0.125rem; translate: 0 -50%; }
+.gy-radio-tools .gy-fieldtip { margin: 0; align-self: center; }
+.gy-radio-tools .gy-row-link { margin: 0; }
 .gy-radio-word { white-space: normal; overflow-wrap: anywhere; }
 .gy-row-recline .gy-opt-icon { display: inline-block; margin: 0 0.375rem 0 0; vertical-align: middle; }
-.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; min-width: 1rem; min-height: 1rem; margin: 0 -1rem 0 0.125rem; }
+.gy-radio .gy-row-link { display: inline-grid; vertical-align: middle; min-width: 1rem; min-height: 1rem; }
 .gy-row-recline .gy-row-link { display: inline-grid; vertical-align: middle; }
 .gy-row-note { font-size: 0.75rem; }
 .gy-row-rec { display: inline-block; margin-left: 0.25rem; padding: 0 0.1875rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.625rem; line-height: 1.4; color: var(--muted-foreground); white-space: nowrap; vertical-align: middle; }
@@ -592,15 +588,16 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-save-notice { margin: 0; font-size: 0.8125rem; }
 
 /* the header, tabs and (on Setup) the progress bar stay put while the blocks scroll under them; the document scrolls, and no ancestor clips it */
-.gy-settings-sticky { position: sticky; top: 0; z-index: 30; background: var(--background); border-bottom: 1px solid var(--border); }
+.gy-settings-sticky { position: sticky; top: 0; z-index: 30; background: var(--background); }
+/* the separator and the progress track span the content, not the page padding */
+.gy-settings-sticky:not([data-tab='setup'])::after { content: ''; display: block; height: 1px; margin: 0 3rem; background: var(--border); }
 .gy-settings-sticky .gy-tabs { margin-bottom: 0; border-bottom: 0; }
 .gy-settings-header .gy-save { margin-left: auto; }
-.gy-settings-sticky[data-tab='setup'] { border-bottom: 0; }
-.gy-settings-progress { display: grid; }
+.gy-settings-progress { display: grid; padding: 0 3rem; }
 .gy-setup-notes { display: grid; gap: 0.5rem; padding: 0.5rem 3rem 0.75rem; }
 .gy-settings-progress:empty { display: none; }
 .gy-setup-notes .gy-setup-banner { max-height: 6rem; overflow: auto; }
-@media (max-width: 640px) { .gy-setup-notes { padding: 0.5rem 1.25rem 0.75rem; } }
+@media (max-width: 640px) { .gy-setup-notes { padding: 0.5rem 1.25rem 0.75rem; } .gy-settings-progress { padding: 0 1.25rem; } .gy-settings-sticky:not([data-tab='setup'])::after { margin: 0 1.25rem; } }
 .gy-settings-sticky + main { padding-top: 1rem; }
 .gy-setup > .gy-progress { margin-bottom: 0.75rem; }
 /* search over a long option list: a combobox with a dropdown of matches under it */
@@ -622,12 +619,33 @@ button.gy-badge:hover { color: var(--foreground); }
 /* the (?) after a Data Mart field: a tooltip with its schema description, opening upward so a block's clip doesn't cut it */
 .gy-fieldtip { position: relative; flex: none; display: inline-flex; align-items: center; align-self: flex-start; margin: 0.125rem 0 0 0.125rem; }
 .gy-radio-tail > .gy-fieldtip { vertical-align: middle; margin: 0 0 0 0.125rem; }
-.gy-fieldtip-btn { display: inline-grid; place-items: center; width: 1rem; height: 1rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted-foreground); cursor: help; }
-.gy-fieldtip-btn:hover, .gy-fieldtip-btn:focus-visible { color: var(--foreground); }
+.gy-fieldtip-btn { display: inline-grid; place-items: center; width: 1rem; height: 1rem; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted-foreground); cursor: pointer; }
+.gy-fieldtip-btn:hover, .gy-fieldtip-btn:focus-visible, .gy-fieldtip-btn[aria-expanded='true'] { color: var(--foreground); }
 .gy-fieldtip-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--primary); }
-.gy-fieldtip-body { position: fixed; z-index: 40; box-sizing: border-box; width: max-content; max-width: min(18rem, calc(100vw - 1rem)); padding: 0.375rem 0.625rem; border: 1px solid var(--border); border-radius: 0.375rem; background: var(--card); box-shadow: 0 4px 12px rgb(0 0 0 / 0.1); font-size: 0.75rem; font-weight: 400; line-height: 1.4; color: var(--muted-foreground); white-space: normal; opacity: 0; visibility: hidden; pointer-events: none; }
-.gy-fieldtip-body[data-open='true'] { opacity: 1; visibility: visible; pointer-events: auto; }
-:root.dark .gy-fieldtip-body { box-shadow: 0 4px 12px rgb(0 0 0 / 0.4); }
-.gy-radio > label { min-width: 0; }
+/* the (?) shows while its label is hovered, while its tooltip is open or the (?) has keyboard focus (a click leaves it hidden), and always on a touch-only device; hidden, it ignores the pointer */
+.gy-fieldtip { opacity: 0; pointer-events: none; transition: opacity 120ms; }
+.gy-fieldtip:has(:focus-visible), .gy-fieldtip:has([aria-expanded='true']),
+.gy-setup-title:hover .gy-fieldtip, .gy-row-title:hover .gy-fieldtip, .gy-radio:hover .gy-fieldtip, .gy-row:hover .gy-row-valueline .gy-fieldtip, .gy-row-recline:hover .gy-fieldtip,
+.gy-opt-search-item:hover .gy-fieldtip, .gy-opt-search-item[data-kbd] .gy-fieldtip, .gy-setup-cell > summary:hover .gy-fieldtip { opacity: 1; pointer-events: auto; }
+.gy-fieldtip:has(:focus-visible), .gy-fieldtip:has([aria-expanded='true']) { pointer-events: auto; }
+@media (hover: none) and (pointer: coarse) { .gy-fieldtip { opacity: 1; pointer-events: auto; } }
+@media (prefers-reduced-motion: reduce) { .gy-fieldtip { transition: none; } }
+/* the tooltip: standard dark, floating, opened by click */
+.gy-fieldtip-body { position: fixed; z-index: 40; box-sizing: border-box; width: max-content; max-width: min(22rem, calc(100vw - 1rem)); padding: 0.5rem 0.625rem; border-radius: 0.375rem; background: oklch(0.2 0 0); box-shadow: 0 4px 12px rgb(0 0 0 / 0.15); font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: #fff; white-space: normal; text-align: left; }
+:root.dark .gy-fieldtip-body { border: 1px solid oklch(1 0 0 / 0.2); box-shadow: 0 4px 12px rgb(0 0 0 / 0.4); }
+.gy-tip-content { max-height: 16rem; overflow: auto; overflow-wrap: anywhere; }
+.gy-tip-content[data-clamp] { max-height: 11.2em; overflow: hidden; }
+.gy-fieldtip-body p { margin: 0; }
+.gy-fieldtip-body p + p, .gy-fieldtip-body ul, .gy-fieldtip-body ol, .gy-fieldtip-body .gy-md-table, .gy-fieldtip-body .gy-md-h + * { margin-top: 0.375rem; }
+.gy-fieldtip-body * + .gy-md-h { margin-top: 0.5rem; }
+.gy-fieldtip-body ul, .gy-fieldtip-body ol { margin-bottom: 0; padding-left: 1.125rem; }
+.gy-fieldtip-body a, .gy-tip-more { color: oklch(0.88 0.06 250); text-decoration: underline; text-underline-offset: 2px; }
+.gy-fieldtip-body code { padding: 0 0.2em; border-radius: 0.2em; background: oklch(1 0 0 / 0.15); font-size: 0.9em; }
+.gy-tip-more { display: block; margin-top: 0.375rem; padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
+.gy-md-h { font-weight: 600; font-size: 0.8125rem; line-height: 1.3; }
+.gy-md-table { max-width: 100%; overflow-x: auto; }
+.gy-md-table table { border-collapse: collapse; font-size: 0.75rem; }
+.gy-md-table th, .gy-md-table td { padding: 0.125rem 0.375rem; border: 1px solid color-mix(in oklab, currentColor 25%, transparent); text-align: left; vertical-align: top; }
+.gy-md-table th { font-weight: 600; }
 .gy-opt-icon.gy-value-icon { margin: 0 0.375rem 0 0; }
 .gy-check .gy-radio-text { display: block; }

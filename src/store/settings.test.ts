@@ -23,6 +23,18 @@ test('a v5 doc round-trips; malformed parts fall back to empty', () => {
   expect(readSetup({ v: 5, goal: { martId: 3 }, coreClasses: 'x', thresholdPct: 500 })).toEqual({ ...EMPTY_SETUP, thresholdPct: 100 });
 });
 
+test('needleContexts: settings saved before it read as null (every context), a stored list is kept, junk reads as null', async () => {
+  expect(EMPTY_SETUP.needleContexts).toBeNull();
+  expect(readSetup({ v: 5, goal: null, coreClasses: [] }).needleContexts).toBeNull();
+  expect(readSetup({ v: 5, needleContexts: ['a', 3, '', 'b:1.x'] }).needleContexts).toEqual(['a', 'b:1.x']);
+  expect(readSetup({ v: 5, needleContexts: [] }).needleContexts).toEqual([]);
+  expect(readSetup({ v: 5, needleContexts: 'a' }).needleContexts).toBeNull();
+  expect(readSetup({ thresholdPct: 10 }).needleContexts).toBeNull();
+  const ctx = memoryCollections();
+  await ctx.collections('settings').put('project', { v: 5, goal: null, coreClasses: ['x'] });
+  expect((await loadSetup(ctx)).settings.needleContexts).toBeNull();
+});
+
 test('a save stamps who and when, and keeps keys the settings do not own', async () => {
   const ctx = memoryCollections();
   await ctx.collections('settings').put('project', { weekStart: 'sunday' });

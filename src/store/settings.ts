@@ -2,7 +2,7 @@ import type { CollectionsLike } from './collections';
 import type { Measure, MetricChoice, MetricFormat, MetricKind, PlanDef, PlanShape, ProjectSettingsV5, RatioSetting } from '../types';
 
 export const EMPTY_SETUP: ProjectSettingsV5 = {
-  v: 5, goal: null, coreClasses: [], contexts: {}, classes: {}, plans: {}, formats: {}, ratios: [],
+  v: 5, goal: null, coreClasses: [], needleContexts: null, contexts: {}, classes: {}, plans: {}, formats: {}, ratios: [],
   thresholdPct: 20, dismissed: [], updatedAt: null, updatedBy: null,
 };
 
@@ -43,6 +43,7 @@ export function readSetup(raw: unknown): ProjectSettingsV5 {
     v: 5,
     goal: goalChoice ? { ...goalChoice, plan: planOf(obj(r.goal)!.plan) } : null,
     coreClasses: strings(r.coreClasses).slice(0, 7),
+    needleContexts: Array.isArray(r.needleContexts) ? strings(r.needleContexts) : null,
     contexts: record(r.contexts, (x) => { const c = obj(x); return c ? { metric: choiceOf(c.metric), plan: planOf(c.plan) } : null; }),
     classes: record(r.classes, (x) => { const c = obj(x); return c ? { keyMetricId: str(c.keyMetricId) ? c.keyMetricId : null, shown: (Array.isArray(c.shown) ? c.shown : []).map(choiceOf).filter((m): m is MetricChoice => !!m) } : null; }),
     plans: record(r.plans, planOf),
