@@ -6,7 +6,7 @@ import { inboundCounts } from '../../model/core';
 import { criticalRow, findMetricRows, isFieldLink } from '../tables';
 import { normalizeCurrency } from '../../lib/format';
 
-export interface FieldCand { martId: string; martTitle: string; path: string; label: string; type: string }
+export interface FieldCand { martId: string; martTitle: string; path: string; label: string; type: string; description?: string }
 export const NUMERIC = /NUMERIC|FLOAT|INT|DECIMAL|DOUBLE|BIGNUMERIC|NUMBER/;
 const MONEY = /revenue|sales|profit|gmv|amount|income|margin/i;
 const COUNT = /orders?|deals?|sessions?|users?|signups?|installs?|leads?|qty|quantity|count/i;
@@ -27,7 +27,7 @@ export const cands = (n: MartNode, keep: (type: string, text: string, field: Sch
   flattenFields(n.detail.fields).flatMap(({ path, field }) => {
     const type = field.calculated?.level === 'metric' ? 'METRIC' : field.type.toUpperCase();
     const text = `${field.name} ${field.alias ?? ''}`;
-    return keep(type, text, field) ? [{ martId: n.id, martTitle: n.title, path, label: field.alias || field.name, type }] : [];
+    return keep(type, text, field) ? [{ martId: n.id, martTitle: n.title, path, label: field.alias || field.name, type, ...(field.description ? { description: field.description } : {}) }] : [];
   });
 const ID_NAME = (name: string) => /(^|_)id$/i.test(name) || /[a-z]Id$/.test(name);
 export const isNumber = (type: string) => type === 'METRIC' || (NUMERIC.test(type) && !DATE_TYPES.has(type));

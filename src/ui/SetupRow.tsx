@@ -1,6 +1,7 @@
 import { Check, Loader2, Pencil, SquareArrowOutUpRight } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Option, Row } from '../setup/types';
+import { FieldHelp } from './FieldHelp';
 import { HintBubble, HintButton } from './Hint';
 import { MartIcon } from './MartIcon';
 import { OptionSearch } from './OptionSearch';
@@ -8,6 +9,9 @@ import { OptionSearch } from './OptionSearch';
 const SHOWN = 3;
 /** More hidden options than this get a search field instead of "Show N more". */
 const SEARCH_OVER = 8;
+/** A checkbox list longer than this shows its top boxes and a search for the rest. */
+const SEARCH_MULTI = 12;
+const SHOWN_MULTI = 6;
 
 export interface SetupRowProps {
   row: Row; readOnly: boolean; saving?: boolean;
@@ -73,9 +77,48 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
       <div key={key} className="gy-radio">
         <input id={`${uid}-${key}`} aria-labelledby={`${nid}-h ${nid}-w${o?.recommended ? ` ${nid}-r` : ''}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
         <label htmlFor={`${uid}-${key}`}>{martIcon(o) || (iconed && <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" />)}<span className="gy-radio-text"><span id={`${nid}-h`}>{head}</span><span className="gy-radio-tail"><span id={`${nid}-w`} className="gy-radio-word">{tail}</span>{o && linkBtn(o)}</span>{o?.recommended && <span id={`${nid}-r`} className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></label>
+        {o?.description && <FieldHelp label={o.label} description={o.description} />}
       </div>
     );
   };
+
+  // a multi-pick row: one checkbox per field, up to `max` checked; the staged set rides in the pick's option id
+  const multi = src.multi;
+  const checks = (() => {
+    if (!multi) return null;
+    const live = row.multi?.checked ?? multi.checked;
+    const full = live.length >= multi.max;
+    const send = (paths: string[]) => onPick(`shown:set:${paths.join('|')}`);
+    const toggle = (path: string, on: boolean) => send(multi.items.filter((i) => (i.path === path ? on : live.includes(i.path))).map((i) => i.path));
+    // a long list shows the top boxes and every checked one; a search adds the rest
+    const long = multi.items.length > SEARCH_MULTI;
+    const list = long ? multi.items.filter((i, n) => n < SHOWN_MULTI || live.includes(i.path)) : multi.items;
+    const rest = multi.items.filter((i) => !list.includes(i));
+    const none = src.options.find((o) => o.declines);
+    const declined = picked === none?.id || (picked === undefined && dismissed);
+    const item = (i: (typeof list)[number]) => {
+      const cid = `${uid}-c-${i.path}`;
+      const on = live.includes(i.path);
+      const text = i.label;
+      return (
+        <div key={i.path} className="gy-radio gy-check">
+          <input id={cid} type="checkbox" checked={on} disabled={saving || (full && !on)} onChange={(e) => toggle(i.path, e.target.checked)} />
+          <label htmlFor={cid}>{martIcon({ martId: i.martId } as Option) || null}<span className="gy-radio-text"><span>{text}</span>{i.recommended && <span className="gy-row-rec">Recommended</span>}</span></label>
+          {i.description && <FieldHelp label={text} description={i.description} />}
+        </div>
+      );
+    };
+    return (
+      <>
+        <div role="group" aria-label={row.title} className="gy-radios">
+          {list.map(item)}
+        </div>
+        {long && rest.length > 0 && !readOnly && <OptionSearch options={rest.map((i) => ({ id: i.path, label: i.label, recommended: false, action: { kind: 'set', next: (s) => s }, martId: i.martId }))} label={`Search ${row.title}`} disabled={saving || full} icon={(o) => martIcon(o) || null} onPick={(o) => toggle(o.id, true)} />}
+        <span className="gy-muted gy-row-note">{full ? `Up to ${multi.max}: uncheck one to pick another` : `Up to ${multi.max}`}</span>
+        {none && (declined ? <span className="gy-muted gy-row-note">{none.label}</span> : <button type="button" className="gy-link gy-row-open" disabled={saving} onClick={() => onPick(none.id)}>{none.label}</button>)}
+      </>
+    );
+  })();
 
   // a notice can be waved off; a row with its own "no" option already has that answer
   const offerDismiss = src.dismissable && !implicit && !dismissed && !choices.some((o) => o.declines);
@@ -132,12 +175,12 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
         {linkOnly ? dismissOnly : readOnly || !hasRadios || (!unset && !changing) ? (
           <>
             <span className="gy-row-valueline">
-              {row.current ? <span className="gy-row-value">{row.current}</span> : <span className="gy-muted">Not set</span>}
+              {row.current ? <>{row.currentMartId && <MartIcon icon={martIcons?.[row.currentMartId] ?? null} size={14} className="gy-opt-icon gy-value-icon" aria-hidden="true" />}<span className="gy-row-value">{row.current}</span><FieldHelp label={row.current} description={row.currentDescription} /></> : <span className="gy-muted">Not set</span>}
               {!readOnly && hasRadios && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Edit ${row.title}`} title="Edit" onClick={() => setChanging(true)}><Pencil size={14} aria-hidden="true" /></button>}
             </span>
-            {readOnly && row.state !== 'done' && rec && <span className="gy-muted gy-row-recline">Recommended: {martIcon(rec)}{rec.label}{linkBtn(rec)}</span>}
+            {readOnly && row.state !== 'done' && rec && <span className="gy-muted gy-row-recline">Recommended: {martIcon(rec)}{rec.label}{linkBtn(rec)}<FieldHelp label={rec.label} description={rec.description} /></span>}
           </>
-        ) : radios}
+        ) : checks ?? radios}
         {row.state === 'error' && <button type="button" className="gy-link" onClick={onRetry}>Retry</button>}
         {extras}
       </div>

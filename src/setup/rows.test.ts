@@ -468,3 +468,48 @@ describe('a plan named by the description', () => {
     expect(buildRows({ ...input(EMPTY_SETUP, [retail, planMart]), graph: g }).some((r) => r.id === 'goal.shape')).toBe(true);
   });
 });
+
+describe('Data Mart icon and field descriptions on rows', () => {
+  const described = node('orders', [f('order_id', 'STRING', { isPrimaryKey: true }), f('date', 'DATE'), f('revenue', 'NUMERIC', { description: 'Net of refunds' }), f('revenue_plan', 'NUMERIC')], 'order_id');
+  const rows = (s = filled) => buildRows(input(s, [described]));
+
+  test('a set row names the Data Mart of its current field; an unset or non-field row does not', () => {
+    const r = rows();
+    expect(byId(r, 'goal.metric')).toMatchObject({ current: 'Orders · revenue', currentMartId: 'orders', currentDescription: 'Net of refunds' });
+    expect(byId(r, 'goal.date').currentMartId).toBe('orders');
+    expect(byId(r, 'goal.date').currentDescription).toBeUndefined();
+    expect(byId(r, 'goal.aggregation').currentMartId).toBeUndefined();
+    expect(byId(rows(EMPTY_SETUP), 'goal.metric').currentMartId).toBeUndefined();
+  });
+
+  test('the option of a field carries its description, and none without one', () => {
+    const opts = byId(rows(EMPTY_SETUP), 'goal.metric').options;
+    expect(opts.find((o) => o.id === 'field:orders:revenue')!.description).toBe('Net of refunds');
+    expect(opts.find((o) => o.id === 'field:orders:revenue_plan')?.description).toBeUndefined();
+  });
+});
+
+describe('the numbers on the card are checkboxes', () => {
+  const two = node('orders', [f('order_id', 'STRING', { isPrimaryKey: true }), f('date', 'DATE'), f('revenue', 'NUMERIC'), f('items', 'NUMERIC'), f('tax', 'NUMERIC'), f('tips', 'NUMERIC'), f('fees', 'NUMERIC')], 'order_id');
+  const choice = (field: string) => ({ martId: 'orders', measure: { field, fn: 'SUM' as const }, dateField: 'date', kind: 'flow' as const, alias: field });
+  const shownRow = (s: ProjectSettingsV5 = filled) => byId(buildRows(input(s, [two])), 'class:orders.shown');
+  const apply = (r: ReturnType<typeof shownRow>, paths: string[], s: ProjectSettingsV5 = filled) => { const a = r.multi!.action(paths); if (a?.kind !== 'set') throw new Error('no action'); return a.next(s); };
+
+  test('every numeric field but the key is a box, recommended first; the saved set is checked; at most 3', () => {
+    const r = shownRow({ ...filled, classes: { orders: { keyMetricId: null, shown: [choice('tax')] } } });
+    expect(r.multi!.items.map((i) => i.path)).toEqual(expect.arrayContaining(['items', 'tax', 'tips', 'fees']));
+    expect(r.multi!.items.slice(0, 3).every((i) => i.recommended)).toBe(true);
+    expect(r.multi!.checked).toEqual(['tax']);
+    expect(r.multi!.max).toBe(3);
+    expect(r.multi!.action(['items', 'tax', 'tips', 'fees'])).toBeUndefined();
+    expect(r.multi!.action(['nope'])).toBeUndefined();
+  });
+
+  test('a set writes the checked fields in order, no change when it equals the saved set', () => {
+    const r = shownRow();
+    expect(apply(r, ['tips', 'items']).classes.orders!.shown.map((c) => c.measure.field)).toEqual(['tips', 'items']);
+    expect(apply(r, []).classes.orders?.shown ?? []).toEqual([]);
+    const saved = { ...filled, classes: { orders: { keyMetricId: null, shown: [choice('items'), choice('tax')] } } };
+    expect(apply(shownRow(saved), ['tax', 'items'], saved)).toBe(saved);
+  });
+});

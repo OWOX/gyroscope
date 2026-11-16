@@ -682,3 +682,85 @@ describe('layout', () => {
     expect(container.querySelector('.dm-collapsible-clip .gy-opt-search-list')).toBeNull();
   });
 });
+
+describe('Data Mart field icon, checkboxes and descriptions', () => {
+  const shownRow = (over: Partial<Row> = {}): Row => row({ id: 'class:orders.shown', block: 'metrics', group: 'Orders', groupId: 'orders', title: 'Orders Numbers on the Card', severity: 'notice', state: 'open', dismissable: true,
+    options: [set('shown:a', 'Orders · items', true), { ...set('shown:none', 'No extra numbers'), declines: true }],
+    multi: { max: 3, checked: [], action: () => undefined, items: [
+      { path: 'a', label: 'Orders · items', martId: 'orders', recommended: true, description: 'Units sold' }, { path: 'b', label: 'Orders · tax', martId: 'orders', recommended: false },
+      { path: 'c', label: 'Orders · tips', martId: 'orders', recommended: false }, { path: 'd', label: 'Orders · fees', martId: 'orders', recommended: false }] }, ...over });
+
+  test('a set row shows the Data Mart icon before its value', () => {
+    const r = row({ state: 'done', current: 'Orders · revenue', currentMartId: 'orders' });
+    const { container } = render(<SetupTab {...props([r], { martIcons: { orders: 'orders' }, savedOpen: new Set() })} />);
+    const value = container.querySelector('.gy-row-value')!;
+    expect(value.previousElementSibling).toHaveClass('gy-value-icon');
+    expect(value.previousElementSibling!.tagName.toLowerCase()).toBe('svg');
+  });
+
+  test('a row whose value is not a field shows no icon', () => {
+    const { container } = render(<SetupTab {...props([row({ state: 'done', current: 'Daily amount' })], { savedOpen: new Set() })} />);
+    expect(container.querySelector('.gy-value-icon')).toBeNull();
+  });
+
+  test('one checkbox per field, the recommended tagged, the saved ones checked; a fourth is disabled once 3 are checked', () => {
+    const { rerender } = render(<SetupTab {...props([shownRow({ multi: { ...shownRow().multi!, checked: ['a'] } })])} />);
+    const group = screen.getByRole('group', { name: 'Orders Numbers on the Card' });
+    const boxes = within(group).getAllByRole('checkbox');
+    expect(boxes).toHaveLength(4);
+    expect(boxes[0]).toBeChecked();
+    expect(within(group).getByText('Recommended')).toBeInTheDocument();
+    expect(boxes[3]).toBeEnabled();
+    expect(screen.getByText('Up to 3')).toBeInTheDocument();
+    rerender(<SetupTab {...props([shownRow({ multi: { ...shownRow().multi!, checked: ['a', 'b', 'c'] } })])} />);
+    const full = within(screen.getByRole('group', { name: 'Orders Numbers on the Card' })).getAllByRole('checkbox');
+    expect(full[3]).toBeDisabled();
+    expect(full[2]).toBeEnabled();
+  });
+
+  test('checking a box stages the set in checkbox order; unchecking all stages the empty set; No extra numbers declines', () => {
+    const p = props([shownRow({ multi: { ...shownRow().multi!, checked: ['c'] } })]);
+    render(<SetupTab {...p} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /tax/ }));
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:b|c');
+    fireEvent.click(screen.getByRole('checkbox', { name: /tips/ }));
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:');
+    fireEvent.click(screen.getByRole('button', { name: 'No extra numbers' }));
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:none');
+  });
+
+  test('read-only shows the value only', () => {
+    render(<SetupTab {...props([shownRow({ state: 'done', current: 'Orders · items' })], { readOnly: true, savedOpen: new Set() })} />);
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.getByText('Orders · items')).toBeInTheDocument();
+  });
+
+  test('a long list shows the top boxes and a search that adds a box', () => {
+    const items = Array.from({ length: 14 }, (_, i) => ({ path: `f${i}`, label: `Orders · f${i}`, martId: 'orders', recommended: false }));
+    const p = props([shownRow({ multi: { max: 3, checked: [], action: () => undefined, items } })]);
+    render(<SetupTab {...p} />);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(6);
+    const box = screen.getByRole('combobox');
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: 'f13' } });
+    fireEvent.mouseDown(screen.getByRole('option', { name: /f13/ }));
+    expect(p.onPick).toHaveBeenLastCalledWith('class:orders.shown', 'shown:set:f13');
+  });
+
+  test('a field with a description gets a (?) with a tooltip, outside the label so a click does not pick; one without gets none', () => {
+    const p = props([shownRow(), row({ options: [{ ...set('a', 'Orders · revenue', true), description: 'Net of refunds' }, set('b', 'Orders · profit')] })]);
+    render(<SetupTab {...p} />);
+    const help = screen.getByRole('button', { name: 'About Orders · items' });
+    expect(document.getElementById(help.getAttribute('aria-describedby')!)).toHaveTextContent('Units sold');
+    expect(help.closest('label')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'About Orders · tax' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'About Orders · revenue' }));
+    expect(p.onPick).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'About Orders · profit' })).toBeNull();
+  });
+
+  test('a set row shows the description of its current field', () => {
+    render(<SetupTab {...props([row({ state: 'done', current: 'Orders · revenue', currentMartId: 'orders', currentDescription: 'Net of refunds' })], { savedOpen: new Set() })} />);
+    expect(screen.getByRole('button', { name: 'About Orders · revenue', hidden: true })).toBeInTheDocument();
+  });
+});

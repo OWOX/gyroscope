@@ -7,7 +7,7 @@ import { cands, criticalCandidates, dateCandidates, isNumber, kindFor, planCandi
 import { repick } from '../recommend/fixes';
 import { COPY, fill } from '../catalog';
 import { criticalRow, findMetricRows, isFieldLink } from '../tables';
-import type { Action, BlockId, Option, Row, RowState, Scope, Severity } from '../types';
+import type { Action, BlockId, Multi, Option, Row, RowState, Scope, Severity } from '../types';
 
 export type Goal = NonNullable<ProjectSettingsV5['goal']>;
 export type Plain = Omit<Option, 'recommended'>;
@@ -52,6 +52,10 @@ export function fieldText(ctx: Ctx, martId: string, path: string): string {
   const f = flattenFields(ctx.byId.get(martId)?.detail.fields ?? []).find((x) => x.path === path)?.field;
   return fieldLabel(martTitle(ctx, martId), f?.alias || f?.name || path);
 }
+/** The schema description of a field, when it has one. */
+export const fieldDesc = (ctx: Ctx, martId: string, path: string): string | undefined => flattenFields(ctx.byId.get(martId)?.detail.fields ?? []).find((x) => x.path === path)?.field.description || undefined;
+/** What a row shows of its current field: the Data Mart for the icon and the description for the (?). */
+export const currentOf = (ctx: Ctx, martId: string, path: string) => ({ currentMartId: martId, ...(fieldDesc(ctx, martId, path) ? { currentDescription: fieldDesc(ctx, martId, path) } : {}) });
 /** Applies a change to the goal, starting from the recommended goal when none is saved; no goal to start from leaves the settings as they are. */
 export const updGoal = (ctx: Ctx, f: (g: Goal) => Goal) => (s: ProjectSettingsV5): ProjectSettingsV5 => {
   const g = s.goal ?? ctx.defaultGoal;
@@ -82,7 +86,7 @@ export function recommend(ctx: Ctx, id: string, options: Plain[], none?: string)
 }
 
 /** A row from its catalog key; `options` come first-is-recommended and are normalised here. */
-export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, rest: { state: RowState; current: string | null; options: Plain[]; detail?: string; group?: string; groupId?: string; severity?: Severity; none?: string }): Row {
+export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, rest: { state: RowState; current: string | null; currentMartId?: string; currentDescription?: string; multi?: Multi; options: Plain[]; detail?: string; group?: string; groupId?: string; severity?: Severity; none?: string }): Row {
   const c = COPY[key]!;
   const base = rest.severity ?? c.severity;
   // a broken saved value counts 🟡 unless the row is a blocker
@@ -91,8 +95,8 @@ export function make(ctx: Ctx, key: string, id: string, block: BlockId, vars: Re
   return { id, block, title: fill(c.title, vars), question: fill(c.question, vars), why: fill(c.why, vars), aiPending: ctx.aiPending.has(id), dismissable: severity === 'notice', ...more, severity, ...recommend(ctx, id, options, none) };
 }
 
-export const fieldOption = (ctx: Ctx, c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: fieldLabel(c.martTitle, c.label), action: set(next), link: martPage(ctx, c.martId, c.path), linkLabel: fieldLabel(c.martTitle, c.label), martId: c.martId });
-export const setOption = (id: string, label: string, next: (s: ProjectSettingsV5) => ProjectSettingsV5, link?: string, linkLabel?: string, martId?: string): Plain => ({ id, label, action: set(next), ...(link ? { link, linkLabel, ...(martId ? { martId } : {}) } : {}) });
+export const fieldOption = (ctx: Ctx, c: FieldCand, next: (s: ProjectSettingsV5) => ProjectSettingsV5): Plain => ({ id: `field:${c.martId}:${c.path}`, label: fieldLabel(c.martTitle, c.label), action: set(next), link: martPage(ctx, c.martId, c.path), linkLabel: fieldLabel(c.martTitle, c.label), martId: c.martId, ...(c.description ? { description: c.description } : {}) });
+export const setOption = (id: string, label: string, next: (s: ProjectSettingsV5) => ProjectSettingsV5, link?: string, linkLabel?: string, martId?: string, description?: string): Plain => ({ id, label, action: set(next), ...(link ? { link, linkLabel, ...(martId ? { martId } : {}) } : {}), ...(description ? { description } : {}) });
 export const openOption = (id: string, label: string, path: string): Plain => ({ id, label, action: { kind: 'open', path } });
 
 /** Candidates with the closest field to a gone saved one put first. */
@@ -106,7 +110,7 @@ export function withRepick(ctx: Ctx, martId: string, path: string, state: RowSta
 export function metricRow(ctx: Ctx, key: string, id: string, block: BlockId, vars: Record<string, string>, group: string | undefined, list: FieldCand[], current: { martId: string; field: string } | null, write: (s: ProjectSettingsV5, c: FieldCand) => ProjectSettingsV5): Row {
   const chk = current ? fieldCheck(ctx, current.martId, [current.field]) : { state: 'open' as RowState };
   const options = withRepick(ctx, current?.martId ?? '', current?.field ?? '', chk.state, list).map((c) => fieldOption(ctx, c, (s) => write(s, c)));
-  return make(ctx, key, id, block, vars, { ...chk, group, current: current ? fieldText(ctx, current.martId, current.field) : null, options });
+  return make(ctx, key, id, block, vars, { ...chk, group, current: current ? fieldText(ctx, current.martId, current.field) : null, ...(current ? currentOf(ctx, current.martId, current.field) : {}), options });
 }
 
 export const planFor = (ctx: Ctx, c: FieldCand, kind: MetricKind, date?: string | null): PlanDef | null => {
@@ -142,7 +146,7 @@ export function planRow(ctx: Ctx, key: string, id: string, block: BlockId, vars:
     ...list.flatMap((c) => { const p = choices.find((x) => x.c === c)?.p ?? planFor(ctx, c, kind); return p ? [fieldOption(ctx, c, (s) => write(s, p))] : []; }),
     { ...setOption('none', 'No plan yet', (s) => dismiss(write(s, null), id)), declines: true },
   ];
-  return make(ctx, key, id, block, vars, { ...chk, group, current: current ? fieldText(ctx, current.martId, current.measure.field) : null, options });
+  return make(ctx, key, id, block, vars, { ...chk, group, current: current ? fieldText(ctx, current.martId, current.measure.field) : null, ...(current ? currentOf(ctx, current.martId, current.measure.field) : {}), options });
 }
 
 /** The one-row Metrics table that names a number, with its plan when there is one. */
