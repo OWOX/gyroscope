@@ -74,7 +74,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
     return (
       <div key={key} className="gy-radio">
         <input id={`${uid}-${key}`} aria-labelledby={`${nid}-h ${nid}-w${o?.recommended ? ` ${nid}-r` : ''}`} type="radio" name={row.id} checked={checked} disabled={saving || disabled} onChange={onChange} />
-        <label htmlFor={`${uid}-${key}`}>{martIcon(o) || (iconed && <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" />)}<span className="gy-radio-text"><span id={`${nid}-h`}>{head}</span><span className="gy-radio-tail"><span id={`${nid}-w`} className="gy-radio-word">{tail}</span>{o && linkBtn(o)}{o?.description && <FieldHelp label={o.label} description={o.description} />}</span>{o?.recommended && <span id={`${nid}-r`} className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></label>
+        <label htmlFor={`${uid}-${key}`}>{martIcon(o) || (iconed && <span className="gy-opt-icon gy-opt-gap" aria-hidden="true" />)}<span className="gy-radio-text"><span id={`${nid}-h`}>{head}</span><span className="gy-radio-tail"><span id={`${nid}-w`} className="gy-radio-word">{tail}</span>{o?.description && <FieldHelp label={o.label} description={o.description} />}{o && linkBtn(o)}</span>{o?.recommended && <span id={`${nid}-r`} className="gy-row-rec">Recommended</span>}{o?.recommended && row.aiPending && <Loader2 size={12} className="gy-spin" aria-hidden="true" />}</span></label>
       </div>
     );
   };
@@ -101,7 +101,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
       return (
         <div key={i.path} className="gy-radio gy-check">
           <input id={cid} type="checkbox" checked={on} disabled={saving || (full && !on)} onChange={(e) => toggle(i.path, e.target.checked)} />
-          <label htmlFor={cid}>{martIcon({ martId: i.martId } as Option) || null}<span className="gy-radio-text"><span className="gy-radio-tail"><span className="gy-radio-word">{text}</span>{linkBtn({ link: i.link, linkLabel: i.linkLabel, label: text })}{i.description && <FieldHelp label={text} description={i.description} />}</span>{i.recommended && <span className="gy-row-rec">Recommended</span>}</span></label>
+          <label htmlFor={cid}>{martIcon({ martId: i.martId } as Option) || null}<span className="gy-radio-text"><span className="gy-radio-tail"><span className="gy-radio-word">{text}</span>{i.description && <FieldHelp label={text} description={i.description} />}{linkBtn({ link: i.link, linkLabel: i.linkLabel, label: text })}</span>{i.recommended && <span className="gy-row-rec">Recommended</span>}</span></label>
         </div>
       );
     };
@@ -176,7 +176,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
               {row.current ? <>{row.currentMartId && <MartIcon icon={martIcons?.[row.currentMartId] ?? null} size={14} className="gy-opt-icon gy-value-icon" aria-hidden="true" />}<span className="gy-row-value">{row.current}{row.currentDescription && <span aria-hidden="true">{'\u2060'}</span>}<FieldHelp label={row.current} description={row.currentDescription} /></span></> : <span className="gy-muted">Not set</span>}
               {!readOnly && hasRadios && <button type="button" className="gy-row-link gy-row-link-reveal" aria-label={`Edit ${row.title}`} title="Edit" onClick={() => setChanging(true)}><Pencil size={14} aria-hidden="true" /></button>}
             </span>
-            {readOnly && row.state !== 'done' && rec && <span className="gy-muted gy-row-recline">Recommended: {martIcon(rec)}{rec.label}{linkBtn(rec)}<FieldHelp label={rec.label} description={rec.description} /></span>}
+            {readOnly && row.state !== 'done' && rec && <span className="gy-muted gy-row-recline">Recommended: {martIcon(rec)}{rec.label}<FieldHelp label={rec.label} description={rec.description} />{linkBtn(rec)}</span>}
           </>
         ) : checks ?? radios}
         {row.state === 'error' && <button type="button" className="gy-link" onClick={onRetry}>Retry</button>}
