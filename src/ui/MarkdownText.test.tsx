@@ -36,3 +36,51 @@ test('text full of unclosed marks renders quickly', () => {
   html('['.repeat(50_000) + '*'.repeat(20_000) + '**x'.repeat(10_000));
   expect(performance.now() - t).toBeLessThan(5000);
 });
+
+test('a heading is a bold small line, not an h1', () => {
+  const d = html('## Metrics\nsome text\n###### Deep');
+  expect([...d.querySelectorAll('.gy-md-h')].map((e) => [e.textContent, e.getAttribute('aria-level')])).toEqual([['Metrics', '2'], ['Deep', '6']]);
+  expect(d.querySelector('h1, h2, h3')).toBeNull();
+  expect(d.querySelector('p')!.textContent).toBe('some text');
+  expect(html('#hashtag').querySelector('.gy-md-h')).toBeNull();
+});
+
+test('a pipe table renders a table with inline markup in its cells', () => {
+  const d = html('| Role | Metric |\n|:--|--:|\n| Leading | [Plan\\_Data](https://x.y) |\n| a \\| b | **c** |');
+  expect([...d.querySelectorAll('th')].map((e) => e.textContent)).toEqual(['Role', 'Metric']);
+  const rows = [...d.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent));
+  expect(rows).toEqual([['Leading', 'Plan_Data'], ['a | b', 'c']]);
+  expect(d.querySelector('a')!.getAttribute('href')).toBe('https://x.y');
+  expect(d.querySelector('strong')!.textContent).toBe('c');
+  expect(d.querySelector('th')!.style.textAlign).toBe('left');
+  expect(d.querySelectorAll('th')[1]!.style.textAlign).toBe('right');
+  expect(d.querySelector('.gy-md-table table')).not.toBeNull();
+});
+
+test('a line with pipes but no separator row is a paragraph', () => {
+  const d = html('a | b\nc | d');
+  expect(d.querySelector('table')).toBeNull();
+  expect(d.querySelector('p')!.textContent).toBe('a | b c | d');
+});
+
+test('backslash escapes show the bare character and stop a mark', () => {
+  const d = html('Manual\\_gap\\_pages \\*not em\\* \\# \\` \\[x\\](y) \\| \\\\');
+  expect(d.textContent).toBe('Manual_gap_pages *not em* # ` [x](y) | \\');
+  expect(d.querySelector('em, a')).toBeNull();
+  expect(html('a \\q').textContent).toBe('a \\q');
+});
+
+test('the real-context example: heading, table with a link, blank-line paragraph', () => {
+  const d = html('## Metrics\n| Role | Metric |\n|---|---|\n| Leading | [Plan\\_Data](https://x.y) |\n\nManual\\_gap\\_pages');
+  expect(d.querySelector('.gy-md-h')!.textContent).toBe('Metrics');
+  expect(d.querySelector('td a')!.textContent).toBe('Plan_Data');
+  expect(d.querySelector('p')!.textContent).toBe('Manual_gap_pages');
+});
+
+test('a huge table is capped and a table of pipes renders quickly', () => {
+  const t = performance.now();
+  const d = html(`${'|'.repeat(5000)}\n${'|-'.repeat(5000)}\n` + Array.from({ length: 500 }, () => `|${'x|'.repeat(50)}`).join('\n'));
+  expect(d.querySelectorAll('tbody tr').length).toBeLessThanOrEqual(200);
+  expect(d.querySelectorAll('th').length).toBeLessThanOrEqual(20);
+  expect(performance.now() - t).toBeLessThan(5000);
+});
