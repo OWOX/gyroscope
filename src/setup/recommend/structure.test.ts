@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { coreCandidates, coreChoices, coreDefault, mentions, keyFor, ratioPairs, shownFor, teamDrafts } from './structure';
+import { coreCandidates, coreChoices, coreDefault, linkedIds, keyFor, ratioPairs, shownFor, teamDrafts } from './structure';
 import type { MartNode } from '../../model/graph';
 import type { Model } from '../../types';
 
@@ -20,7 +20,7 @@ describe('structure recommenders', () => {
     expect(coreDefault(c, edges)).toHaveLength(3);
   });
 
-  describe('core reach, mentions and manual picks', () => {
+  describe('core reach, links and manual picks', () => {
     const src = (aliasPath: string, dataMartId: string, ok = true) => ({ aliasPath, dataMartId, title: dataMartId, isAccessibleForReporting: ok });
     const titled = (id: string, title: string, fields?: object[]): MartNode => ({ ...node(id, fields), title });
     const goalWith = (...sources: ReturnType<typeof src>[]): MartNode => ({ ...node('goal'), blendable: { availableSources: sources, mainUniqueCountKeyFields: [] } });
@@ -31,34 +31,34 @@ describe('structure recommenders', () => {
       expect(coreChoices('goal', nodes, [], []).ranked).toEqual(['cust', 'user', 'org']);
     });
 
-    test('mentioned by link or title ranks first and is the default; with none mentioned the old rule applies', () => {
+    test('a Markdown link by Data Mart id ranks first and is the default; with none linked the old rule applies', () => {
       const nodes = [goalWith(src('a', 'a'), src('a.b', 'b'), src('a.b.c', 'c')), titled('a', 'Alpha'), titled('b', '🥈 Customer | Entity'), titled('c', 'Gamma')];
-      const byTitle = coreChoices('goal', nodes, [], [], text('Revenue comes from each Customer.'));
-      expect(byTitle.ranked).toEqual(['b', 'a', 'c']);
-      expect(coreDefault(byTitle.ranked, [], byTitle.mentioned)).toEqual(['b']);
-      const byLink = coreChoices('goal', nodes, [], [], text(null, 'see https://x/ui/p/data-marts/c/data-setup'));
-      expect(byLink.ranked[0]).toBe('c');
-      expect(byLink.mentioned).toEqual(['c']);
+      const withField = coreChoices('goal', nodes, [], [], text('Revenue: [🥈 Customer](https://app.owox.com/ui/p1/data-marts/b/data-setup?field=revenue+total#x).'));
+      expect(withField.ranked).toEqual(['b', 'a', 'c']);
+      expect(coreDefault(withField.ranked, [], withField.mentioned)).toEqual(['b']);
+      const relative = coreChoices('goal', nodes, [], [], text(null, 'see [Gamma](/ui/p1/data-marts/c/data-setup)'));
+      expect(relative.ranked[0]).toBe('c');
+      expect(relative.mentioned).toEqual(['c']);
       expect(coreChoices('goal', nodes, [], []).mentioned).toEqual([]);
       expect(coreDefault(['a', 'b', 'c'], [])).toEqual(['a', 'b', 'c']);
     });
 
-    test('a mentioned Data Mart the goal cannot reach is not a candidate', () => {
-      const nodes = [goalWith(src('a', 'a'), src('a.b', 'b')), titled('a', 'Alpha'), titled('b', 'Beta'), titled('far', 'Faraway'), titled('other', 'Other')];
-      const c = coreChoices('goal', nodes, [], [], text('Beta, Alpha and Faraway matter.'));
-      expect(c.ranked).toEqual(['a', 'b']);
-      expect(c.mentioned).toEqual(['a', 'b']);
-      expect(c.order).toEqual(['a', 'b']);
+    test('plain title text no longer matches', () => {
+      const nodes = [goalWith(src('a', 'a'), src('b', 'b')), titled('a', 'Alpha'), titled('b', 'Customer')];
+      const c = coreChoices('goal', nodes, [], [], text('Revenue comes from each Customer, see https://x/ui/p/data-marts/b/data-setup'));
+      expect(c.mentioned).toEqual([]);
     });
 
-    test('title match is a whole word, plural allowed, emoji and the part after " | " ignored', () => {
-      expect(mentions('active users', 'x', 'User')).toBe(true);
-      expect(mentions('the user table', 'x', '🥈 User')).toBe(true);
-      expect(mentions('Users Funnel report', 'x', 'User')).toBe(true);
-      expect(mentions('a superuser', 'x', 'User')).toBe(false);
-      expect(mentions('the User', 'x', 'Users Funnel')).toBe(false);
-      expect(mentions('see /data-marts/ab12', 'ab1', 'Zed')).toBe(false);
-      expect(mentions('see /data-marts/ab1/data-setup', 'ab1', 'Zed')).toBe(true);
+    test('an id that is not reachable is not offered', () => {
+      const nodes = [goalWith(src('a', 'a'), src('a.b', 'b')), titled('a', 'Alpha'), titled('b', 'Beta'), titled('far', 'Faraway')];
+      const c = coreChoices('goal', nodes, [], [], text('[Beta](/ui/p/data-marts/b/x), [Far](/ui/p/data-marts/far/x), [Ghost](/ui/p/data-marts/ghost/x)'));
+      expect(c.ranked).toEqual(['b', 'a']);
+      expect(c.mentioned).toEqual(['b']);
+      expect(c.order).toEqual(['b', 'a']);
+    });
+
+    test('linkedIds reads the id after /data-marts/, URL-decoded', () => {
+      expect([...linkedIds('[x](https://h/ui/p/data-marts/ab%2D1/data-setup?field=a) [y](/data-marts/z#h) plain /data-marts/q')]).toEqual(['ab-1', 'z']);
     });
 
     test('only reachable single-key marts are offered: not unrelated, multi-key, inaccessible or the goal', () => {

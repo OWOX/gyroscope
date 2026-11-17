@@ -18,13 +18,17 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 
 ## Release notes
 
+### 0.5.10
+
+1. Core Classes recommends the Data Marts linked in the project and context descriptions (by Data Mart link, not by title).
+
 ### 0.5.9
 
 1. Core Classes offers only Data Marts with a direct or indirect relationship to the critical number's Data Mart.
 
 ### 0.5.8
 
-1. Core Classes suggests the Data Marts named in the project and context descriptions and those reachable from the goal through relationships, direct or indirect. You can tick any Data Mart with a primary key.
+1. Core Classes suggests the Data Marts named in the project and context descriptions and those reachable from the goal through relationships, direct or indirect. You can tick any Data Mart with exactly one primary key (since 0.5.9, only those related to the critical number's Data Mart).
 2. A wrapped value keeps its Data Mart icon on the first line.
 
 ### 0.5.7
@@ -105,7 +109,7 @@ The plugin platform does not support a local preview. Test Gyroscope as an insta
 1. Push to `main`. GitHub Pages deploys `dist/` to the folder of the compatibility line: `v5/` for 0.5.x. Installs of 0.2 keep loading the root.
 2. A new compatibility line (0.6) needs `plugin.json` `delivery.url` moved to its folder (`/v6/`); a test fails until it is.
 3. Check the plugin with `owox-ctl plugins check OWOX/gyroscope --ref main`.
-4. Create a release with `gh release create v0.5.9 --target <full commit SHA> --generate-notes`.
+4. Create a release with `gh release create v0.5.10 --target <full commit SHA> --generate-notes`.
 5. In OWOX, open Plugins, then Publish Plugin, and choose "Only me" for testing.
 
 ## How it works

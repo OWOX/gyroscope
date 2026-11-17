@@ -14,16 +14,18 @@ export interface CoreChoices {
 }
 export interface CoreText { projectDescription: string | null; contexts: { id: string; description: string | null }[] }
 
-const bare = (t: string) => t.replace(/^[^\p{L}\p{N}]+/u, '').trim();
-const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** Whether a text names the Data Mart: a link to it, or its title (also without the emoji and the part after " | ") as a whole word, plural allowed. */
-export function mentions(text: string, id: string, title: string): boolean {
-  if (new RegExp(`/data-marts/${esc(id)}(?![A-Za-z0-9_-])`).test(text)) return true;
-  const names = new Set([bare(title), bare(title.split(' | ')[0]!)].filter((x) => x.length >= 2));
-  return [...names].some((n) => new RegExp(`(?<![\\p{L}\\p{N}_])${esc(n)}(?:e?s)?(?![\\p{L}\\p{N}_])`, 'iu').test(text));
+/** Data Mart ids linked from Markdown links in a text: the path segment after `/data-marts/`, any host or a relative path, query and hash ignored. */
+export function linkedIds(text: string): Set<string> {
+  const ids = new Set<string>();
+  for (const m of text.matchAll(/\]\(\s*<?([^)\s>]+)/g)) {
+    const seg = /\/data-marts\/([^/?#]+)/.exec(m[1]!)?.[1];
+    if (!seg) continue;
+    try { ids.add(decodeURIComponent(seg)); } catch { ids.add(seg); }
+  }
+  return ids;
 }
 
-/** Core class choices: single-key Data Marts the goal reaches through joins or calculated fields, mentioned first, then fewest hops, most referenced, title. */
+/** Core class choices: single-key Data Marts the goal reaches through joins or calculated fields, linked first, then fewest hops, most referenced, title. */
 export function coreChoices(goalId: string, nodes: MartNode[], edges: Edge[], legacy: string[], text: CoreText = { projectDescription: null, contexts: [] }): CoreChoices {
   const hops = new Map<string, number>();
   const bump = (id: string, d: number) => hops.set(id, Math.min(hops.get(id) ?? Infinity, d));
@@ -34,7 +36,8 @@ export function coreChoices(goalId: string, nodes: MartNode[], edges: Edge[], le
   const inbound = inboundCounts(edges);
   const body = [text.projectDescription, ...text.contexts.map((c) => c.description)].filter(Boolean).join('\n');
   const pool = nodes.filter((n) => n.id !== goalId && singleKey(n.detail) && hops.has(n.id));
-  const named = new Set(pool.filter((n) => mentions(body, n.id, n.title)).map((n) => n.id));
+  const linked = linkedIds(body);
+  const named = new Set(pool.filter((n) => linked.has(n.id)).map((n) => n.id));
   const rank = (a: MartNode, b: MartNode) => Number(named.has(b.id)) - Number(named.has(a.id)) || (hops.get(a.id) ?? Infinity) - (hops.get(b.id) ?? Infinity) || (inbound.get(b.id) ?? 0) - (inbound.get(a.id) ?? 0) || a.title.localeCompare(b.title);
   const ranked = [...pool].sort(rank).map((n) => n.id);
   const all = ranked;
