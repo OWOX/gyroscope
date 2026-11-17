@@ -118,6 +118,12 @@ describe('rows over a connected project', () => {
     expect(r.options).toMatchObject([{ id: 'none', action: { kind: 'open', path: '/ui/p1/data-marts' } }]);
   });
 
+  test('core: a Data Mart no join reaches is still offered, after the reachable ones and not recommended', () => {
+    const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
+    const r = byId(buildRows(input(filled, [linked(), customers, other])), 'core.classes');
+    expect(r.multi!.items.map((i) => [i.path, i.recommended])).toEqual([['customers', true], ['other', false]]);
+  });
+
   test('class rows exist only with a model; the goal and core classes are warnings, others notices', () => {
     expect(buildRows(input(EMPTY_SETUP, [linked(), customers])).some((r) => r.id.startsWith('class:'))).toBe(false);
     const a = rows();
