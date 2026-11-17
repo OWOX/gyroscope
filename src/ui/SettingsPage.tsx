@@ -40,13 +40,14 @@ export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab 
   const [weekStart, setWeekStart] = useState<WeekStart>(settings.weekStart);
   const [comparison, setComparison] = useState(settings.comparisonDefault);
 
+  const busy = !!setup?.saving;
   const save = () => onSave({ ...settings, defaultPreset: preset, comparisonDefault: comparison, weekStart });
 
   return (
     <div className="dm-page" ref={page}>
       <div className="gy-settings-sticky" data-tab={tab === 'setup' && setup ? 'setup' : undefined} ref={sticky}>
       <header className="dm-page-header gy-settings-header">
-        <button type="button" className="gy-icon-btn" aria-label="Back" title="Back" onClick={onBack}><ArrowLeft size={16} /></button>
+        <button type="button" className="gy-icon-btn" aria-label="Back" title={busy ? 'Saving Setup…' : 'Back'} disabled={busy} onClick={onBack}><ArrowLeft size={16} /></button>
         <h1 className="dm-page-header-title">Settings</h1>
         {tab === 'setup' && setup && !setup.readOnly && <SetupSaveControls dirty={setup.dirty} saving={setup.saving} onSave={setup.onSave} onDiscard={setup.onDiscard} />}
       </header>
@@ -94,8 +95,8 @@ export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab 
             </fieldset>
             {error && <p role="alert" className="gy-form-error">{error}</p>}
             <div className="gy-form-actions">
-              <button type="submit" className="gy-btn gy-btn-primary">Save</button>
-              <button type="button" className="gy-btn" onClick={onBack}>Cancel</button>
+              <button type="submit" className="gy-btn gy-btn-primary" disabled={busy} title={busy ? 'Saving Setup…' : undefined}>Save</button>
+              <button type="button" className="gy-btn" disabled={busy} title={busy ? 'Saving Setup…' : undefined} onClick={onBack}>Cancel</button>
             </div>
           </form>
         </div>
