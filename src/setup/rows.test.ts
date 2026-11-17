@@ -129,7 +129,7 @@ describe('rows over a connected project', () => {
     const r = byId(buildRows(input({ ...filled, coreClasses: ['other'] }, [linked(), customers, other])), 'core.classes');
     expect(r.multi!.items.map((i) => i.path)).toEqual(['other', 'customers']);
     expect(r.multi!.checked).toEqual(['other']);
-    expect(r).toMatchObject({ state: 'broken', detail: "other has no relationship with the critical number's Data Mart" });
+    expect(r).toMatchObject({ state: 'broken', detail: "Other has no relationship with the critical number's Data Mart" });
   });
 
   test('core: with no candidates the link asks for relationships and opens the goal Data Mart, or the list without a goal', () => {
