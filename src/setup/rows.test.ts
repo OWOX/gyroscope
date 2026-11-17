@@ -118,10 +118,53 @@ describe('rows over a connected project', () => {
     expect(r.options).toMatchObject([{ id: 'none', action: { kind: 'open', path: '/ui/p1/data-marts' } }]);
   });
 
-  test('core: a Data Mart no join reaches is still offered, after the reachable ones and not recommended', () => {
+  test('core: a Data Mart no join reaches is not offered', () => {
     const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
     const r = byId(buildRows(input(filled, [linked(), customers, other])), 'core.classes');
-    expect(r.multi!.items.map((i) => [i.path, i.recommended])).toEqual([['customers', true], ['other', false]]);
+    expect(r.multi!.items.map((i) => [i.path, i.recommended])).toEqual([['customers', true]]);
+  });
+
+  test('core: a saved choice with no relationship to the goal stays checked and shown, and the row is broken', () => {
+    const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
+    const r = byId(buildRows(input({ ...filled, coreClasses: ['other'] }, [linked(), customers, other])), 'core.classes');
+    expect(r.multi!.items.map((i) => i.path)).toEqual(['other', 'customers']);
+    expect(r.multi!.checked).toEqual(['other']);
+    expect(r).toMatchObject({ state: 'broken', detail: "Other has no relationship with the critical number's Data Mart" });
+  });
+
+  test('core: with no candidates the link asks for relationships and opens the goal Data Mart, or the list without a goal', () => {
+    const label = "Not available yet: add relationships from the critical number's Data Mart";
+    const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
+    const withGoal = byId(buildRows(input(filled, [orders, other])), 'core.classes');
+    expect(withGoal.options).toMatchObject([{ id: 'none', label, action: { kind: 'open', path: '/ui/p1/data-marts/orders/data-setup' } }]);
+    expect(byId(buildRows(input(EMPTY_SETUP, [])), 'core.classes').options).toMatchObject([{ label, action: { path: '/ui/p1/data-marts' } }]);
+  });
+
+  test('core: a failed goal schema makes the row an error and skips the relationship check', () => {
+    const g = graph([customers]); g.failed.set('orders', 'HTTP 500');
+    const r = byId(buildRows({ ...input({ ...filled, coreClasses: ['customers'] }, [customers]), graph: g }), 'core.classes');
+    expect(r).toMatchObject({ state: 'error', detail: "Couldn't check: HTTP 500" });
+  });
+
+  test('core: unticking the only saved unrelated choice leaves a draft with no list, so nothing stays checked', () => {
+    const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
+    const r = byId(buildRows(input({ ...filled, coreClasses: ['other'] }, [orders, other])), 'core.classes');
+    const a = r.multi!.action([]);
+    if (a?.kind !== 'set') throw new Error();
+    const draft = byId(buildRows(input(a.next({ ...filled, coreClasses: ['other'] }), [orders, other])), 'core.classes');
+    expect(draft.multi).toBeUndefined();
+  });
+
+  test('core: the goal saved as a core class is broken with its own message', () => {
+    const r = byId(buildRows(input({ ...filled, coreClasses: ['orders'] }, [linked(), customers])), 'core.classes');
+    expect(r).toMatchObject({ state: 'broken', detail: "Orders is the critical number's Data Mart, not a core class" });
+  });
+
+  test('core: with no saved goal, an unrelated saved choice is not flagged', () => {
+    const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
+    const r = byId(buildRows(input({ ...EMPTY_SETUP, coreClasses: ['other'] }, [linked(), customers, other])), 'core.classes');
+    expect(r.state).not.toBe('broken');
+    expect(r.detail).toBeUndefined();
   });
 
   test('class rows exist only with a model; the goal and core classes are warnings, others notices', () => {

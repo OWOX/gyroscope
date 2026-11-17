@@ -23,9 +23,13 @@ export function coreRows(ctx: Ctx): Row[] {
     max: MAX, items, checked: chosen,
     action: (paths) => (paths.length <= MAX && paths.every((p) => order.includes(p)) ? { kind: 'set', next: (x) => ({ ...x, coreClasses: order.filter((id) => paths.includes(id)) }) } : undefined),
   };
-  const options: Plain[] = items.length ? [] : [openOption('none', 'Not available yet: mark a primary key on your Data Marts', dataMartPage(ctx))];
+  const options: Plain[] = items.length ? [] : [openOption('none', "Not available yet: add relationships from the critical number's Data Mart", ctx.goalId ? martPage(ctx, ctx.goalId) : dataMartPage(ctx))];
   const enough = chosen.length >= 3 || (cand.length > 0 && (ranked.length ? ranked : cand).every((id) => chosen.includes(id)));
-  const state: RowState = failed ? 'error' : gone.length ? 'broken' : enough ? 'done' : 'open';
-  const detail = failed ? `Couldn't check: ${ctx.graph.failed.get(failed)}` : gone.length ? `${title(gone[0]!)} isn't available any more` : undefined;
+  const goalFailed = s.goal && ctx.graph.failed.has(s.goal.martId) ? s.goal.martId : undefined;
+  const checkable = s.goal && !goalFailed ? chosen.filter((id) => ctx.byId.has(id)) : [];
+  const isGoal = checkable.filter((id) => id === ctx.goalId);
+  const unreachable = checkable.filter((id) => id !== ctx.goalId && !cand.includes(id));
+  const state: RowState = failed || goalFailed ? 'error' : gone.length || isGoal.length || unreachable.length ? 'broken' : enough ? 'done' : 'open';
+  const detail = failed ? `Couldn't check: ${ctx.graph.failed.get(failed)}` : goalFailed ? `Couldn't check: ${ctx.graph.failed.get(goalFailed)}` : isGoal.length ? `${title(isGoal[0]!)} is the critical number's Data Mart, not a core class` : gone.length ? `${title(gone[0]!)} isn't available any more` : unreachable.length ? `${title(unreachable[0]!)} has no relationship with the critical number's Data Mart` : undefined;
   return [make(ctx, 'core.classes', 'core.classes', 'goal', {}, { state, detail, current: chosen.length ? chosen.map(title).join(', ') : null, ...(items.length ? { multi } : {}), options })];
 }

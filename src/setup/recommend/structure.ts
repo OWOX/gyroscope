@@ -5,11 +5,11 @@ import { parseRefs } from '../../lib/refs';
 import { numericFields, type FieldCand } from './fields';
 
 export interface CoreChoices {
-  /** Saved ids first, then the ranked reachable ones, then every other single-key Data Mart. */
+  /** Still-valid saved ids first, then the ranked reachable ones. */
   order: string[];
-  /** The mentioned and the reachable ones, ranked. */
+  /** The reachable ones, ranked. */
   ranked: string[];
-  /** The ones the project or a counting context names, reachable first. */
+  /** The reachable ones the project or a counting context names. */
   mentioned: string[];
 }
 export interface CoreText { projectDescription: string | null; contexts: { id: string; description: string | null }[] }
@@ -23,23 +23,21 @@ export function mentions(text: string, id: string, title: string): boolean {
   return [...names].some((n) => new RegExp(`(?<![\\p{L}\\p{N}_])${esc(n)}(?:e?s)?(?![\\p{L}\\p{N}_])`, 'iu').test(text));
 }
 
-/** Core class choices: every Data Mart the descriptions name or the goal reaches through joins or calculated fields (mentioned first, then fewest hops, most referenced, title), then any other single-key one. */
+/** Core class choices: single-key Data Marts the goal reaches through joins or calculated fields, mentioned first, then fewest hops, most referenced, title. */
 export function coreChoices(goalId: string, nodes: MartNode[], edges: Edge[], legacy: string[], text: CoreText = { projectDescription: null, contexts: [] }): CoreChoices {
   const hops = new Map<string, number>();
   const bump = (id: string, d: number) => hops.set(id, Math.min(hops.get(id) ?? Infinity, d));
-  const denied = new Set<string>();
   for (const src of nodes.find((n) => n.id === goalId)?.blendable.availableSources ?? []) {
-    if (src.isAccessibleForReporting) bump(src.dataMartId, src.aliasPath.split('.').length); else denied.add(src.dataMartId);
+    if (src.isAccessibleForReporting) bump(src.dataMartId, src.aliasPath.split('.').length);
   }
   for (const e of edges) { if (e.from === goalId) bump(e.to, 1); else if (e.to === goalId) bump(e.from, 1); }
   const inbound = inboundCounts(edges);
   const body = [text.projectDescription, ...text.contexts.map((c) => c.description)].filter(Boolean).join('\n');
-  const pool = nodes.filter((n) => n.id !== goalId && singleKey(n.detail) && (hops.has(n.id) || !denied.has(n.id)));
+  const pool = nodes.filter((n) => n.id !== goalId && singleKey(n.detail) && hops.has(n.id));
   const named = new Set(pool.filter((n) => mentions(body, n.id, n.title)).map((n) => n.id));
   const rank = (a: MartNode, b: MartNode) => Number(named.has(b.id)) - Number(named.has(a.id)) || (hops.get(a.id) ?? Infinity) - (hops.get(b.id) ?? Infinity) || (inbound.get(b.id) ?? 0) - (inbound.get(a.id) ?? 0) || a.title.localeCompare(b.title);
-  const ranked = pool.filter((n) => hops.has(n.id) || named.has(n.id)).sort(rank).map((n) => n.id);
-  const rest = pool.filter((n) => !hops.has(n.id) && !named.has(n.id)).sort((a, b) => a.title.localeCompare(b.title)).map((n) => n.id);
-  const all = [...ranked, ...rest];
+  const ranked = [...pool].sort(rank).map((n) => n.id);
+  const all = ranked;
   return { order: [...legacy.filter((id) => all.includes(id)), ...all.filter((id) => !legacy.includes(id))], ranked, mentioned: ranked.filter((id) => named.has(id)) };
 }
 

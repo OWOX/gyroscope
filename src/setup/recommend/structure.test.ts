@@ -43,12 +43,12 @@ describe('structure recommenders', () => {
       expect(coreDefault(['a', 'b', 'c'], [])).toEqual(['a', 'b', 'c']);
     });
 
-    test('a mentioned Data Mart the goal cannot reach is still a recommended candidate, after the reachable mentioned ones', () => {
+    test('a mentioned Data Mart the goal cannot reach is not a candidate', () => {
       const nodes = [goalWith(src('a', 'a'), src('a.b', 'b')), titled('a', 'Alpha'), titled('b', 'Beta'), titled('far', 'Faraway'), titled('other', 'Other')];
       const c = coreChoices('goal', nodes, [], [], text('Beta, Alpha and Faraway matter.'));
-      expect(c.ranked).toEqual(['a', 'b', 'far']);
-      expect(c.mentioned).toEqual(['a', 'b', 'far']);
-      expect(c.order).toEqual(['a', 'b', 'far', 'other']);
+      expect(c.ranked).toEqual(['a', 'b']);
+      expect(c.mentioned).toEqual(['a', 'b']);
+      expect(c.order).toEqual(['a', 'b']);
     });
 
     test('title match is a whole word, plural allowed, emoji and the part after " | " ignored', () => {
@@ -61,10 +61,10 @@ describe('structure recommenders', () => {
       expect(mentions('see /data-marts/ab1/data-setup', 'ab1', 'Zed')).toBe(true);
     });
 
-    test('unrelated single-key marts come after, multi-key and inaccessible ones never, the goal never', () => {
+    test('only reachable single-key marts are offered: not unrelated, multi-key, inaccessible or the goal', () => {
       const multi = node('multi', [{ name: 'a', type: 'STRING', isPrimaryKey: true }, { name: 'b', type: 'STRING', isPrimaryKey: true }]);
-      const nodes = [goalWith(src('near', 'near'), src('hid', 'hid', false)), node('near'), node('zeta'), node('alpha'), node('hid'), multi];
-      expect(coreCandidates('goal', nodes, [], ['zeta'])).toEqual(['zeta', 'near', 'alpha']);
+      const nodes = [goalWith(src('near', 'near'), src('hid', 'hid', false), src('multi', 'multi')), node('near'), node('zeta'), node('alpha'), node('hid'), multi];
+      expect(coreCandidates('goal', nodes, [], ['zeta', 'near'])).toEqual(['near']);
     });
 
     test('calculated-field edges still make direct candidates', () => {
