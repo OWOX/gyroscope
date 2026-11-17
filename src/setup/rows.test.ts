@@ -118,10 +118,26 @@ describe('rows over a connected project', () => {
     expect(r.options).toMatchObject([{ id: 'none', action: { kind: 'open', path: '/ui/p1/data-marts' } }]);
   });
 
-  test('core: a Data Mart no join reaches is still offered, after the reachable ones and not recommended', () => {
+  test('core: a Data Mart no join reaches is not offered', () => {
     const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
     const r = byId(buildRows(input(filled, [linked(), customers, other])), 'core.classes');
-    expect(r.multi!.items.map((i) => [i.path, i.recommended])).toEqual([['customers', true], ['other', false]]);
+    expect(r.multi!.items.map((i) => [i.path, i.recommended])).toEqual([['customers', true]]);
+  });
+
+  test('core: a saved choice with no relationship to the goal stays checked and shown, and the row is broken', () => {
+    const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
+    const r = byId(buildRows(input({ ...filled, coreClasses: ['other'] }, [linked(), customers, other])), 'core.classes');
+    expect(r.multi!.items.map((i) => i.path)).toEqual(['other', 'customers']);
+    expect(r.multi!.checked).toEqual(['other']);
+    expect(r).toMatchObject({ state: 'broken', detail: "other has no relationship with the critical number's Data Mart" });
+  });
+
+  test('core: with no candidates the link asks for relationships and opens the goal Data Mart, or the list without a goal', () => {
+    const label = "Not available yet: add relationships from the critical number's Data Mart";
+    const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
+    const withGoal = byId(buildRows(input(filled, [orders, other])), 'core.classes');
+    expect(withGoal.options).toMatchObject([{ id: 'none', label, action: { kind: 'open', path: '/ui/p1/data-marts/orders/data-setup' } }]);
+    expect(byId(buildRows(input(EMPTY_SETUP, [])), 'core.classes').options).toMatchObject([{ label, action: { path: '/ui/p1/data-marts' } }]);
   });
 
   test('class rows exist only with a model; the goal and core classes are warnings, others notices', () => {
