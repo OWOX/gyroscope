@@ -43,6 +43,14 @@ describe('structure recommenders', () => {
       expect(coreDefault(['a', 'b', 'c'], [])).toEqual(['a', 'b', 'c']);
     });
 
+    test('a mentioned Data Mart the goal cannot reach is still a recommended candidate, after the reachable mentioned ones', () => {
+      const nodes = [goalWith(src('a', 'a'), src('a.b', 'b')), titled('a', 'Alpha'), titled('b', 'Beta'), titled('far', 'Faraway'), titled('other', 'Other')];
+      const c = coreChoices('goal', nodes, [], [], text('Beta, Alpha and Faraway matter.'));
+      expect(c.ranked).toEqual(['a', 'b', 'far']);
+      expect(c.mentioned).toEqual(['a', 'b', 'far']);
+      expect(c.order).toEqual(['a', 'b', 'far', 'other']);
+    });
+
     test('title match is a whole word, plural allowed, emoji and the part after " | " ignored', () => {
       expect(mentions('active users', 'x', 'User')).toBe(true);
       expect(mentions('the user table', 'x', '🥈 User')).toBe(true);
