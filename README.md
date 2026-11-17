@@ -18,6 +18,12 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 
 ## Release notes
 
+### 0.5.6
+
+1. Setup notices are grey, not green. Errors stay red and warnings orange.
+2. Leaving Settings or opening an OWOX link with unsaved Setup changes asks "Leave without saving?". Switching between General and Setup keeps them.
+3. Context and Data Mart cells are wider (at least 24rem), so long field names fit.
+
 ### 0.5.5
 
 1. Every (?) opens a dark tooltip on click and renders its Markdown: headings, tables, lists and links. Long context and Data Mart descriptions are cut at a whole line, and "Show more" opens their page; other long text scrolls.
@@ -84,7 +90,7 @@ The plugin platform does not support a local preview. Test Gyroscope as an insta
 1. Push to `main`. GitHub Pages deploys `dist/` to the folder of the compatibility line: `v5/` for 0.5.x. Installs of 0.2 keep loading the root.
 2. A new compatibility line (0.6) needs `plugin.json` `delivery.url` moved to its folder (`/v6/`); a test fails until it is.
 3. Check the plugin with `owox-ctl plugins check OWOX/gyroscope --ref main`.
-4. Create a release with `gh release create v0.5.5 --target <full commit SHA> --generate-notes`.
+4. Create a release with `gh release create v0.5.6 --target <full commit SHA> --generate-notes`.
 5. In OWOX, open Plugins, then Publish Plugin, and choose "Only me" for testing.
 
 ## How it works

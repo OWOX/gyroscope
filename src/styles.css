@@ -485,7 +485,7 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-setup-group { margin-top: 0.5rem; }
 /* the Contexts block lays its context groups out as a grid, one cell each */
 /* the grid starts where the rows' text does: past the indicator column (1.75rem + 0.5rem gap) */
-.gy-setup-groups { margin-left: 2.25rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr)); gap: 0.5rem; align-items: stretch; }
+.gy-setup-groups { margin-left: 2.25rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: 0.5rem; align-items: stretch; }
 .gy-setup-groups > .gy-setup-group { margin-top: 0; min-width: 0; }
 .gy-setup-group > summary { display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: pointer; font-size: 0.875rem; font-weight: bolder; padding: 0.25rem 0; }
 .gy-setup-group > summary::-webkit-details-marker { display: none; }
@@ -519,12 +519,13 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-progress-fill { display: block; height: 100%; }
 .gy-progress-fill[data-severity='error'] { background: var(--red); }
 .gy-progress-fill[data-severity='warning'] { background: var(--orange); }
-.gy-progress-fill[data-severity='notice'], .gy-progress-fill[data-severity='done'] { background: var(--green); }
+.gy-progress-fill[data-severity='notice'] { background: var(--muted-foreground); }
+.gy-progress-fill[data-severity='done'] { background: var(--green); }
 .gy-progress-legend { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; font-size: 0.8125rem; }
 .gy-progress-btn { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .gy-progress-btn[data-severity='error'] { color: var(--red); }
 .gy-progress-btn[data-severity='warning'] { color: var(--orange); }
-.gy-progress-btn[data-severity='notice'] { color: var(--green); }
+.gy-progress-btn[data-severity='notice'] { color: var(--muted-foreground); }
 /* the indicator column is as wide as the band's icon tile (1.75rem) with the same 0.5rem gap, so row titles, group titles and hint bubbles share the section title's left edge; text and options split the rest half and half */
 .gy-row { position: relative; display: grid; grid-template-columns: 1.75rem minmax(0, 1fr); gap: 0.5rem; align-items: start; padding: 0.625rem 0; }
 /* the separator starts at the title text, not under the dot or check */
@@ -533,7 +534,7 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-row-icon { display: inline-grid; place-items: center; width: 100%; height: 1.125rem; color: var(--muted-foreground); }
 .gy-row-icon[data-severity='error'], .gy-row[data-severity='error'] .gy-row-dot { color: var(--red); }
 .gy-row-icon[data-severity='warning'], .gy-row[data-severity='warning'] .gy-row-dot { color: var(--orange); }
-.gy-row-icon[data-severity='notice'], .gy-row[data-severity='notice'] .gy-row-dot { color: var(--green); }
+.gy-row-icon[data-severity='notice'], .gy-row[data-severity='notice'] .gy-row-dot { color: var(--muted-foreground); }
 .gy-row-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
 .gy-row-icon { grid-column: 1; grid-row: 1; }
 /* one column of text: the title, the hint under it, then the options, all aligned with the title */
@@ -649,3 +650,10 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-md-table th { font-weight: 600; }
 .gy-opt-icon.gy-value-icon { margin: 0 0.375rem 0 0; }
 .gy-check .gy-radio-text { display: block; }
+
+.gy-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; background: oklch(0 0 0 / 0.45); }
+.gy-modal { width: 100%; max-width: 24rem; padding: 1.25rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--card); color: var(--foreground); box-shadow: 0 10px 30px oklch(0 0 0 / 0.25); }
+.gy-modal-title { margin: 0 0 0.375rem; font-size: 1rem; font-weight: 600; }
+.gy-modal-text { margin: 0 0 1rem; font-size: 0.875rem; color: var(--muted-foreground); }
+.gy-modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.gy-modal-actions .gy-btn { height: 2rem; padding: 0 0.875rem; }
