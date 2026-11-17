@@ -1,17 +1,54 @@
 import type { Edge, Model } from '../../types';
 import type { MartNode } from '../../model/graph';
-import { inboundCounts, rankCore, singleKey } from '../../model/core';
+import { inboundCounts, singleKey } from '../../model/core';
 import { parseRefs } from '../../lib/refs';
 import { numericFields, type FieldCand } from './fields';
 
-/** Legacy core ids that are still valid first, then the ranking. */
-export function coreCandidates(goalId: string, nodes: MartNode[], edges: Edge[], legacy: string[]): string[] {
-  const ranked = rankCore({ goalId, nodes: nodes.map((n) => ({ id: n.id, title: n.title, singleKey: singleKey(n.detail) })), edges });
-  return [...legacy.filter((id) => ranked.includes(id)), ...ranked.filter((id) => !legacy.includes(id))];
+export interface CoreChoices {
+  /** Saved ids first, then the ranked reachable ones, then every other single-key Data Mart. */
+  order: string[];
+  /** The reachable ones, ranked. */
+  ranked: string[];
+  /** Ranked ones the project or a counting context names. */
+  mentioned: string[];
+}
+export interface CoreText { projectDescription: string | null; contexts: { id: string; description: string | null }[] }
+
+const bare = (t: string) => t.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Whether a text names the Data Mart: a link to it, or its title (also without the emoji and the part after " | ") as a whole word, plural allowed. */
+export function mentions(text: string, id: string, title: string): boolean {
+  if (new RegExp(`/data-marts/${esc(id)}(?![A-Za-z0-9_-])`).test(text)) return true;
+  const names = new Set([bare(title), bare(title.split(' | ')[0]!)].filter((x) => x.length >= 2));
+  return [...names].some((n) => new RegExp(`(?<![\\p{L}\\p{N}_])${esc(n)}(?:e?s)?(?![\\p{L}\\p{N}_])`, 'iu').test(text));
 }
 
-/** As many as are referenced by two or more Data Marts, kept within 3 to 7. */
-export function coreDefault(cands: string[], edges: Edge[]): string[] {
+/** Core class choices: every Data Mart the goal reaches through joins or calculated fields (mentioned first, then fewest hops, most referenced, title), then any other single-key one. */
+export function coreChoices(goalId: string, nodes: MartNode[], edges: Edge[], legacy: string[], text: CoreText = { projectDescription: null, contexts: [] }): CoreChoices {
+  const hops = new Map<string, number>();
+  const bump = (id: string, d: number) => hops.set(id, Math.min(hops.get(id) ?? Infinity, d));
+  const denied = new Set<string>();
+  for (const src of nodes.find((n) => n.id === goalId)?.blendable.availableSources ?? []) {
+    if (src.isAccessibleForReporting) bump(src.dataMartId, src.aliasPath.split('.').length); else denied.add(src.dataMartId);
+  }
+  for (const e of edges) { if (e.from === goalId) bump(e.to, 1); else if (e.to === goalId) bump(e.from, 1); }
+  const inbound = inboundCounts(edges);
+  const body = [text.projectDescription, ...text.contexts.map((c) => c.description)].filter(Boolean).join('\n');
+  const pool = nodes.filter((n) => n.id !== goalId && singleKey(n.detail) && (hops.has(n.id) || !denied.has(n.id)));
+  const named = new Set(pool.filter((n) => mentions(body, n.id, n.title)).map((n) => n.id));
+  const rank = (a: MartNode, b: MartNode) => Number(named.has(b.id)) - Number(named.has(a.id)) || (hops.get(a.id) ?? Infinity) - (hops.get(b.id) ?? Infinity) || (inbound.get(b.id) ?? 0) - (inbound.get(a.id) ?? 0) || a.title.localeCompare(b.title);
+  const ranked = pool.filter((n) => hops.has(n.id)).sort(rank).map((n) => n.id);
+  const rest = pool.filter((n) => !hops.has(n.id)).sort((a, b) => a.title.localeCompare(b.title)).map((n) => n.id);
+  const all = [...ranked, ...rest];
+  return { order: [...legacy.filter((id) => all.includes(id)), ...all.filter((id) => !legacy.includes(id))], ranked, mentioned: ranked.filter((id) => named.has(id)) };
+}
+
+/** Legacy core ids that are still valid first, then the ranking. */
+export const coreCandidates = (goalId: string, nodes: MartNode[], edges: Edge[], legacy: string[], text?: CoreText): string[] => coreChoices(goalId, nodes, edges, legacy, text).order;
+
+/** The mentioned ones (up to 7); with none, as many as are referenced by two or more Data Marts, kept within 3 to 7. */
+export function coreDefault(cands: string[], edges: Edge[], mentioned: string[] = []): string[] {
+  if (mentioned.length) return mentioned.slice(0, 7);
   const inbound = inboundCounts(edges);
   const strong = cands.filter((id) => (inbound.get(id) ?? 0) >= 2).length;
   return cands.slice(0, Math.min(7, Math.max(3, strong)));

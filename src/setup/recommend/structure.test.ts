@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { coreCandidates, coreDefault, keyFor, ratioPairs, shownFor, teamDrafts } from './structure';
+import { coreCandidates, coreChoices, coreDefault, mentions, keyFor, ratioPairs, shownFor, teamDrafts } from './structure';
 import type { MartNode } from '../../model/graph';
 import type { Model } from '../../types';
 
@@ -18,6 +18,51 @@ describe('structure recommenders', () => {
     expect(c[0]).toBe('stores');
     expect(c).not.toContain('gone');
     expect(coreDefault(c, edges)).toHaveLength(3);
+  });
+
+  describe('core reach, mentions and manual picks', () => {
+    const src = (aliasPath: string, dataMartId: string, ok = true) => ({ aliasPath, dataMartId, title: dataMartId, isAccessibleForReporting: ok });
+    const titled = (id: string, title: string, fields?: object[]): MartNode => ({ ...node(id, fields), title });
+    const goalWith = (...sources: ReturnType<typeof src>[]): MartNode => ({ ...node('goal'), blendable: { availableSources: sources, mainUniqueCountKeyFields: [] } });
+    const text = (projectDescription: string | null, ...contexts: string[]) => ({ projectDescription, contexts: contexts.map((d, i) => ({ id: `c${i}`, description: d })) });
+
+    test('indirect marts are candidates, ranked after direct ones; the fewest hops wins per mart', () => {
+      const nodes = [goalWith(src('cust', 'cust'), src('cust.org', 'org'), src('cust.org.user', 'user'), src('user', 'user')), node('cust'), node('org'), node('user')];
+      expect(coreChoices('goal', nodes, [], []).ranked).toEqual(['cust', 'user', 'org']);
+    });
+
+    test('mentioned by link or title ranks first and is the default; with none mentioned the old rule applies', () => {
+      const nodes = [goalWith(src('a', 'a'), src('a.b', 'b'), src('a.b.c', 'c')), titled('a', 'Alpha'), titled('b', '🥈 Customer | Entity'), titled('c', 'Gamma')];
+      const byTitle = coreChoices('goal', nodes, [], [], text('Revenue comes from each Customer.'));
+      expect(byTitle.ranked).toEqual(['b', 'a', 'c']);
+      expect(coreDefault(byTitle.ranked, [], byTitle.mentioned)).toEqual(['b']);
+      const byLink = coreChoices('goal', nodes, [], [], text(null, 'see https://x/ui/p/data-marts/c/data-setup'));
+      expect(byLink.ranked[0]).toBe('c');
+      expect(byLink.mentioned).toEqual(['c']);
+      expect(coreChoices('goal', nodes, [], []).mentioned).toEqual([]);
+      expect(coreDefault(['a', 'b', 'c'], [])).toEqual(['a', 'b', 'c']);
+    });
+
+    test('title match is a whole word, plural allowed, emoji and the part after " | " ignored', () => {
+      expect(mentions('active users', 'x', 'User')).toBe(true);
+      expect(mentions('the user table', 'x', '🥈 User')).toBe(true);
+      expect(mentions('Users Funnel report', 'x', 'User')).toBe(true);
+      expect(mentions('a superuser', 'x', 'User')).toBe(false);
+      expect(mentions('the User', 'x', 'Users Funnel')).toBe(false);
+      expect(mentions('see /data-marts/ab12', 'ab1', 'Zed')).toBe(false);
+      expect(mentions('see /data-marts/ab1/data-setup', 'ab1', 'Zed')).toBe(true);
+    });
+
+    test('unrelated single-key marts come after, multi-key and inaccessible ones never, the goal never', () => {
+      const multi = node('multi', [{ name: 'a', type: 'STRING', isPrimaryKey: true }, { name: 'b', type: 'STRING', isPrimaryKey: true }]);
+      const nodes = [goalWith(src('near', 'near'), src('hid', 'hid', false)), node('near'), node('zeta'), node('alpha'), node('hid'), multi];
+      expect(coreCandidates('goal', nodes, [], ['zeta'])).toEqual(['zeta', 'near', 'alpha']);
+    });
+
+    test('calculated-field edges still make direct candidates', () => {
+      const nodes = [node('goal'), node('x'), node('y')];
+      expect(coreChoices('goal', nodes, [{ from: 'goal', to: 'x' }], []).ranked).toEqual(['x']);
+    });
   });
 
   const metric = (id: string, martId: string, over: object = {}) => ({ id, martId, alias: id, measure: { field: id.split(':')[1]!, fn: 'SUM' }, kind: 'flow', dateField: 'd', role: 'leading', source: 'project', isUniqueCount: false, plan: null, shown: true, format: 'number', currency: null, forecast: null, ...over });
