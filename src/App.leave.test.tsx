@@ -138,7 +138,12 @@ test('Back while a Setup save runs does not ask, and leaves nothing: the picks a
   await screen.findByRole('button', { name: 'Saving…' });
   fireEvent.click(screen.getByRole('button', { name: 'Back' }));
   expect(dialog()).toBeNull();
-  expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Back' })).toHaveAttribute('title', 'Saving Setup…');
+  fireEvent.click(screen.getByRole('tab', { name: 'General' }));
+  for (const n of ['Save', 'Cancel']) expect(screen.getByRole('button', { name: n })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toHaveAttribute('title', 'Saving Setup…');
+  fireEvent.click(screen.getByRole('tab', { name: 'Setup' }));
   open();
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Saving…' })).toBeNull());
   expect(screen.getByRole('tab', { name: 'Setup' })).toHaveAttribute('aria-selected', 'true');

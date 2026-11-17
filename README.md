@@ -20,8 +20,8 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 
 ### 0.5.7
 
-1. Exits are held while a Setup save runs, so a failed save never leaves its picks behind.
-2. The "Leave without saving?" dialog closes by itself if the picks are gone, and says so when Saving General settings drops them.
+1. Back, Cancel and General Save are disabled while a Setup save runs, so a failed save never leaves its picks behind. Host exits (sidebar, browser Back) get the host's own warning.
+2. The "Leave without saving?" dialog closes by itself, and the exit goes on, if the picks are gone. It says so when saving General settings drops them.
 3. Focus stays in the dialog and the page behind it is inert.
 
 ### 0.5.6

@@ -326,7 +326,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     const nextCompare = s.comparisonDefault !== settings.comparisonDefault ? compareOf(s) : compare;
     if (nextRange !== range || nextCompare !== compare) { setRange(nextRange); setCompare(nextCompare); remember(nextCompare); }
     setSettings(s);
-    if (discardSetup) setup.props.onDiscard();
+    if (discardSetup && dirtyNow.current > 0) setup.props.onDiscard();
     leaveSettings();
   };
 
