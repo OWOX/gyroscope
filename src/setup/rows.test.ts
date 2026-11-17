@@ -140,6 +140,33 @@ describe('rows over a connected project', () => {
     expect(byId(buildRows(input(EMPTY_SETUP, [])), 'core.classes').options).toMatchObject([{ label, action: { path: '/ui/p1/data-marts' } }]);
   });
 
+  test('core: a failed goal schema makes the row an error and skips the relationship check', () => {
+    const g = graph([customers]); g.failed.set('orders', 'HTTP 500');
+    const r = byId(buildRows({ ...input({ ...filled, coreClasses: ['customers'] }, [customers]), graph: g }), 'core.classes');
+    expect(r).toMatchObject({ state: 'error', detail: "Couldn't check: HTTP 500" });
+  });
+
+  test('core: unticking the only saved unrelated choice leaves a draft with no list, so nothing stays checked', () => {
+    const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
+    const r = byId(buildRows(input({ ...filled, coreClasses: ['other'] }, [orders, other])), 'core.classes');
+    const a = r.multi!.action([]);
+    if (a?.kind !== 'set') throw new Error();
+    const draft = byId(buildRows(input(a.next({ ...filled, coreClasses: ['other'] }), [orders, other])), 'core.classes');
+    expect(draft.multi).toBeUndefined();
+  });
+
+  test('core: the goal saved as a core class is broken with its own message', () => {
+    const r = byId(buildRows(input({ ...filled, coreClasses: ['orders'] }, [linked(), customers])), 'core.classes');
+    expect(r).toMatchObject({ state: 'broken', detail: "Orders is the critical number's Data Mart, not a core class" });
+  });
+
+  test('core: with no saved goal, an unrelated saved choice is not flagged', () => {
+    const other = node('other', [f('other_id', 'STRING', { isPrimaryKey: true })], 'other_id');
+    const r = byId(buildRows(input({ ...EMPTY_SETUP, coreClasses: ['other'] }, [linked(), customers, other])), 'core.classes');
+    expect(r.state).not.toBe('broken');
+    expect(r.detail).toBeUndefined();
+  });
+
   test('class rows exist only with a model; the goal and core classes are warnings, others notices', () => {
     expect(buildRows(input(EMPTY_SETUP, [linked(), customers])).some((r) => r.id.startsWith('class:'))).toBe(false);
     const a = rows();

@@ -87,7 +87,7 @@ export function SetupRow({ row, readOnly, saving = false, picked, unset, optionR
   const multi = src.multi;
   const checks = (() => {
     if (!multi) return null;
-    const live = row.multi?.checked ?? multi.checked;
+    const live = row.multi?.checked ?? (picked?.startsWith('set:') ? [] : multi.checked); // a staged set whose draft row has no list is an empty one
     const full = multi.max !== undefined && live.length >= multi.max;
     // the saved set is no pick: checking back to it (an empty set on a dismissed row included) clears the staged one
     const send = (paths: string[]) => onPick(paths.length === multi.checked.length && paths.every((p) => multi.checked.includes(p)) ? null : `set:${JSON.stringify(paths)}`);
