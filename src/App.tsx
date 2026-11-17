@@ -145,8 +145,14 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
 
   // an exit with staged Setup picks asks first; the picks would be lost
   const dirtyNow = useRef(0);
-  const [leaving, setLeaving] = useState<(() => void) | null>(null);
-  const guard = (go: () => void) => { if (dirtyNow.current > 0) setLeaving(() => go); else go(); };
+  const savingNow = useRef(false);
+  // `save`: the exit is General's Save, which drops the picks itself once it has succeeded
+  const [leaving, setLeaving] = useState<{ go: () => void; save: boolean } | null>(null);
+  // a Setup save in flight holds the exits: the picks and the error stay where the user can see them
+  const guard = (go: () => void, save = false) => {
+    if (savingNow.current) return;
+    if (dirtyNow.current > 0) setLeaving({ go, save }); else go();
+  };
   const navigate = ctx.ui?.navigate ? (path: string) => guard(() => ctx.ui.navigate(path)) : undefined;
 
   const setup = useSetup({
@@ -154,6 +160,13 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     open: navigate, onModel,
   });
   dirtyNow.current = setup.props.dirty;
+  savingNow.current = setup.props.saving;
+  // nothing left to lose: the dialog closes and the exit goes on
+  useEffect(() => {
+    if (setup.props.dirty > 0 || !leaving) return;
+    setLeaving(null);
+    leaving.go();
+  }, [setup.props.dirty, leaving]);
   const isDirty = setup.props.dirty > 0;
   // the host warns on its own exits (sidebar, Back, closing the tab) once it offers setUnsaved
   const host = ctx.ui as { setUnsaved?: (dirty: boolean) => void } | undefined;
@@ -302,7 +315,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     if (r === null) { refreshId.current++; setRefreshing(false); setLoading(false); setProgress(null); }
     setRange(r); setCompare(next); remember(next);
   };
-  const saveSettingsAndLeave = async (s: ViewSettings) => {
+  const saveSettingsAndLeave = async (s: ViewSettings, discardSetup = false) => {
     try {
       await saveViewSettings(store, { defaultPreset: s.defaultPreset, comparisonDefault: s.comparisonDefault, weekStart: s.weekStart });
     } catch (e) {
@@ -313,6 +326,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     const nextCompare = s.comparisonDefault !== settings.comparisonDefault ? compareOf(s) : compare;
     if (nextRange !== range || nextCompare !== compare) { setRange(nextRange); setCompare(nextCompare); remember(nextCompare); }
     setSettings(s);
+    if (discardSetup) setup.props.onDiscard();
     leaveSettings();
   };
 
@@ -339,7 +353,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
           setup={setup.props}
           onBack={() => guard(leaveSettings)}
           error={settingsError}
-          onSave={(s) => guard(() => void saveSettingsAndLeave(s))}
+          onSave={(s) => guard(() => void saveSettingsAndLeave(s, true), true)}
         />
       );
     case 'ready': {
@@ -369,7 +383,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
   return (
     <>
       {body}
-      {leaving && <LeaveDialog changes={setup.props.dirty} onStay={() => setLeaving(null)} onLeave={() => { const go = leaving; setLeaving(null); setup.props.onDiscard(); go(); }} />}
+      {leaving && <LeaveDialog changes={setup.props.dirty} save={leaving.save} onStay={() => setLeaving(null)} onLeave={() => { const { go, save } = leaving; setLeaving(null); if (!save) setup.props.onDiscard(); go(); }} />}
     </>
   );
 }
