@@ -23,9 +23,6 @@ const row = (id: string, extra: Partial<PluginSchedule> = {}): PluginSchedule =>
   id, name: null, action: 'warm-cache', parameters: { ranges: [range] }, cron: '0 9 * * 1,2,3,4,5', timeZone: 'UTC',
   enabled: true, disabledReason: null, nextRunAt: null, lastRun: null, createdAt: '', modifiedAt: '', ...extra,
 });
-beforeEach(() => { window.confirm = vi.fn(() => true); });
-afterEach(() => { delete (window as { confirm?: unknown }).confirm; });
-
 const rowOf = async (text: string) => (await screen.findByText(text)).closest('tr')!;
 const openMenu = async (name = /^Actions for/) => { fireEvent.click(await screen.findByRole('button', { name })); };
 const pickRanges = (labels: string[]) => {
@@ -133,16 +130,24 @@ test('the row menu edits, pauses, resumes and deletes', async () => {
   await waitFor(() => expect(api.update).toHaveBeenCalledWith('a', expect.objectContaining({ cron: '0 */1 * * *' })));
   await openMenu();
   fireEvent.click(screen.getByRole('menuitem', { name: 'Delete schedule' }));
-  expect(window.confirm).toHaveBeenCalled();
+  const confirm = screen.getByRole('alertdialog', { name: 'Delete this schedule?' });
+  expect(api.delete).not.toHaveBeenCalled();
+  fireEvent.click(within(confirm).getByRole('button', { name: 'Delete schedule' }));
   await waitFor(() => expect(api.delete).toHaveBeenCalledWith('a'));
+  expect(await screen.findByText('Create your first schedule')).toBeInTheDocument();
 });
 
 test('declining the delete confirmation keeps the schedule', async () => {
-  window.confirm = vi.fn(() => false);
   const api = fakeSchedules([row('a')]);
   render(<SchedulesTab {...props(api)} />);
   await openMenu();
   fireEvent.click(screen.getByRole('menuitem', { name: 'Delete schedule' }));
+  const confirm = screen.getByRole('alertdialog', { name: 'Delete this schedule?' });
+  const cancel = within(confirm).getByRole('button', { name: 'Cancel' });
+  expect(cancel).toHaveFocus();
+  fireEvent.keyDown(cancel, { key: 'Escape' });
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  expect(screen.getByRole('button', { name: /^Actions for/ })).toHaveFocus();
   expect(api.delete).not.toHaveBeenCalled();
 });
 

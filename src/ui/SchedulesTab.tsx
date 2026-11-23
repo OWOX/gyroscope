@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import type { PluginSchedule, PluginSchedules } from '@owox/plugin-sdk';
 import { PRESET_LABELS, type Model, type ViewSettings } from '../types';
 import { describeCadence, fromCron } from '../schedules/cron';
 import { WARM_ACTION, parseWarmInput } from '../schedules/input';
 import { describeActionError } from '../lib/errors';
+import { ConfirmDialog } from './ConfirmDialog';
 import { ScheduleForm } from './ScheduleForm';
 import { RowMenu } from './RowMenu';
 import { Sheet } from './Sheet';
@@ -46,6 +48,7 @@ export function SchedulesTab({ schedules, model, settings }: SchedulesProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
   const [form, setForm] = useState<{ schedule: PluginSchedule | null; returnTo: HTMLElement | null } | null>(null);
+  const [deleting, setDeleting] = useState<PluginSchedule | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const menuButtons = useRef(new Map<string, HTMLButtonElement>());
 
@@ -65,7 +68,6 @@ export function SchedulesTab({ schedules, model, settings }: SchedulesProps) {
     try { await fn(); await load(); } catch (e) { setRowError(describeActionError(e)); }
   };
   const toggle = (s: PluginSchedule) => void act(() => (s.enabled ? schedules.pause(s.id) : schedules.resume(s.id)));
-  const remove = (s: PluginSchedule) => { if (window.confirm('Delete this schedule?')) void act(() => schedules.delete(s.id)); };
   const edit = (s: PluginSchedule) => setForm({ schedule: s, returnTo: menuButtons.current.get(s.id) ?? null });
   // OWOX lists only this member's schedules, so the count and the limit are the member's own
   const full = all.length >= LIMIT;
@@ -142,7 +144,7 @@ export function SchedulesTab({ schedules, model, settings }: SchedulesProps) {
                       items={[
                         { label: 'Edit schedule', icon: Pencil, onSelect: () => edit(s) },
                         s.enabled ? { label: 'Pause schedule', icon: Pause, onSelect: () => toggle(s) } : { label: 'Resume schedule', icon: Play, onSelect: () => toggle(s) },
-                        { label: 'Delete schedule', icon: Trash2, danger: true, onSelect: () => remove(s) },
+                        { label: 'Delete schedule', icon: Trash2, danger: true, onSelect: () => setDeleting(s) },
                       ]}
                     />
                   </td>
@@ -152,6 +154,20 @@ export function SchedulesTab({ schedules, model, settings }: SchedulesProps) {
           </tbody>
         </table>
       </div>
+      {deleting && createPortal(
+        <ConfirmDialog
+          title="Delete this schedule?"
+          description={<>“{deleting.name || cadenceOf(deleting)}” will stop running.</>}
+          confirmLabel="Delete schedule"
+          cancelLabel="Cancel"
+          onConfirm={() => {
+            setDeleting(null);
+            void act(() => schedules.delete(deleting.id));
+          }}
+          onCancel={() => setDeleting(null)}
+        />,
+        document.body,
+      )}
       {form && (
         <Sheet
           title={form.schedule ? 'Edit schedule' : 'Add schedule'}
