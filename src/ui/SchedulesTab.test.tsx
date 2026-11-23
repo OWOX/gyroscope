@@ -74,14 +74,17 @@ test('at the limit Add is off and says why', async () => {
   expect(screen.getByText(/You have 20 schedules, the most OWOX allows\./)).toBeInTheDocument();
 });
 
-test('adding a schedule creates a warm-cache schedule', async () => {
+test('adding a schedule calls the SDK even when native submission is blocked', async () => {
   const api = fakeSchedules();
   render(<SchedulesTab {...props(api)} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Add schedule' }));
   fireEvent.click(screen.getByRole('button', { name: 'Every 6 hours' }));
   pickRanges(['This year to date']);
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-  await waitFor(() => expect(api.create).toHaveBeenCalled());
+  const save = screen.getByRole('button', { name: 'Save' });
+  // The plugin iframe allows click handlers but blocks the browser's form submission.
+  save.addEventListener('click', (event) => event.preventDefault(), { once: true });
+  fireEvent.click(save);
+  await waitFor(() => expect(api.create).toHaveBeenCalledOnce());
   const arg = (api.create as ReturnType<typeof vi.fn>).mock.calls[0]![0];
   expect(arg).toMatchObject({ action: 'warm-cache', cron: '0 */6 * * *' });
   expect(arg.parameters).not.toHaveProperty('memberId');
@@ -363,6 +366,6 @@ test('a schedule with an unparsable cron keeps it on save', async () => {
   await openMenu();
   fireEvent.click(screen.getByRole('menuitem', { name: 'Edit schedule' }));
   expect(screen.getByText('Cron: 0 9 1 * 1')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Name' }), { key: 'Enter' });
   await waitFor(() => expect(api.update).toHaveBeenCalledWith('a', expect.objectContaining({ cron: '0 9 1 * 1' })));
 });

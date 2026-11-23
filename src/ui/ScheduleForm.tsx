@@ -63,6 +63,7 @@ export function ScheduleForm({ schedules, schedule, model, settings, onSaved, on
   const defaultRange = settings.defaultPreset ? PRESET_LABELS[settings.defaultPreset] : null;
 
   const save = async () => {
+    if (busy) return;
     setError(null);
     if (!model) { setError('Finish Setup in Gyroscope before adding a schedule.'); return; }
     const ranges = rangesFor(picked, settings);
@@ -89,7 +90,13 @@ export function ScheduleForm({ schedules, schedule, model, settings, onSaved, on
   );
 
   return (
-    <form className="gy-sheet-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+    // OWOX's iframe blocks native form submission before a submit handler can run.
+    <div className="gy-sheet-form" onKeyDown={(e) => {
+      if (e.key === 'Enter' && !e.defaultPrevented && !e.nativeEvent.isComposing && e.target instanceof HTMLInputElement) {
+        e.preventDefault();
+        void save();
+      }
+    }}>
       <div className="gy-sheet-body">
         <div className="gy-field">
           <label className="gy-label" htmlFor="gy-sch-name">Name</label>
@@ -178,9 +185,9 @@ export function ScheduleForm({ schedules, schedule, model, settings, onSaved, on
       </div>
       <div className="gy-sheet-footer">
         {error && <p role="alert" className="gy-form-error">{error}</p>}
-        <button type="submit" className="gy-btn gy-btn-primary gy-btn-block" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+        <button type="button" className="gy-btn gy-btn-primary gy-btn-block" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save'}</button>
         <button type="button" className="gy-btn gy-btn-block" onClick={onCancel}>Cancel</button>
       </div>
-    </form>
+    </div>
   );
 }
