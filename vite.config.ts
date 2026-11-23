@@ -1,10 +1,9 @@
 import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { voidPlugin } from 'void';
 
 export default defineConfig({
-  // Relative, so the same build works at a domain root and under /gyroscope/ on GitHub Pages.
-  base: './',
-  plugins: [react()],
+  plugins: [react(), voidPlugin()],
   // Local preview; the router forwards gyroscope.dorland.keenetic.pro here.
   preview: {
     host: true,

@@ -21,3 +21,9 @@ export function statusesOf(error: unknown): number[] {
 }
 /** The first HTTP status found, or undefined. */
 export const statusOf = (error: unknown): number | undefined => statusesOf(error)[0];
+
+/** Like describeError, but a refused schedule action keeps its code: "TOO_MANY_SCHEDULES Too many". */
+export function describeActionError(e: unknown): string {
+  if (e instanceof Error && e.name === 'PluginActionError') return `${(e as Error & { code?: string }).code ?? ''} ${e.message}`.trim();
+  return describeError(e);
+}
