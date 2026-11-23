@@ -3,7 +3,7 @@
   "description": "Gyroscope gives a clear picture of how the business is performing and highlights the risks and opportunities on the way to its goal.",
   "delivery": {
     "type": "remote",
-    "url": "https://owox.github.io/gyroscope/v5/"
+    "url": "https://gyroscope.owox.app/"
   },
   "credentials": [
     "ai"
@@ -52,7 +52,7 @@
     }
   ],
   "backend": {
-    "url": "https://gyroscope.owox.workers.dev",
+    "url": "/owox",
     "actions": {
       "warm-cache": {
         "timeoutSeconds": 300,

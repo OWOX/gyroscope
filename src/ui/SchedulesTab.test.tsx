@@ -33,7 +33,19 @@ const pickRanges = (labels: string[]) => {
   for (const l of labels) fireEvent.click(screen.getByRole('option', { name: l }));
 };
 
-const props = (schedules: PluginSchedules | undefined, extra = {}) => ({ schedules, model: fixtureModel, settings: DEFAULT_SETTINGS, ...extra });
+const props = (schedules: PluginSchedules | undefined, extra = {}) => ({ schedules, model: fixtureModel, settings: { ...DEFAULT_SETTINGS, defaultPreset: 'qtd' as const }, ...extra });
+
+test('a member without a default must select at least one date range', async () => {
+  const api = fakeSchedules();
+  render(<SchedulesTab {...props(api, { settings: DEFAULT_SETTINGS })} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Add schedule' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByText('Select at least one data range.')).toBeInTheDocument();
+  expect(api.create).not.toHaveBeenCalled();
+  pickRanges(['Yesterday']);
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(api.create).toHaveBeenCalledOnce());
+});
 
 test('without ctx.schedules the tab says OWOX is too old', () => {
   render(<SchedulesTab {...props(undefined)} />);
@@ -84,7 +96,7 @@ test('without a model the form refuses to save', async () => {
   render(<SchedulesTab {...props(api, { model: null })} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Add schedule' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('Build the model first');
+  expect(await screen.findByRole('alert')).toHaveTextContent('Finish Setup in Gyroscope');
   expect(api.create).not.toHaveBeenCalled();
 });
 

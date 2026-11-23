@@ -20,12 +20,16 @@ test.each([
   expect(parseWarmInput(v)).toBeNull();
 });
 
-test('no presets means the default range; comparison follows the project default', () => {
+test('no presets means the default range; comparison follows the member default', () => {
   expect(rangesFor([], { ...DEFAULT_SETTINGS, defaultPreset: 'mtd', comparisonDefault: false, weekStart: 'sunday' }))
     .toEqual([{ range: { kind: 'preset', preset: 'mtd' }, compare: { kind: 'off' }, weekStart: 'sunday' }]);
   expect(rangesFor(['ytd', 'last_month'], DEFAULT_SETTINGS).map((r) => [r.range.preset, r.compare])).toEqual([
     ['ytd', { kind: 'preset', preset: 'previous_period' }], ['last_month', { kind: 'preset', preset: 'previous_period' }],
   ]);
+});
+
+test('no presets and no default give the schedule no date range', () => {
+  expect(rangesFor([], DEFAULT_SETTINGS)).toEqual([]);
 });
 
 test('plugin.json declares the same input schema', () => {

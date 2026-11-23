@@ -1,5 +1,5 @@
 import { toDay } from '../lib/dates';
-import { DEFAULT_SETTINGS, PRESET_LABELS, type CompareChoice, type ComparePreset, type DateWindow, type RangeChoice, type Preset, type ViewSettings, type WeekStart } from '../types';
+import { DEFAULT_SETTINGS, PRESET_LABELS, type CompareChoice, type ComparePreset, type DateWindow, type Day, type RangeChoice, type Preset, type ViewSettings, type WeekStart } from '../types';
 
 export interface CollectionsLike {
   collections<T>(name: string): {

@@ -2,34 +2,54 @@ import { warmCache, ActionError } from './warm';
 import { cachedOwox } from '../src/cache/martCache';
 import { resolveRange } from '../src/lib/dates';
 import { cacheKey, refreshCanvas } from '../src/metrics/refresh';
-import { DEFAULT_SETTINGS } from '../src/types';
+import { deriveModel } from '../src/model/derive';
+import { loadGraph } from '../src/model/graph-load';
 import type { OwoxLike } from '../src/owox/sources';
-import { loadOntology, memoryCollections, saveOntology } from '../src/store/collections';
+import { memoryCollections } from '../src/store/collections';
+import { EMPTY_SETUP, loadSetup, saveSetup } from '../src/store/settings';
 import { MART_CACHE, type MartCacheDoc } from '../src/cache/martCache';
-import { fakeOwox } from '../src/owox/fake';
-import { model as fixtureModel } from '../src/test/fixtures';
-import type { Model } from '../src/types';
+import { fakeOwox, type FakeOwoxData } from '../src/owox/fake';
 
-const metricId = 'a:id:COUNT_DISTINCT';
-const model: Model = {
-  ...fixtureModel,
-  classes: [{ id: 'a', martId: 'a', title: 'A', contexts: [], depth: 0, keyMetricId: metricId, metricIds: [metricId], shown: true }],
-  metrics: [{ id: metricId, martId: 'a', alias: 'A', measure: { field: 'id', fn: 'COUNT_DISTINCT' }, kind: 'flow', dateField: 'date', role: 'unique', source: 'schema', isUniqueCount: true, format: 'number', currency: null, plan: null, shown: true, forecast: null }],
+const data: FakeOwoxData = {
+  projectDescription: null,
+  contexts: [],
+  marts: ['a', 'b'].map((id) => ({ id, title: id, status: 'PUBLISHED', description: null, contexts: [], modifiedAt: 't' })),
+  details: {
+    a: { id: 'a', title: 'Revenue', fields: [
+      { name: 'id', type: 'STRING', isPrimaryKey: true },
+      { name: 'date', type: 'DATE', isPrimaryKey: false },
+      { name: 'revenue', type: 'FLOAT', isPrimaryKey: false },
+    ] },
+    b: { id: 'b', title: 'Plan', fields: [
+      { name: 'date', type: 'DATE', isPrimaryKey: false },
+      { name: 'target', type: 'FLOAT', isPrimaryKey: false },
+    ] },
+  },
+  blendables: {
+    a: { availableSources: [], mainUniqueCountKeyFields: ['id'] },
+    b: { availableSources: [], mainUniqueCountKeyFields: [] },
+  },
+  rows: () => [{ 'revenue | SUM': 5, 'target | SUM': 8, date: '2026-11-05' }],
 };
-const owox = fakeOwox({ projectDescription: null, contexts: [], marts: [], details: {}, blendables: {}, rows: () => [{ 'Unique Count': 5, date: '2026-10-20' }] });
+const owox = fakeOwox(data);
 
 const NOW = new Date('2026-11-06T08:00:00Z');
 const range = (preset: string, weekStart = 'monday') => ({ range: { kind: 'preset', preset }, compare: { kind: 'off' }, weekStart });
 
-// the member's own ontology, which the run reads as that member
-async function setup(m: Model = model) {
+async function setup(withPlan = false) {
   const store = memoryCollections();
-  await saveOntology(store, m);
+  await saveSetup(store, EMPTY_SETUP, {
+    ...EMPTY_SETUP,
+    goal: {
+      martId: 'a', measure: { field: 'revenue', fn: 'SUM' }, dateField: 'date', kind: 'flow', alias: 'Revenue',
+      plan: withPlan ? { martId: 'b', measure: { field: 'target', fn: 'SUM' }, dateField: 'date', shape: 'daily' } : null,
+    },
+  }, 'Ann', NOW);
   return store;
 }
-const ctxOf = (store: ReturnType<typeof memoryCollections>, deadline = '2026-11-06T08:05:00Z', o: unknown = owox) =>
+const ctxOf = (store: ReturnType<typeof memoryCollections>, deadline = '2026-11-06T08:05:00Z', o: OwoxLike = owox) =>
   ({ owox: o, collections: store.collections.bind(store), execution: { deadlineAt: deadline } });
-const warm = (store: ReturnType<typeof memoryCollections>, ranges: unknown[], deadline?: string, o?: unknown, now: () => Date = () => NOW) =>
+const warm = (store: ReturnType<typeof memoryCollections>, ranges: unknown[], deadline?: string, o?: OwoxLike, now: () => Date = () => NOW) =>
   warmCache({ ranges }, ctxOf(store, deadline, o), now);
 
 test('a run writes one cache doc per Data Mart and range', async () => {
@@ -47,10 +67,10 @@ test('an invalid input fails with INVALID_RANGES', async () => {
   await expect(warm(await setup(), [])).rejects.toMatchObject({ code: 'INVALID_RANGES' });
 });
 
-test('no model of the member fails with MODEL_MISSING', async () => {
+test('missing project Setup fails with MODEL_MISSING', async () => {
   const err = warm(memoryCollections(), [range('qtd')]);
   await expect(err).rejects.toBeInstanceOf(ActionError);
-  await expect(err).rejects.toMatchObject({ code: 'MODEL_MISSING', message: 'Open Gyroscope once so it builds your model.' });
+  await expect(err).rejects.toMatchObject({ code: 'MODEL_MISSING', message: 'Finish Setup in Gyroscope before running a schedule. The Business Critical Number is not set.' });
 });
 
 test('with under 30 seconds left no new range starts', async () => {
@@ -76,41 +96,36 @@ test('nothing written while writes failed or were too large fails with CACHE_NOT
 });
 
 test('a run whose Data Marts return no query fails with NO_DATA', async () => {
-  const denied = fakeOwox({ projectDescription: null, contexts: [], marts: [], details: {}, blendables: {}, rows: () => { throw new Error('403'); } });
+  const denied = fakeOwox({ ...data, rows: () => { throw new Error('403'); } });
   await expect(warm(await setup(), [range('qtd')], undefined, denied)).rejects.toMatchObject({ code: 'NO_DATA', message: expect.stringContaining('may not be able to read') });
 });
 
-test('a model whose classes list no metric is not NO_DATA', async () => {
-  const bare: Model = { ...model, classes: [{ ...model.classes[0]!, metricIds: [], keyMetricId: null }] };
-  expect(await warm(await setup(bare), [range('qtd')])).toMatchObject({ ranges: 1, queries: 0 });
-});
-
-test.each([['qtd', 'monday'], ['wtd', 'sunday']])('the page answers from what the Worker cached (%s, week from %s), plan Data Mart included', async (preset, weekStart) => {
-  const planned: Model = {
-    ...model,
-    metrics: [{ ...model.metrics[0]!, plan: { martId: 'b', measure: { field: 'target', fn: 'SUM' }, dateField: 'date', shape: 'daily' } }],
-  };
-  const store = await setup(planned);
-  const worker = fakeOwox({ projectDescription: null, contexts: [], marts: [], details: {}, blendables: {}, rows: () => [{ 'Unique Count': 5, date: '2026-10-20' }] });
+test.each([['qtd', 'monday'], ['wtd', 'sunday']])('the page answers from what the schedule cached (%s, week from %s), plan Data Mart included', async (preset, weekStart) => {
+  const store = await setup(true);
+  const worker = fakeOwox(data);
   const r = range(preset, weekStart);
   await warm(store, [r], undefined, worker);
   expect(worker.calls.some((c) => c.path === 'traverse:b')).toBe(true);
 
-  // the page: same store, same now, the same ontology
-  const page = fakeOwox({ projectDescription: null, contexts: [], marts: [], details: {}, blendables: {}, rows: () => [{ 'Unique Count': 5, date: '2026-10-20' }] });
-  const pageModel = (await loadOntology(store))!;
+  // the page derives the model from the saved Setup and current Data Mart schemas
+  const page = fakeOwox(data);
+  const graph = await loadGraph(page);
+  const { settings } = await loadSetup(store);
+  const derived = deriveModel(settings, graph);
+  if (!derived.ok) throw new Error(derived.blocked.detail);
+  const visibleIds = new Set(graph.inputs.marts.map((mart) => mart.id));
+  const details = new Map(graph.nodes.map((node) => [node.id, node.detail]));
   const spec = resolveRange(r.range as never, r.compare as never, NOW, weekStart as never);
   const key = cacheKey(r.range as never, r.compare as never, weekStart as never);
   const src = cachedOwox({ owox: page as OwoxLike, store, key, anchor: spec.anchor, mode: 'read-write', now: () => NOW });
-  await refreshCanvas({ owox: src.owox, model: pageModel, spec, key, thresholdPct: DEFAULT_SETTINGS.thresholdPct });
+  await refreshCanvas({ owox: src.owox, model: derived.model, spec, key, thresholdPct: settings.thresholdPct, visibleIds, details });
   expect(page.calls.filter((c) => c.path.startsWith('traverse:'))).toHaveLength(0);
   expect(src.stats().hits).toBeGreaterThan(0);
 });
 
-test('a member without an ontology falls back to the project model', async () => {
-  const store = memoryCollections();
-  await store.collections<Model>('model').put('current', model);
-  const r = await warm(store, [range('qtd')]);
-  expect(r.ranges).toBe(1);
-  expect(r.marts).toBe(1);
+test('a schedule skips a plan Data Mart the member cannot see', async () => {
+  const member = fakeOwox({ ...data, marts: data.marts.filter((mart) => mart.id !== 'b') });
+  const result = await warm(await setup(true), [range('qtd')], undefined, member);
+  expect(result.marts).toBe(1);
+  expect(member.calls.some((call) => call.path === 'traverse:b')).toBe(false);
 });

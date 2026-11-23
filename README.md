@@ -14,9 +14,16 @@ The [shared ontology spec](docs/superpowers/specs/2026-11-11-shared-ontology-des
 3. Calculated fields in your Data Marts reference other Data Marts. Gyroscope draws a connection for each reference.
 4. An admin sets the goal in Setup once. Until then, a member sees the "Goal can't be tracked" screen: the Business Critical Number is not set, and they are told to ask a project admin to finish Setup.
 
-Settings has two tabs. General holds your own view settings. Setup replaces Checkup and Metrics: one list of questions in blocks (goal, core classes, contexts, metrics with their plans and formats, ratios, data checks, housekeeping, which holds the On-Track Margin threshold). Each question has a (?) hint and a radio list of answers, with the recommended one first and tagged. An admin picks an option, and Gyroscope stores exactly that. Choices are staged and written together by Save. Discard drops them. Optional notices have a "Not needed" answer. Members see the values read-only. The AI only recommends one of the options the code built.
+General holds your own view settings. Setup replaces Checkup and Metrics: one list of questions in blocks (goal, core classes, contexts, metrics with their plans and formats, ratios, data checks, housekeeping, which holds the On-Track Margin threshold). Each question has a (?) hint and a radio list of answers, with the recommended one first and tagged. An admin picks an option, and Gyroscope stores exactly that. Choices are staged and written together by Save. Discard drops them. Optional notices have a "Not needed" answer. Members see the values read-only. The AI only recommends one of the options the code built.
+
+In Settings → Schedules, each member can schedule a cache refresh for up to five date ranges. A schedule uses the member's default date range when they leave the selection empty. Members who use the ontology view by default select a range before saving.
 
 ## Release notes
+
+### 0.6.0
+
+1. Members can schedule Gyroscope to refresh its Data Mart cache.
+2. Void serves Gyroscope and the scheduled action at `gyroscope.owox.app`.
 
 ### 0.5.10
 
@@ -95,24 +102,24 @@ Settings has two tabs. General holds your own view settings. Setup replaces Chec
 
 ## Develop
 
+Use Node.js 24.22+ or 26.12+.
+
 ```bash
-npm install
+npm ci
 npm test
 npm run typecheck
 npm run build
 ```
 
-The plugin platform does not support a local preview. Test Gyroscope as an installed plugin.
+Use `npm run dev` to verify the page and `/owox` route locally. Test authenticated actions and schedules with an installed plugin in an OWOX test project.
 
 ## Release
 
-1. Push to `main`. GitHub Pages deploys `dist/` to the folder of the compatibility line: `v5/` for 0.5.x. Installs of 0.2 keep loading the root.
-2. A new compatibility line (0.6) needs `plugin.json` `delivery.url` moved to its folder (`/v6/`); a test fails until it is.
-3. Check the plugin with `owox-ctl plugins check OWOX/gyroscope --ref main`.
-4. Create a release with `gh release create v0.5.10 --target <full commit SHA> --generate-notes`.
-5. In OWOX, open Plugins, then Publish Plugin, and choose "Only me" for testing.
-6. The Worker deploys from `worker/` with `npm run deploy:worker` or the `deploy-worker.yml` workflow, which needs the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-7. `plugin.json` `backend.url` must be the Worker's `workers.dev` URL before the first 0.4 release, and it cannot change within 0.4.
+1. Before the first deployment, provision a public Void project named `gyroscope` on `owox.app`. Save its project-scoped deploy token as the repository's `VOID_TOKEN` Actions secret. [Void CI credentials](https://void.cloud/reference/cli/project#void-project-token)
+2. Deploy through [GitHub Actions](.github/workflows/deploy.yml). Pushes to `main` deploy the page at `https://gyroscope.owox.app/` and the action at `/owox`. Rerun the job in GitHub Actions to retry a failed deployment.
+3. After deployment, check the plugin with `owox-ctl plugins check OWOX/gyroscope --ref main --version 0.6.0`. Adding a backend requires a new compatibility line. [OWOX plugin compatibility](https://docs.owox.com/docs/plugins/authoring-guide/#declare-actions)
+4. Create a release with `gh release create v0.6.0 --target <full commit SHA> --generate-notes`.
+5. In OWOX, open Plugins, then Publish Plugin, and choose "Only me" for testing. Create a schedule and verify its run under Plugins → Schedules.
 
 ## How it works
 
@@ -124,6 +131,6 @@ The [design spec](docs/superpowers/specs/2026-10-24-gyroscope-design.md) has the
 4. Canvas and card: layout by reference distance, context filters, and the metric card (section 8).
 5. States: blocked, failed and loading screens, each with a fix or a retry (section 9).
 6. Cache: the canvas reads cached results, and a refresh runs when the data is stale (section 10).
-7. Schedules: each member's schedules run the `warm-cache` action on the Worker, which stores Data Mart rows per Data Mart and range in `mart-cache`; the canvas answers from it (spec `docs/superpowers/specs/2026-11-05-schedules-design.md`).
+7. Schedules: the `warm-cache` action derives the canvas from project Setup using the schedule owner's Data Mart access. It stores query results for each Data Mart and date range in `mart-cache`, where the canvas can reuse them.
 
 The [Setup spec](docs/superpowers/specs/2026-11-14-setup-tab-design.md) covers the Setup tab. The [shared ontology spec](docs/superpowers/specs/2026-11-11-shared-ontology-design.md) covers the shared model, core classes, the two views.

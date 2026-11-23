@@ -1,18 +1,20 @@
 import { cachedOwox } from '../src/cache/martCache';
 import { resolveRange } from '../src/lib/dates';
+import { deriveModel } from '../src/model/derive';
+import { loadGraph } from '../src/model/graph-load';
 import { shownModel } from '../src/model/shown';
 import { cacheKey, refreshCanvas } from '../src/metrics/refresh';
 import type { OwoxLike } from '../src/owox/sources';
 import { parseWarmInput } from '../src/schedules/input';
-import { loadOntology, loadProjectModel, type CollectionsLike } from '../src/store/collections';
-import { DEFAULT_SETTINGS } from '../src/types';
+import type { CollectionsLike } from '../src/store/collections';
+import { loadSetup } from '../src/store/settings';
 
 /** OWOX shows `code` as the run's error code; it must match ^[A-Z][A-Z0-9_]{0,63}$. */
 export class ActionError extends Error {
   constructor(readonly code: string, message: string) { super(message); }
 }
 
-interface WarmContext { owox: unknown; collections: CollectionsLike['collections']; execution: { deadlineAt: string } }
+interface WarmContext { owox: OwoxLike; collections: CollectionsLike['collections']; execution: { deadlineAt: string } }
 interface WarmResult { ranges: number; marts: number; queries: number; skipped: number; failed: string[]; tooLarge: string[]; written: string[] }
 
 // a range is a full canvas refresh; one that starts this close to the deadline would be cut off mid-way
@@ -22,10 +24,14 @@ export async function warmCache(raw: unknown, ctx: WarmContext, now: () => Date 
   const input = parseWarmInput(raw);
   if (!input) throw new ActionError('INVALID_RANGES', 'The schedule parameters are not valid; save the schedule again.');
   const store: CollectionsLike = { collections: ctx.collections };
-  // the run acts as the schedule's creator, so these are that member's own collections
-  const model = (await loadOntology(store)) ?? (await loadProjectModel(store));
-  if (!model) throw new ActionError('MODEL_MISSING', 'Open Gyroscope once so it builds your model.');
-  const owox = ctx.owox as OwoxLike;
+  const { owox } = ctx;
+  // Derive the canvas model with the schedule owner's current Data Mart access.
+  const [{ settings }, graph] = await Promise.all([loadSetup(store), loadGraph(owox)]);
+  const derived = deriveModel(settings, graph);
+  if (!derived.ok) throw new ActionError('MODEL_MISSING', `Finish Setup in Gyroscope before running a schedule. ${derived.blocked.detail}`);
+  const { model } = derived;
+  const visibleIds = new Set(graph.inputs.marts.map((mart) => mart.id));
+  const details = new Map(graph.nodes.map((node) => [node.id, node.detail]));
   // an unparseable deadline must not switch the reserve off; assume the 5 minute action limit
   const parsed = Date.parse(ctx.execution.deadlineAt);
   const deadline = Number.isFinite(parsed) ? parsed : now().getTime() + 300_000;
@@ -36,7 +42,7 @@ export async function warmCache(raw: unknown, ctx: WarmContext, now: () => Date 
     const key = cacheKey(r.range, r.compare, r.weekStart);
     // write-only: a scheduled run exists to replace what is cached
     const src = cachedOwox({ owox, store, key, anchor: spec.anchor, mode: 'write-only', now });
-    await refreshCanvas({ owox: src.owox, model, spec, key, thresholdPct: DEFAULT_SETTINGS.thresholdPct });
+    await refreshCanvas({ owox: src.owox, model, spec, key, thresholdPct: settings.thresholdPct, visibleIds, details });
     const f = await src.flush();
     out.ranges++;
     out.queries += src.stats().misses;
@@ -50,7 +56,7 @@ export async function warmCache(raw: unknown, ctx: WarmContext, now: () => Date 
   }
   // only metrics a class lists (and the member shows) are queried
   const known = new Set(model.metrics.map((m) => m.id));
-  if (out.ranges > 0 && out.queries === 0 && shownModel(model).classes.some((c) => c.metricIds.some((id) => known.has(id)))) {
+  if (out.ranges > 0 && out.queries === 0 && shownModel(model, details).classes.some((c) => c.metricIds.some((id) => known.has(id)))) {
     throw new ActionError('NO_DATA', 'No Data Mart returned any data. The member who created the schedule may not be able to read these Data Marts; check their access and run the schedule again.');
   }
   out.marts = new Set(out.written.map((id) => id.slice(0, id.indexOf(':')))).size;

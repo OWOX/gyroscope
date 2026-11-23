@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import type { PluginSchedule, PluginSchedules } from '@owox/plugin-sdk';
-import { PRESET_LABELS, type Model, type Settings } from '../types';
+import { PRESET_LABELS, type Model, type ViewSettings } from '../types';
 import { describeCadence, fromCron } from '../schedules/cron';
 import { WARM_ACTION, parseWarmInput } from '../schedules/input';
 import { describeActionError } from '../lib/errors';
@@ -12,7 +12,7 @@ import { Switch } from './Switch';
 
 const LIMIT = 20;
 
-export interface SchedulesProps { schedules: PluginSchedules | undefined; model: Model | null; settings: Settings }
+export interface SchedulesProps { schedules: PluginSchedules | undefined; model: Model | null; settings: ViewSettings }
 
 const cadenceOf = (s: PluginSchedule): string => { const c = fromCron(s.cron); return c ? describeCadence(c) : `Custom: ${s.cron}`; };
 

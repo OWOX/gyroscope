@@ -268,8 +268,6 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
   }, [model, range, compare, owox, store, now, thresholdPct, settings.weekStart, visible, detailsNow]);
 
   const inReady = view.name === 'ready';
-  const inSettings = view.name === 'settings';
-  useEffect(() => {
 
   // data-quality icons: one call per canvas load, never cached; a failure leaves the cards without them
   useEffect(() => {

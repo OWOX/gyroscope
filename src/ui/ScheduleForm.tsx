@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Zap } from 'lucide-react';
 import type { PluginSchedule, PluginSchedules } from '@owox/plugin-sdk';
-import { PRESET_GROUPS, PRESET_LABELS, type Model, type Preset, type Settings } from '../types';
+import { PRESET_GROUPS, PRESET_LABELS, type Model, type Preset, type ViewSettings } from '../types';
 import { CADENCE_PRESETS, HOUR_INTERVALS, MINUTE_INTERVALS, WEEKDAYS, describeCadence, fromCron, ordinal, toCron, type Cadence } from '../schedules/cron';
 import { MAX_RANGES, WARM_ACTION, parseWarmInput, rangesFor } from '../schedules/input';
 import { describeActionError } from '../lib/errors';
@@ -27,7 +27,7 @@ function computeZones(): string[] {
 }
 
 interface ScheduleFormProps {
-  schedules: PluginSchedules; schedule: PluginSchedule | null; model: Model | null; settings: Settings;
+  schedules: PluginSchedules; schedule: PluginSchedule | null; model: Model | null; settings: ViewSettings;
   onSaved: () => void | Promise<void>; onCancel: () => void;
 }
 
@@ -72,15 +72,18 @@ export function ScheduleForm({ schedules, schedule, model, settings, onSaved, on
   const intervals = unit === 'minutes' ? MINUTE_INTERVALS : HOUR_INTERVALS;
   const missingDays = (type === 'weekly' && weekdays.length === 0) || (type === 'monthly' && days.length === 0);
   const summary = raw ? `Cron: ${schedule!.cron}` : missingDays ? 'Pick at least one day' : describeCadence(cadence());
+  const defaultRange = settings.defaultPreset ? PRESET_LABELS[settings.defaultPreset] : null;
 
   const save = async () => {
     setError(null);
-    if (!model) { setError('Build the model first: a schedule warms the Data Marts of your model.'); return; }
+    if (!model) { setError('Finish Setup in Gyroscope before adding a schedule.'); return; }
+    const ranges = rangesFor(picked, settings);
+    if (ranges.length === 0) { setError('Select at least one data range.'); return; }
     let cron: string;
     try { cron = raw ? schedule!.cron : toCron(cadence()); } catch (e) { setError(e instanceof Error ? e.message : String(e)); return; }
     setBusy(true);
     try {
-      const parameters = { ranges: rangesFor(picked, settings) };
+      const parameters = { ranges };
       if (schedule) await schedules.update(schedule.id, { parameters, cron, timeZone: zone, name: name || null });
       else await schedules.create({ action: WARM_ACTION, parameters, cron, timeZone: zone, name, enabled });
       await onSaved();
@@ -181,8 +184,8 @@ export function ScheduleForm({ schedules, schedule, model, settings, onSaved, on
         </div>
         <div className="gy-field">
           <span className="gy-label">Data ranges</span>
-          <MultiSelect label="Data ranges" value={picked} options={RANGE_OPTIONS} onChange={setPicked} max={MAX_RANGES} maxShown={2} placeholder={`Default range, ${PRESET_LABELS[settings.defaultPreset]}`} describedBy="gy-sch-ranges-hint" />
-          <span id="gy-sch-ranges-hint" className="dm-muted gy-field-hint">None picked: your default range, {PRESET_LABELS[settings.defaultPreset]}</span>
+          <MultiSelect label="Data ranges" value={picked} options={RANGE_OPTIONS} onChange={setPicked} max={MAX_RANGES} maxShown={2} placeholder={defaultRange ?? 'Select data ranges'} describedBy="gy-sch-ranges-hint" />
+          <span id="gy-sch-ranges-hint" className="dm-muted gy-field-hint">{defaultRange ? `None picked: your default range, ${defaultRange}` : 'Select up to five data ranges.'}</span>
         </div>
       </div>
       <div className="gy-sheet-footer">

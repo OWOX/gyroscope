@@ -90,6 +90,7 @@ test('saving unchanged view settings does not refresh', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await screen.findByText(/Updated 1 h ago/);
+  expect(traversals()).toBe(0);
 });
 
 test('a changed threshold recolors from the Data Mart cache without new queries', async () => {
@@ -591,6 +592,7 @@ test('from no range, unchecking Compare in the panel keeps it off', async () => 
   fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
   expect(screen.getByRole('button', { name: 'Date range' })).toHaveTextContent(/^This month$/);
   await waitFor(async () => expect(await loadPreferences(store)).toEqual({ range: null, compare: { kind: 'off' } }));
+});
 
 test('a second open on the same day answers every query from the Data Mart cache', async () => {
   const { deps, traversals, store } = await setup({ cache: 'none' });

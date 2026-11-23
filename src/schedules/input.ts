@@ -1,4 +1,4 @@
-import { PRESET_LABELS, type ComparePreset, type Preset, type Settings, type WeekStart } from '../types';
+import { PRESET_LABELS, type ComparePreset, type Preset, type ViewSettings, type WeekStart } from '../types';
 
 export const WARM_ACTION = 'warm-cache';
 export const MAX_RANGES = 5;
@@ -59,7 +59,8 @@ export function parseWarmInput(v: unknown): WarmInput | null {
 }
 
 /** The ranges a schedule warms; none chosen means the member's default range. Comparison and week start come from the settings at save time. */
-export function rangesFor(presets: Preset[], s: Settings): WarmRange[] {
+export function rangesFor(presets: Preset[], s: ViewSettings): WarmRange[] {
   const compare: WarmRange['compare'] = s.comparisonDefault ? { kind: 'preset', preset: 'previous_period' } : { kind: 'off' };
-  return (presets.length ? presets : [s.defaultPreset]).slice(0, MAX_RANGES).map((preset) => ({ range: { kind: 'preset', preset }, compare, weekStart: s.weekStart }));
+  const selected = presets.length ? presets : s.defaultPreset ? [s.defaultPreset] : [];
+  return selected.slice(0, MAX_RANGES).map((preset) => ({ range: { kind: 'preset', preset }, compare, weekStart: s.weekStart }));
 }
