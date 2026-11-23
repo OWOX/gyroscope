@@ -692,10 +692,10 @@ button.gy-badge:hover { color: var(--foreground); }
 .gy-table tbody tr { border-top: 1px solid var(--border); }
 .gy-table tbody tr:first-child { border-top: 0; }
 :root.dark .gy-table tbody, :root.dark .gy-table tbody tr { border-color: color-mix(in oklab, white 4%, transparent); }
-.gy-table tbody tr.gy-row { cursor: pointer; transition: background-color 0.2s; }
-.gy-table tbody tr.gy-row:hover { background: color-mix(in oklab, black 4%, transparent); }
-:root.dark .gy-table tbody tr.gy-row:hover { background: color-mix(in oklab, white 4%, transparent); }
-.gy-row[data-off] td:not(.gy-col-enabled, .gy-col-actions) { color: var(--muted-foreground); }
+.gy-sched-row { cursor: pointer; transition: background-color 0.2s; }
+.gy-sched-row:hover { background: color-mix(in oklab, black 4%, transparent); }
+:root.dark .gy-sched-row:hover { background: color-mix(in oklab, white 4%, transparent); }
+.gy-sched-row[data-off] td:not(.gy-col-enabled, .gy-col-actions) { color: var(--muted-foreground); }
 .gy-col-enabled { width: 5.5rem; }
 .gy-col-actions { width: 3rem; text-align: right; }
 .gy-table td.gy-col-actions { padding-right: 0.5rem; }
@@ -733,7 +733,7 @@ button.gy-badge:hover { color: var(--foreground); }
 
 /* the row's "more" button and its menu, as OWOX's dropdown */
 .gy-row-btn { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: 0.375rem; background: transparent; color: var(--muted-foreground); cursor: pointer; opacity: 0; transition: opacity 0.2s, background-color 0.2s, box-shadow 0.2s; }
-.gy-row:hover .gy-row-btn, .gy-row:focus-within .gy-row-btn, .gy-row-btn[aria-expanded='true'] { opacity: 1; }
+.gy-sched-row:hover .gy-row-btn, .gy-sched-row:focus-within .gy-row-btn, .gy-row-btn[aria-expanded='true'] { opacity: 1; }
 @media (hover: none), (any-hover: none) { .gy-row-btn { opacity: 1; } }
 .gy-row-btn:hover { background: var(--card); box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); }
 :root.dark .gy-row-btn:hover { background: color-mix(in oklab, white 4%, transparent); }

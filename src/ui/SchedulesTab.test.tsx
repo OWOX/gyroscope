@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { PluginSchedule, PluginSchedules } from '@owox/plugin-sdk';
 import { render, screen, fireEvent, waitFor, within } from '../test-host';
 import { SchedulesTab } from './SchedulesTab';
@@ -57,6 +58,20 @@ test('lists every warm-cache schedule, one with unreadable parameters too, and c
   // only the schedule with readable parameters lists its range
   expect(screen.getAllByText('This quarter to date')).toHaveLength(1);
   expect(screen.getAllByRole('row')).toHaveLength(1 + 3 - 1);
+});
+
+test('a populated schedule participates in the same table layout as the headers', async () => {
+  const style = document.createElement('style');
+  style.textContent = readFileSync(`${__dirname}/../styles.css`, 'utf8');
+  document.head.append(style);
+  try {
+    render(<SchedulesTab {...props(fakeSchedules([row('a', { name: 'Cache refresh' })]))} />);
+    const scheduleRow = await rowOf('Cache refresh');
+    expect(getComputedStyle(scheduleRow).display).toBe('table-row');
+    expect(within(scheduleRow).getAllByRole('cell')).toHaveLength(screen.getAllByRole('columnheader').length);
+  } finally {
+    style.remove();
+  }
 });
 
 test('a schedule with unreadable parameters is saved with fresh ones', async () => {

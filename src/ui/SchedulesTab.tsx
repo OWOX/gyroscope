@@ -117,7 +117,7 @@ export function SchedulesTab({ schedules, model, settings }: SchedulesProps) {
               const title = s.name || cadenceOf(s);
               const nameId = `gy-sch-${s.id}-name`;
               return (
-                <tr key={s.id} className="gy-row" data-off={!s.enabled || undefined} onClick={() => edit(s)}>
+                <tr key={s.id} className="gy-sched-row" data-off={!s.enabled || undefined} onClick={() => edit(s)}>
                   <td className="gy-col-enabled" onClick={(e) => e.stopPropagation()}>
                     <Switch checked={s.enabled} onChange={() => toggle(s)} label="Enabled" describedBy={nameId} />
                   </td>
