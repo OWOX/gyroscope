@@ -4,6 +4,7 @@ import type { PluginSchedule, PluginSchedules } from '@owox/plugin-sdk';
 import { PRESET_GROUPS, PRESET_LABELS, type Model, type Preset, type ViewSettings } from '../types';
 import { CADENCE_PRESETS, HOUR_INTERVALS, MINUTE_INTERVALS, WEEKDAYS, describeCadence, fromCron, ordinal, toCron, type Cadence } from '../schedules/cron';
 import { MAX_RANGES, WARM_ACTION, parseWarmInput, rangesFor } from '../schedules/input';
+import { browserTimeZone, canonicalTimeZone, timeZoneOptions } from '../schedules/timezone';
 import { describeActionError } from '../lib/errors';
 import { MultiSelect } from './MultiSelect';
 import { Select } from './Select';
@@ -12,19 +13,6 @@ import { Switch } from './Switch';
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({ value: i + 1, label: ordinal(i + 1) }));
 const TYPES: { value: Cadence['type']; label: string }[] = [{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }, { value: 'interval', label: 'Interval' }];
 const RANGE_OPTIONS = PRESET_GROUPS.flatMap((g) => g.presets.map((p) => ({ value: p, label: PRESET_LABELS[p], group: g.label })));
-
-const browserZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-let zoneList: string[] | null = null;
-function zones(): string[] {
-  if (zoneList) return zoneList;
-  zoneList = computeZones();
-  return zoneList;
-}
-function computeZones(): string[] {
-  const fn = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
-  try { if (fn) return fn('timeZone'); } catch { /* fall back below */ }
-  return [...new Set([browserZone(), 'UTC'])];
-}
 
 interface ScheduleFormProps {
   schedules: PluginSchedules; schedule: PluginSchedule | null; model: Model | null; settings: ViewSettings;
@@ -43,7 +31,7 @@ export function ScheduleForm({ schedules, schedule, model, settings, onSaved, on
   const [days, setDays] = useState<number[]>(start.type === 'monthly' ? start.days : [1]);
   const [unit, setUnit] = useState<'minutes' | 'hours'>(start.type === 'interval' ? start.unit : 'hours');
   const [every, setEvery] = useState(start.type === 'interval' ? start.every : 1);
-  const [zone, setZone] = useState(schedule?.timeZone ?? browserZone());
+  const [zone, setZone] = useState(() => schedule?.timeZone ?? browserTimeZone());
   const [enabled, setEnabled] = useState(true);
   const [picked, setPicked] = useState<Preset[]>(() => {
     const input = schedule ? parseWarmInput(schedule.parameters) : null;
@@ -68,7 +56,7 @@ export function ScheduleForm({ schedules, schedule, model, settings, onSaved, on
     clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlash(null), 500);
   };
-  const timeZones = useMemo(() => (zones().includes(zone) ? zones() : [zone, ...zones()]).map((z) => ({ value: z, label: z })), [zone]);
+  const timeZones = useMemo(() => timeZoneOptions(schedule?.timeZone ?? browserTimeZone()), [schedule?.timeZone]);
   const intervals = unit === 'minutes' ? MINUTE_INTERVALS : HOUR_INTERVALS;
   const missingDays = (type === 'weekly' && weekdays.length === 0) || (type === 'monthly' && days.length === 0);
   const summary = raw ? `Cron: ${schedule!.cron}` : missingDays ? 'Pick at least one day' : describeCadence(cadence());
@@ -96,7 +84,7 @@ export function ScheduleForm({ schedules, schedule, model, settings, onSaved, on
   const zoneField = (
     <div className="gy-field gy-grow">
       <span className="gy-label">Timezone</span>
-      <Select label="Timezone" value={zone} options={timeZones} onChange={setZone} />
+      <Select label="Timezone" value={canonicalTimeZone(zone)} options={timeZones} onChange={setZone} searchPlaceholder="Search timezones" />
     </div>
   );
 

@@ -5,6 +5,7 @@ import type { PluginSchedule, PluginSchedules } from '@owox/plugin-sdk';
 import { PRESET_LABELS, type Model, type ViewSettings } from '../types';
 import { describeCadence, fromCron } from '../schedules/cron';
 import { WARM_ACTION, parseWarmInput } from '../schedules/input';
+import { canonicalTimeZone } from '../schedules/timezone';
 import { describeActionError } from '../lib/errors';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ScheduleForm } from './ScheduleForm';
@@ -106,9 +107,6 @@ export function SchedulesTab({ schedules, model, settings }: SchedulesProps) {
                 <td colSpan={6}>
                   <div className="gy-empty-state" role="status">
                     <p className="dm-muted gy-empty-title">Create your first schedule</p>
-                    <button type="button" className="gy-btn gy-btn-icon" disabled={full} onClick={() => setForm({ schedule: null, returnTo: addButton.current })}>
-                      <Plus size={16} aria-hidden="true" />New schedule
-                    </button>
                   </div>
                 </td>
               </tr>
@@ -127,7 +125,7 @@ export function SchedulesTab({ schedules, model, settings }: SchedulesProps) {
                     <div id={nameId}>
                       {s.name ? <><strong className="gy-sched-name">{s.name}</strong><div>{cadenceOf(s)}</div></> : <div>{cadenceOf(s)}</div>}
                     </div>
-                    <code className="gy-code gy-tz">{s.timeZone}</code>
+                    <code className="gy-code gy-tz">{canonicalTimeZone(s.timeZone)}</code>
                     {s.disabledReason === 'PAUSED_BY_ADMIN' && <div className="gy-form-error gy-sched-flag">Paused by a project admin</div>}
                   </td>
                   <td>

@@ -199,11 +199,68 @@ test('the next run is date and time to the minute, never with seconds', async ()
   expect(shown).not.toMatch(/\d:\d\d:\d\d/);
 });
 
-test('with no schedules the table invites the first one', async () => {
+test('with no schedules there is one action to add the first one', async () => {
   render(<SchedulesTab {...props(fakeSchedules())} />);
   expect(await screen.findByText('Create your first schedule')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'New schedule' }));
+  const buttons = screen.getAllByRole('button', { name: /^(Add|New) schedule$/ });
+  expect(buttons).toHaveLength(1);
+  expect(buttons[0]).toHaveAccessibleName('Add schedule');
+  fireEvent.click(buttons[0]!);
   expect(screen.getByRole('dialog', { name: 'Add schedule' })).toBeInTheDocument();
+});
+
+test('uses Kyiv as the default on a browser that reports Kiev', async () => {
+  const resolved = vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
+    ...Intl.DateTimeFormat().resolvedOptions(), timeZone: 'Europe/Kiev',
+  });
+  const supported = vi.spyOn(Intl, 'supportedValuesOf').mockReturnValue(['Europe/Kiev', 'Europe/Kyiv']);
+  try {
+    const api = fakeSchedules();
+    render(<SchedulesTab {...props(api)} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add schedule' }));
+    const picker = screen.getByRole('combobox', { name: 'Timezone' });
+    expect(picker).toHaveDisplayValue(/^Europe\/Kyiv \(\+0[23]:00\)$/);
+    fireEvent.click(picker);
+    expect(screen.getAllByRole('option', { name: /^Europe\/Kyiv/ })).toHaveLength(1);
+    expect(screen.queryByRole('option', { name: /Kiev/ })).toBeNull();
+    fireEvent.keyDown(picker, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ timeZone: 'Europe/Kyiv' })));
+  } finally {
+    resolved.mockRestore();
+    supported.mockRestore();
+  }
+});
+
+test('shows Kyiv for a saved Kiev schedule and can find it by either name', async () => {
+  const api = fakeSchedules([row('a', { timeZone: 'Europe/Kiev' })]);
+  render(<SchedulesTab {...props(api)} />);
+  expect(await screen.findByText('Europe/Kyiv')).toBeInTheDocument();
+  await openMenu();
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Edit schedule' }));
+  const picker = screen.getByRole('combobox', { name: 'Timezone' });
+  expect(picker).toHaveDisplayValue(/^Europe\/Kyiv \(/);
+  fireEvent.click(picker);
+  for (const query of ['Kiev', 'Kyiv']) {
+    fireEvent.change(picker, { target: { value: query } });
+    expect(screen.getAllByRole('option')).toEqual([screen.getByRole('option', { name: /^Europe\/Kyiv \(/ })]);
+  }
+  fireEvent.keyDown(picker, { key: 'Escape' });
+  expect(screen.getByRole('dialog', { name: 'Edit schedule' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(api.update).toHaveBeenCalledWith('a', expect.objectContaining({ timeZone: 'Europe/Kiev' })));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+  await openMenu();
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Edit schedule' }));
+  const reopened = screen.getByRole('combobox', { name: 'Timezone' });
+  fireEvent.click(reopened);
+  fireEvent.change(reopened, { target: { value: 'Etc/UTC' } });
+  expect(screen.getByRole('option', { name: 'UTC (+00:00)' })).toBeInTheDocument();
+  fireEvent.keyDown(reopened, { key: 'Enter' });
+  expect(reopened).toHaveValue('UTC (+00:00)');
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(api.update).toHaveBeenLastCalledWith('a', expect.objectContaining({ timeZone: 'UTC' })));
 });
 
 test('the form opens in a sheet, Escape closes it and focus returns to the Add button', async () => {
