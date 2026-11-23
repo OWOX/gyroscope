@@ -20,13 +20,22 @@ function link(href: string, text: ReactNode, key: number): ReactNode {
 /** `inLink` keeps a URL in a link's own label as text, so links never nest. */
 function inline(text: string, inLink = false): ReactNode[] {
   const out: ReactNode[] = [];
+  let plain = '';
   let last = 0;
   for (const m of text.matchAll(INLINE)) {
     const at = m.index;
-    if (at > last) out.push(text.slice(last, at));
+    plain += text.slice(last, at);
+    last = at + m[0].length;
     const [, esc, code, label, href, bold, em, url] = m;
-    if (esc !== undefined) out.push(esc);
-    else if (code !== undefined) out.push(<code key={at}>{code}</code>);
+    if (esc !== undefined) {
+      plain += esc;
+      continue;
+    }
+    if (plain) {
+      out.push(plain);
+      plain = '';
+    }
+    if (code !== undefined) out.push(<code key={at}>{code}</code>);
     else if (label !== undefined) out.push(inLink ? label : link(href!, inline(label, true), at));
     else if (bold !== undefined) out.push(<strong key={at}>{inline(bold, inLink)}</strong>);
     else if (em !== undefined) out.push(<em key={at}>{inline(em, inLink)}</em>);
@@ -34,9 +43,9 @@ function inline(text: string, inLink = false): ReactNode[] {
       const bare = url!.replace(TRAIL, '');
       out.push(inLink ? bare : link(bare, bare, at), url!.slice(bare.length));
     }
-    last = at + m[0].length;
   }
-  if (last < text.length) out.push(text.slice(last));
+  plain += text.slice(last);
+  if (plain) out.push(plain);
   return out;
 }
 
