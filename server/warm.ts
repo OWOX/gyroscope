@@ -15,7 +15,7 @@ export class ActionError extends Error {
 }
 
 interface WarmContext { owox: OwoxLike; collections: CollectionsLike['collections']; execution: { deadlineAt: string } }
-interface WarmResult { ranges: number; marts: number; queries: number; skipped: number; failed: string[]; tooLarge: string[]; written: string[] }
+interface WarmResult { ranges: number; marts: number; queries: number; skipped: number; failed: string[]; tooLarge: string[]; denied: string[]; written: string[] }
 
 // a range is a full canvas refresh; one that starts this close to the deadline would be cut off mid-way
 const RESERVE_MS = 30_000;
@@ -35,7 +35,7 @@ export async function warmCache(raw: unknown, ctx: WarmContext, now: () => Date 
   // an unparseable deadline must not switch the reserve off; assume the 5 minute action limit
   const parsed = Date.parse(ctx.execution.deadlineAt);
   const deadline = Number.isFinite(parsed) ? parsed : now().getTime() + 300_000;
-  const out: WarmResult = { ranges: 0, marts: 0, queries: 0, skipped: 0, failed: [], tooLarge: [], written: [] };
+  const out: WarmResult = { ranges: 0, marts: 0, queries: 0, skipped: 0, failed: [], tooLarge: [], denied: [], written: [] };
   for (const r of input.ranges) {
     if (deadline - now().getTime() < RESERVE_MS) { out.skipped++; continue; }
     const spec = resolveRange(r.range, r.compare, now(), r.weekStart);
@@ -48,7 +48,12 @@ export async function warmCache(raw: unknown, ctx: WarmContext, now: () => Date 
     out.queries += src.stats().misses;
     out.failed.push(...f.failed);
     out.tooLarge.push(...f.tooLarge);
+    out.denied.push(...f.denied);
     out.written.push(...f.written);
+  }
+  // the shared cache takes Edit access on each Data Mart; a schedule whose owner has none on any of them warms nothing
+  if (out.ranges > 0 && out.written.length === 0 && out.failed.length === 0 && out.tooLarge.length === 0 && out.denied.length > 0) {
+    throw new ActionError('CACHE_ACCESS_DENIED', 'Nothing was saved to the cache: the member who created the schedule cannot edit these Data Marts. Ask a Data Mart editor to create the schedule.');
   }
   // refreshCanvas swallows per-metric errors, so a run can finish "fine" with nothing cached
   if (out.ranges > 0 && out.written.length === 0 && (out.failed.length > 0 || out.tooLarge.length > 0)) {
