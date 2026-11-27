@@ -113,13 +113,43 @@ test('setUnsaved follows the dirty count between 0 and above, and false on unmou
   expect(setUnsaved).not.toHaveBeenCalled();
   const radio = (await screen.findAllByRole('radio', { name: /Recommended/ }))[0]!;
   fireEvent.click(radio);
-  await waitFor(() => expect(setUnsaved).toHaveBeenLastCalledWith(true));
+  await waitFor(() => expect(setUnsaved).toHaveBeenLastCalledWith(true, 'You have 1 unsaved change in Setup.'));
   fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
   await waitFor(() => expect(setUnsaved).toHaveBeenLastCalledWith(false));
   fireEvent.click((await screen.findAllByRole('radio', { name: /Recommended/ }))[0]!);
-  await waitFor(() => expect(setUnsaved).toHaveBeenLastCalledWith(true));
+  await waitFor(() => expect(setUnsaved).toHaveBeenLastCalledWith(true, 'You have 1 unsaved change in Setup.'));
   cleanup();
   expect(setUnsaved).toHaveBeenLastCalledWith(false);
+});
+
+test('a tab change with staged picks sets setUnsaved again after setRoute, which clears it on the host', async () => {
+  const setUnsaved = vi.fn();
+  const setRoute = vi.fn();
+  mount({ setUnsaved, setRoute });
+  await stage();
+  await waitFor(() => expect(setUnsaved).toHaveBeenLastCalledWith(true, 'You have 1 unsaved change in Setup.'));
+  setUnsaved.mockClear();
+  fireEvent.click(screen.getByRole('tab', { name: 'General' }));
+  expect(setRoute).toHaveBeenLastCalledWith('/settings');
+  expect(setUnsaved).toHaveBeenLastCalledWith(true, 'You have 1 unsaved change in Setup.');
+  expect(setRoute.mock.invocationCallOrder.at(-1)!).toBeLessThan(setUnsaved.mock.invocationCallOrder.at(-1)!);
+});
+
+test('a tab change with nothing staged leaves setUnsaved alone', async () => {
+  const setUnsaved = vi.fn();
+  mount({ setUnsaved });
+  await openSetup();
+  await screen.findAllByText('Business Critical Number');
+  fireEvent.click(screen.getByRole('tab', { name: 'General' }));
+  expect(setUnsaved).not.toHaveBeenCalled();
+});
+
+test('with setUnsaved on the host an OWOX link navigates without asking: the host asks', async () => {
+  const navigate = mount({ setUnsaved: vi.fn() });
+  await stage();
+  fireEvent.click((await screen.findAllByRole('button', { name: /in OWOX/ }))[0]!);
+  expect(dialog()).toBeNull();
+  expect(navigate).toHaveBeenCalledTimes(1);
 });
 
 test('without setUnsaved on the host nothing breaks', async () => {
