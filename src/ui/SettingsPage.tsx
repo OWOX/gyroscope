@@ -2,15 +2,17 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { PRESET_GROUPS, PRESET_LABELS, type Preset, type ViewSettings, type WeekStart } from '../types';
 import { SetupSaveControls, SetupTab, type SetupTabProps } from './SetupTab';
+import { SchedulesTab, type SchedulesProps } from './SchedulesTab';
 
-export type SettingsTab = 'general' | 'setup';
-const TABS: { id: SettingsTab; label: string }[] = [{ id: 'general', label: 'General' }, { id: 'setup', label: 'Setup' }];
+export type SettingsTab = 'general' | 'setup' | 'schedules';
+const TABS: { id: SettingsTab; label: string }[] = [{ id: 'general', label: 'General' }, { id: 'setup', label: 'Setup' }, { id: 'schedules', label: 'Schedules' }];
 
-export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab = 'general', onTabChange, setup }: {
+export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab = 'general', onTabChange, setup, schedules }: {
   settings: ViewSettings; onSave: (s: ViewSettings) => void; onBack: () => void; error?: string | null;
   tab?: SettingsTab; onTabChange?: (t: SettingsTab) => void;
   /** What the Setup tab shows; the project-wide settings live there. */
   setup?: SetupTabProps | null;
+  schedules?: SchedulesProps | null;
 }) {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -64,6 +66,9 @@ export function SettingsPage({ settings, onSave, onBack, error, tab: initialTab 
       <main>
         <div className="dm-page-content" role="tabpanel" id="gy-panel-setup" aria-labelledby="gy-tab-setup" hidden={tab !== 'setup'}>
           {setup && <SetupTab {...setup} progressSlot={progressSlot} />}
+        </div>
+        <div className="dm-page-content" role="tabpanel" id="gy-panel-schedules" aria-labelledby="gy-tab-schedules" hidden={tab !== 'schedules'}>
+          {tab === 'schedules' && schedules && <SchedulesTab {...schedules} />}
         </div>
         <div className="dm-page-content" role="tabpanel" id="gy-panel-general" aria-labelledby="gy-tab-general" hidden={tab !== 'general'}>
           <form className="dm-card gy-form" onSubmit={(e) => { e.preventDefault(); save(); }}>

@@ -15,10 +15,10 @@ test('saves the chosen week start', () => {
   expect(onSave).toHaveBeenCalledWith({ ...DEFAULT_SETTINGS, weekStart: 'sunday' });
 });
 
-test('the tabs are General and Setup, a tablist that arrow keys move through', () => {
+test('the tabs are General, Setup and Schedules, a tablist that arrow keys move through', () => {
   const onTabChange = vi.fn();
   render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} onTabChange={onTabChange} />);
-  expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['General', 'Setup']);
+  expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['General', 'Setup', 'Schedules']);
   const general = screen.getByRole('tab', { name: 'General' });
   const setup = screen.getByRole('tab', { name: 'Setup' });
   expect(general).toHaveAttribute('aria-selected', 'true');
@@ -29,10 +29,13 @@ test('the tabs are General and Setup, a tablist that arrow keys move through', (
   expect(onTabChange).toHaveBeenLastCalledWith('setup');
   expect(screen.getByLabelText('Week starts on')).not.toBeVisible();
   fireEvent.keyDown(setup, { key: 'ArrowRight' });
+  const schedules = screen.getByRole('tab', { name: 'Schedules' });
+  expect(schedules).toHaveAttribute('aria-selected', 'true');
+  fireEvent.keyDown(schedules, { key: 'ArrowRight' });
   expect(general).toHaveAttribute('aria-selected', 'true');
   fireEvent.keyDown(general, { key: 'End' });
-  expect(setup).toHaveAttribute('aria-selected', 'true');
-  fireEvent.keyDown(setup, { key: 'Home' });
+  expect(schedules).toHaveAttribute('aria-selected', 'true');
+  fireEvent.keyDown(schedules, { key: 'Home' });
   expect(general).toHaveFocus();
 });
 
@@ -118,4 +121,11 @@ describe('the page header carries Save on Setup', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'General' }));
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
+});
+
+test('the Schedules tab follows Setup and renders the schedules tab', () => {
+  const schedules = { schedules: undefined, model: null, settings: DEFAULT_SETTINGS };
+  render(<SettingsPage settings={DEFAULT_SETTINGS} onSave={() => {}} onBack={() => {}} schedules={schedules} />);
+  fireEvent.click(screen.getByRole('tab', { name: 'Schedules' }));
+  expect(screen.getByText(/need a newer version/)).toBeInTheDocument();
 });

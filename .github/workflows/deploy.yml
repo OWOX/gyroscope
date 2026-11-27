@@ -1,0 +1,37 @@
+name: Deploy to owox.app
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-owox-app
+  queue: max
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VOID_API_URL: https://owox.app
+      VOID_PROJECT: gyroscope
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.22.2
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Connect to Void
+        run: npx --no -- void connect "$VOID_API_URL" --no-login
+      - name: Deploy to owox.app
+        run: npx --no -- void deploy --platform void --project "$VOID_PROJECT"
+        env:
+          VOID_TOKEN: ${{ secrets.VOID_TOKEN }}

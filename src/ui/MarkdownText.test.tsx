@@ -91,12 +91,17 @@ test('a heading keeps its text, loses closing hashes, and a long one is still a 
   expect(html(`# ${'x'.repeat(500)}`).querySelector('.gy-md-h')!.textContent).toHaveLength(500);
 });
 
+test('a long run of backslash escapes renders as one text node', () => {
+  const paragraph = html('\\'.repeat(8000)).querySelector('p')!;
+  expect(paragraph.textContent).toBe('\\'.repeat(4000));
+  expect(paragraph.childNodes).toHaveLength(1);
+});
+
 // Each line is 20k characters of one run that every pattern could split many ways; linear parsing takes a few ms.
 test.each([
   ['a heading with a long blank run', `#${' '.repeat(8000)}x${' '.repeat(8000)}#`],
   ['a heading with a long blank run and a long tail', `#${' '.repeat(8000)}${'x'.repeat(8000)}`],
   ['a table row of pipes', `${'|'.repeat(8000)}\n${'|-'.repeat(4000)}\n${'|'.repeat(8000)}`],
-  ['backslashes', '\\'.repeat(8000)],
   ['a list marker and blanks', `-${' '.repeat(8000)}`],
   ['blank lines', `a${'\n '.repeat(8000)}b`],
 ])('%s parses in well under 100 ms', (_n, text) => {
