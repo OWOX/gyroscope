@@ -153,7 +153,16 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     if (savingNow.current) return;
     if (dirtyNow.current > 0) setLeaving({ go, save }); else go();
   };
-  const navigate = ctx.ui?.navigate ? (path: string) => guard(() => ctx.ui.navigate(path)) : undefined;
+  // the host guards ctx.ui.navigate itself while setUnsaved is on, so asking here too would ask twice
+  const host = ctx.ui as { setUnsaved?: (dirty: boolean, message?: string) => void } | undefined;
+  const hostNow = useRef(host);
+  hostNow.current = host;
+  const navigate = ctx.ui?.navigate
+    ? (path: string) => {
+      if (!hostNow.current?.setUnsaved) { guard(() => ctx.ui.navigate(path)); return; }
+      if (!savingNow.current) ctx.ui.navigate(path);
+    }
+    : undefined;
 
   const setup = useSetup({
     owox, store, generateWith, isAdmin, by: editor ?? userId, projectId: ctx.projectId, now,
@@ -167,18 +176,21 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     setLeaving(null);
     leaving.go();
   }, [setup.props.dirty, leaving]);
-  const isDirty = setup.props.dirty > 0;
   // the host warns on its own exits (sidebar, Back, closing the tab) once it offers setUnsaved
-  const host = ctx.ui as { setUnsaved?: (dirty: boolean) => void } | undefined;
-  const hostNow = useRef(host);
-  hostNow.current = host;
-  const told = useRef(false);
+  const changes = setup.props.dirty;
+  const unsavedNote = changes > 0 ? `You have ${changes} unsaved ${changes === 1 ? 'change' : 'changes'} in Setup.` : null;
+  const told = useRef<string | null>(null);
   useEffect(() => {
-    if (isDirty === told.current) return;
-    told.current = isDirty;
-    hostNow.current?.setUnsaved?.(isDirty);
-  }, [isDirty]);
+    if (unsavedNote === told.current) return;
+    told.current = unsavedNote;
+    if (unsavedNote) hostNow.current?.setUnsaved?.(true, unsavedNote); else hostNow.current?.setUnsaved?.(false);
+  }, [unsavedNote]);
   useEffect(() => () => { if (told.current) hostNow.current?.setUnsaved?.(false); }, []);
+  // a new path clears the host's flag, so staged picks that survive the route change set it again
+  const setRoute = (path: string) => {
+    ctx.ui?.setRoute?.(path);
+    if (told.current) hostNow.current?.setUnsaved?.(true, told.current);
+  };
   const thresholdPct = setup.settings?.thresholdPct ?? EMPTY_SETUP.thresholdPct;
 
   const load = useCallback(async () => {
@@ -299,9 +311,9 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
     void refresh(false);
   }, [inputsReady, inputs, model, refresh, range]);
 
-  const openSettings = (tab: SettingsTab = 'general') => { ctx.ui?.setRoute?.(ROUTES[tab]); setSettingsError(null); setView({ name: 'settings', tab }); };
+  const openSettings = (tab: SettingsTab = 'general') => { setRoute(ROUTES[tab]); setSettingsError(null); setView({ name: 'settings', tab }); };
   const leaveSettings = () => {
-    ctx.ui?.setRoute?.('/');
+    setRoute('/');
     // blocked or not, the canvas or the blocked screen is what Setup last derived
     setView(modelNow.current ? { name: 'ready' } : { name: 'loading' });
     if (!modelNow.current) void setup.reload().catch((e) => setView({ name: 'error', message: describeError(e), retry: 'load' }));
@@ -349,7 +361,7 @@ export function App({ ctx, deps: injected }: { ctx: PluginContext; deps?: AppDep
         <SettingsPage
           settings={settings}
           tab={view.tab}
-          onTabChange={(t) => ctx.ui?.setRoute?.(ROUTES[t])}
+          onTabChange={(t) => setRoute(ROUTES[t])}
           setup={setup.props}
           onBack={() => guard(leaveSettings)}
           error={settingsError}
