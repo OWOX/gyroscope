@@ -95,6 +95,16 @@ test('nothing written while writes failed or were too large fails with CACHE_NOT
     .rejects.toMatchObject({ code: 'CACHE_NOT_WRITTEN' });
 });
 
+test('nothing written because the owner cannot edit the Data Marts fails with CACHE_ACCESS_DENIED', async () => {
+  const store = await setup();
+  const viewer = { ...store, collections: <T,>(name: string) => {
+    const col = store.collections<T>(name);
+    return name === 'mart-cache' ? { ...col, put: async () => { throw Object.assign(new Error('forbidden'), { payload: { status: 403 } }); } } : col;
+  } };
+  await expect(warmCache({ ranges: [range('qtd')] }, { owox, collections: viewer.collections as never, execution: { deadlineAt: '2026-11-06T08:05:00Z' } }, () => NOW))
+    .rejects.toMatchObject({ code: 'CACHE_ACCESS_DENIED', message: expect.stringContaining('cannot edit') });
+});
+
 test('a run whose Data Marts return no query fails with NO_DATA', async () => {
   const denied = fakeOwox({ ...data, rows: () => { throw new Error('403'); } });
   await expect(warm(await setup(), [range('qtd')], undefined, denied)).rejects.toMatchObject({ code: 'NO_DATA', message: expect.stringContaining('may not be able to read') });

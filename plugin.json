@@ -44,9 +44,9 @@
         "type": "data-mart",
         "actions": {
           "read": "SEE",
-          "create": "SEE",
-          "update": "SEE",
-          "delete": "SEE"
+          "create": "EDIT",
+          "update": "EDIT",
+          "delete": "EDIT"
         }
       }
     }

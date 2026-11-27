@@ -130,7 +130,7 @@ test('saving view settings writes nothing to the project settings collection', a
   const store: CollectionsLike = {
     collections: <T,>(name: string) => {
       const c = mem.collections<T>(name);
-      return { ...c, put: async (id: string, doc: T) => { if (name === 'settings') puts.push(id); return c.put(id, doc); } };
+      return { ...c, put: async (id: string, doc: T, options?: { parentId?: string }) => { if (name === 'settings') puts.push(id); return c.put(id, doc, options); } };
     },
   };
   const { deps } = await setup({ store });
@@ -164,6 +164,22 @@ test('retry after a failed initial load re-runs the load', async () => {
 
 
 
+
+test('a viewer who cannot edit the Data Mart sees fresh values and no save note', async () => {
+  const mem = memoryCollections();
+  const store: CollectionsLike = {
+    collections: <T,>(name: string) => {
+      const c = mem.collections<T>(name);
+      return name === 'mart-cache' ? { ...c, put: async () => { throw Object.assign(new Error('forbidden'), { payload: { status: 403 } }); } } : c;
+    },
+  };
+  const { deps, d } = await setup({ store, cache: 'none' });
+  d.rows = () => [{ 'revenue | SUM': 1234 }];
+  render(<App ctx={ctxWith().ctx} deps={deps} />);
+  expect(await screen.findByText('1.23K')).toBeInTheDocument();
+  await new Promise((r) => setTimeout(r, 50));
+  expect(screen.queryByText(/Couldn't save the refreshed data/)).toBeNull();
+});
 
 test('a failed Data Mart cache save keeps the new values on screen and shows a note', async () => {
   const mem = memoryCollections();

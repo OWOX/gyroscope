@@ -19,6 +19,6 @@ test('the manifest keeps the project collections from 0.5', () => {
 test('the backend runs the warm-cache action within the OWOX limit, and the cache collection is bound to the Data Mart', () => {
   const m = read('plugin.json');
   expect(m.backend.actions['warm-cache'].timeoutSeconds).toBe(300);
-  expect(m.collections.find((c: { name: string }) => c.name === 'mart-cache')).toMatchObject({ scope: 'project', entityBinding: { type: 'data-mart' } });
+  expect(m.collections.find((c: { name: string }) => c.name === 'mart-cache')).toMatchObject({ scope: 'project', entityBinding: { type: 'data-mart', actions: { read: 'SEE', create: 'EDIT', update: 'EDIT', delete: 'EDIT' } } });
   expect(m.collections.some((c: { name: string }) => c.name === 'schedule-models')).toBe(false);
 });

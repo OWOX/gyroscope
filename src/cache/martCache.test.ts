@@ -47,7 +47,7 @@ test('a miss queries live, and the flush writes the rows under the Data Mart wit
   const c = cachedOf(store, src);
   expect(await read(c.owox, 'm1', opts)).toEqual([{ v: 1 }, { v: 2 }]);
   const r = await c.flush();
-  expect(r).toEqual({ written: [ID], failed: [], tooLarge: [] });
+  expect(r).toEqual({ written: [ID], failed: [], tooLarge: [], denied: [] });
   const doc = await cachedDoc(store);
   expect(doc.anchor).toBe(ANCHOR);
   expect(doc.queries[stableJson(opts)]!.rows).toEqual([{ v: 1 }, { v: 2 }]);
@@ -70,7 +70,7 @@ test('a hit answers from the cache without a live query', async () => {
 test('a doc of another day serves nothing, and its queries are dropped on flush', async () => {
   const store = memoryCollections();
   const old = { other: { rows: [{ v: 0 }], at: '2026-11-05T06:00:00.000Z' }, [stableJson(opts)]: { rows: [{ v: 0 }], at: '2026-11-05T06:00:00.000Z' } };
-  await cacheCol(store).put(ID, { v: 1, anchor: '2026-11-05', fetchedAt: '2026-11-05T06:00:00.000Z', queries: old });
+  await cacheCol(store).put(ID, { v: 1, anchor: '2026-11-05', fetchedAt: '2026-11-05T06:00:00.000Z', queries: old }, { parentId: 'm1' });
   const src = fakeSource(() => [{ v: 5 }]);
   const c = cachedOf(store, src);
   expect(await read(c.owox, 'm1', opts)).toEqual([{ v: 5 }]);
@@ -82,7 +82,7 @@ test('a doc of another day serves nothing, and its queries are dropped on flush'
 test('write-only skips reads but keeps the queries already cached today', async () => {
   const store = memoryCollections();
   const at = '2026-11-06T06:00:00.000Z';
-  await cacheCol(store).put(ID, { v: 1, anchor: ANCHOR, fetchedAt: at, queries: { other: { rows: [{ v: 3 }], at }, [stableJson(opts)]: { rows: [{ v: 9 }], at } } });
+  await cacheCol(store).put(ID, { v: 1, anchor: ANCHOR, fetchedAt: at, queries: { other: { rows: [{ v: 3 }], at }, [stableJson(opts)]: { rows: [{ v: 9 }], at } } }, { parentId: 'm1' });
   const src = fakeSource(() => [{ v: 4 }]);
   const c = cachedOf(store, src, 'write-only');
   expect(await read(c.owox, 'm1', opts)).toEqual([{ v: 4 }]);
@@ -146,8 +146,25 @@ test('a flush whose own entries exceed the limit is reported and not written', a
   const big = 'x'.repeat(MAX_CACHE_CHARS);
   const c = cachedOf(store, fakeSource(() => [{ big }]));
   await read(c.owox, 'm1', opts);
-  expect(await c.flush()).toEqual({ written: [], failed: [], tooLarge: [ID] });
+  expect(await c.flush()).toEqual({ written: [], failed: [], tooLarge: [ID], denied: [] });
   expect(await store.collections(MART_CACHE).get(ID)).toBeNull();
+});
+
+test('a write the host refuses with 403 is denied, not failed: a viewer reads the shared cache but cannot write it', async () => {
+  const store = memoryCollections();
+  const viewer = { collections<T>(name: string) { const col = store.collections<T>(name); return { get: col.get, put: async () => { throw Object.assign(new Error('forbidden'), { payload: { status: 403 } }); } }; } };
+  const c = cachedOwox({ owox: fakeSource(() => [{ v: 1 }]).owox, store: viewer, key: KEY, anchor: ANCHOR, mode: 'read-write', now: () => NOW });
+  await read(c.owox, 'm1', opts);
+  expect(await c.flush()).toEqual({ written: [], failed: [], tooLarge: [], denied: [ID] });
+});
+
+test('a doc filed under another Data Mart is not read: the host checked access on that one, not this one', async () => {
+  const store = memoryCollections();
+  const at = '2026-11-06T06:00:00.000Z';
+  await cacheCol(store).put(ID, { v: 1, anchor: ANCHOR, fetchedAt: at, queries: { [stableJson(opts)]: { rows: [{ v: 666 }], at } } }, { parentId: 'm2' });
+  const c = cachedOf(store, fakeSource(() => [{ v: 4 }]), 'read-write');
+  expect(await read(c.owox, 'm1', opts)).toEqual([{ v: 4 }]);
+  expect(c.stats().hits).toBe(0);
 });
 
 test('a failed write is reported, not thrown', async () => {
@@ -155,7 +172,7 @@ test('a failed write is reported, not thrown', async () => {
   const readOnly = { collections<T>(name: string) { const col = store.collections<T>(name); return { get: col.get, put: async () => { throw new Error('403'); } }; } };
   const c = cachedOwox({ owox: fakeSource(() => [{ v: 1 }]).owox, store: readOnly, key: KEY, anchor: ANCHOR, mode: 'read-write', now: () => NOW });
   await read(c.owox, 'm1', opts);
-  expect(await c.flush()).toEqual({ written: [], failed: [ID], tooLarge: [] });
+  expect(await c.flush()).toEqual({ written: [], failed: [ID], tooLarge: [], denied: [] });
 });
 
 test('the wrapper delegates every other OwoxLike member', async () => {
@@ -168,7 +185,7 @@ test('the wrapper delegates every other OwoxLike member', async () => {
 
 test('a doc of today without queries is no doc, and does not throw', async () => {
   const store = memoryCollections();
-  await store.collections<unknown>(MART_CACHE).put(ID, { v: 1, anchor: ANCHOR, fetchedAt: NOW.toISOString() });
+  await store.collections<unknown>(MART_CACHE).put(ID, { v: 1, anchor: ANCHOR, fetchedAt: NOW.toISOString() }, { parentId: 'm1' });
   const src = fakeSource(() => [{ v: 1 }]);
   const c = cachedOf(store, src);
   expect(await read(c.owox, 'm1', opts)).toEqual([{ v: 1 }]);

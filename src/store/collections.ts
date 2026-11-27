@@ -3,7 +3,8 @@ import { DEFAULT_SETTINGS, PRESET_LABELS, type CompareChoice, type ComparePreset
 
 export interface CollectionsLike {
   collections<T>(name: string): {
-    get(id: string): Promise<{ document: T } | null>;
+    /** `parentId`: the entity a bound doc was filed under, such as its Data Mart. */
+    get(id: string): Promise<{ document: T; parentId?: string | null } | null>;
     /** `parentId` is required by collections bound to an entity, such as `mart-cache`. */
     put(id: string, doc: T, options?: { parentId?: string }): Promise<unknown>;
   };
@@ -78,7 +79,7 @@ export function memoryCollections(): CollectionsLike & { parentOf(name: string, 
       const col = store.get(name) ?? new Map<string, unknown>();
       store.set(name, col);
       return {
-        get: async (id: string) => (col.has(id) ? { document: col.get(id) as T } : null),
+        get: async (id: string) => (col.has(id) ? { document: col.get(id) as T, parentId: parents.get(`${name}/${id}`) ?? null } : null),
         put: async (id: string, doc: T, options?: { parentId?: string }) => {
           col.set(id, doc);
           if (options?.parentId) parents.set(`${name}/${id}`, options.parentId);

@@ -1,8 +1,9 @@
+import { statusOf } from '../lib/errors';
 import type { OwoxLike } from '../owox/sources';
 import type { CollectionsLike } from '../store/collections';
 import type { Day } from '../types';
 
-/** One doc per Data Mart and date range holding its queries of the day, shared by the project; bound to the Data Mart, so a member reads only the ones they can see. */
+/** One doc per Data Mart and date range holding its queries of the day, shared by the project; bound to the Data Mart, so a member reads only the ones they can see and writes only the ones they can edit. */
 export const MART_CACHE = 'mart-cache';
 export const MAX_CACHE_CHARS = 900_000;
 
@@ -25,7 +26,8 @@ export function stableJson(v: unknown): string {
 
 interface CachedOwox {
   owox: OwoxLike;
-  flush(): Promise<{ written: string[]; failed: string[]; tooLarge: string[] }>;
+  /** `denied`: the member cannot edit the Data Mart, so its numbers are theirs alone and never shared. */
+  flush(): Promise<{ written: string[]; failed: string[]; tooLarge: string[]; denied: string[] }>;
   stats(): { hits: number; misses: number; oldestHit: string | null };
 }
 
@@ -44,7 +46,8 @@ export function cachedOwox(args: { owox: OwoxLike; store: CollectionsLike; key: 
   const load = (martId: string) => {
     let p = loaded.get(martId);
     if (!p) {
-      p = col.get(martCacheId(martId, key)).then((d) => (d?.document?.v === 1 && d.document.anchor === anchor && typeof d.document.queries === 'object' && d.document.queries !== null ? d.document : null), () => null);
+      // the host checks access on the parent, not the id: a doc filed under another Data Mart is someone else's word for this one
+      p = col.get(martCacheId(martId, key)).then((d) => (d?.parentId === martId && d.document?.v === 1 && d.document.anchor === anchor && typeof d.document.queries === 'object' && d.document.queries !== null ? d.document : null), () => null);
       loaded.set(martId, p);
     }
     return p;
@@ -81,6 +84,7 @@ export function cachedOwox(args: { owox: OwoxLike; store: CollectionsLike; key: 
       const written: string[] = [];
       const failed: string[] = [];
       const tooLarge: string[] = [];
+      const denied: string[] = [];
       for (const [martId, queries] of recorded) {
         const id = martCacheId(martId, key);
         // today's queries made by other runs stay; a doc of another day is dropped by load()
@@ -99,12 +103,12 @@ export function cachedOwox(args: { owox: OwoxLike; store: CollectionsLike; key: 
         try {
           await col.put(id, doc, { parentId: martId });
           written.push(id);
-        } catch {
-          failed.push(id);
+        } catch (e) {
+          (statusOf(e) === 403 ? denied : failed).push(id);
         }
       }
       recorded.clear();
-      return { written, failed, tooLarge };
+      return { written, failed, tooLarge, denied };
     },
     stats: () => ({ hits, misses, oldestHit }),
   };
