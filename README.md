@@ -20,6 +20,17 @@ In Settings → Schedules, each member can schedule a cache refresh for up to fi
 
 ## Release notes
 
+### 0.6.2
+
+1. Only members who can edit a Data Mart save its numbers to the shared cache. Members who can only see it still read the cache.
+2. A cached answer filed under another Data Mart is ignored.
+3. A schedule whose owner can edit none of its Data Marts fails with `CACHE_ACCESS_DENIED`.
+
+### 0.6.1
+
+1. The host's unsaved-changes warning stays on when you switch Settings tabs with unsaved Setup changes, and names how many there are.
+2. An OWOX link with unsaved Setup changes asks once, in the host's dialog.
+
 ### 0.6.0
 
 1. Members can schedule Gyroscope to refresh its Data Mart cache.
